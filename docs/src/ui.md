@@ -223,7 +223,7 @@ CSP を緩めずに cytoscape を使うための、2 つの決まり（`static/n
 
 - [cytoscape](https://js.cytoscape.org/) 3.35.0（MIT。The Cytoscape Consortium）。相関図が使う。npm の tarball の `package/dist/cytoscape.min.js` を、そのまま `static/vendor/cytoscape-3.35.0.min.js` に置く。license の写しは `static/vendor/cytoscape-LICENSE`。
 - [i18next](https://www.i18next.com/) 27.2.9（MIT）。画面の字を言語ごとに差し替える（AI-50）。npm の tarball の `package/dist/umd/i18next.min.js` を、そのまま `static/vendor/i18next-27.2.9.min.js` に置く。license の写しは `static/vendor/i18next-LICENSE`。
-- どちらも callboard が binary に埋め込んで配る（CDN からは読まない）。出どころの記録は `static/vendor/SOURCES.md`（package ごとに 1 節）。`ci/check-vendor.sh`（CI の job `test`）が、節ごとに、npm の registry の物と、commit した file とを突き合わせる（package ごとに書き替えた写しを当てること・2 つ目の節の壊れた記録を当てることも CI で見る）。
+- どちらも callboard が binary に埋め込んで配る（CDN からは読まない）。出どころの記録は `static/vendor/SOURCES.md`（package ごとに 1 節）。`ci/check-vendor.sh`（CI の job `test`）が、節ごとに、npm の registry の物と、commit した file とを突き合わせる（package ごとに書き替えた写しを当てること・2 つ目の節の壊れた記録を当てること・表を書き損じた節を当てることも、落ちた訳まで CI で見る）。表を書き損じた節・同じ package の節が 2 つ・どの節にも名指されない `static/vendor/` の file も落とす。
 
 版の上げ方（`<名>` は cytoscape か i18next）:
 
