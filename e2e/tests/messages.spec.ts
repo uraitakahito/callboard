@@ -1,9 +1,9 @@
 // メッセージの一覧（/messages）を、本物の pagetray を相手に、本物の browser で見る。pagetray の e2e/tests/messages.spec.ts を移した物。
 // HTML の字は crates/server/tests/messages.rs（Rust）が見るので、ここは browser でしか見えない物（script の動き・本文が HTML として
-// 動かないこと・新着の知らせの中継）と、人が押してたどる道と、pagetray の画面との比べ（新旧の比べ）を見る。
+// 動かないこと・新着の知らせの中継）と、人が押してたどる道を見る。
 // 「まだ届いていない n 件」は置き場の全部を数えるので、まだ届いていないにした記録は、試験の終わりまでに届いたにする。
-import { expect, test, type APIRequestContext } from '@playwright/test';
-import { PAGETRAY, choice, collectProblems, fresh, messageRow, messageRows, openLive, placePage, putMessage, undelivered, type Message } from './helpers';
+import { expect, test } from '@playwright/test';
+import { choice, collectProblems, fresh, messageRow, messageRows, openLive, placePage, putMessage, undelivered, type Message } from './helpers';
 
 const message = (change: Partial<Message> = {}): Message => ({
   heading: 'request',
@@ -201,110 +201,23 @@ test('知らせにつなげなかった時（pagetray が止まっている間�
   await expect(messageRows(page)).toHaveCount(3);
 });
 
-// --- 新旧の比べ: 同じ pagetray を相手に、pagetray の画面（古い画面）と callboard の画面の中身を比べる ---
+// --- 続きの頁 ---
+// pagetray の画面（古い画面）と中身を比べていた試験は、pagetray が 2.0.0 で画面を外したので外した（比べる相手が無い。
+// 外す前の比べの結果は、AI-32 の成果のページと、callboard の PR #7・#8 にある）。比べていた事のうち、続きの頁を辿る事は残す。
 
-/**
- * 画面の、比べる所: tab の題・「まだ届いていない n 件」の釦・絞り込みの列・一覧の列。
- * 違ってよい所は、そろえてから比べる:
- * - 時刻の字（pagetray は UTC の字を出して script がその機械の時刻に書き替え、callboard は日本の時刻で組む）と、`title`。
- *   `datetime` の時刻が同じことを見る。
- * - 行の `data-at`（最後に書き足された時刻。字の形が違う。同じ時刻かを見る）。
- * - tab の題の後ろの「・ callboard」。
- */
-async function parts(request: APIRequestContext, base: string, path: string): Promise<Record<string, string>> {
-  const response = await request.get(`${base}${path}`);
-  expect(response.status(), `${base}${path}`).toBe(200);
-  const html = await response.text();
-  const cut = (open: RegExp, close: string): string => {
-    const found = open.exec(html);
-    expect(found, `${open} が無い: ${base}${path}`).toBeTruthy();
-    const start = found!.index;
-    return html.slice(start, html.indexOf(close, start) + close.length);
-  };
-  const instant = (iso: string) => String(Date.parse(iso));
-  const tidy = (part: string) =>
-    part
-      .replace(/<time datetime="([^"]+)"(?: title="[^"]+")?>[^<]*<\/time>/g, (_, iso: string) => `<time ${instant(iso)}>`)
-      .replace(/ data-at="([^"]+)"/g, (_, iso: string) => ` data-at=${instant(iso)}`);
-  return {
-    title: /<title>([^<]*)<\/title>/.exec(html)![1].replace(/ ・ callboard$/, ''),
-    undelivered: cut(/<a class="btn[^"]*" id="undelivered"/, '</a>'),
-    filters: tidy(cut(/<nav id="filters"/, '</nav>')),
-    list: tidy(cut(/<div id="list"/, '</div>')),
-  };
-}
-
-async function same(request: APIRequestContext, path: string): Promise<Record<string, string>> {
-  const old = await parts(request, PAGETRAY, path);
-  const now = await parts(request, '', path);
-  expect(now, path).toEqual(old);
-  return now;
-}
-
-test('新旧の比べ: 絞り込みごとに、題・まだ届いていない数・絞り込みの列・一覧の列が、pagetray の画面と同じ', async ({ request }) => {
-  // どの欄も使った記録と、逃がす字・長い本文・行の多い本文・決めていない名の via。
-  await putMessage(request, 'cmp', 'm-1', message({ key: 'A-1', heading: 'answer', from: 'pm.1', to: 't-1.swe.1', text: 'りんごにする', deliveredAt: '2026-11-01T00:00:07.5Z', via: 'session-start', deliveries: 3, replyTo: 'm-0' }));
-  await putMessage(request, 'cmp', 'm-2', message({ sentAt: '2026-11-02T00:00:00Z', state: 'expired', via: 'ttl', text: `頭の行\n${'あ'.repeat(400)}終わり` }));
-  await putMessage(request, 'cmp', 'm-3', message({ sentAt: '2026-11-03T00:00:00.123Z', state: 'carried', to: 'a b?c&d#e/f', from: '<i>from</i>', text: '<b>太字</b> & "引用"' }));
-  await putMessage(request, 'cmp', 'm-4', message({ sentAt: '2026-11-04T00:00:00Z', state: 'undeliverable', via: 'max-deliveries', deliveries: 5, key: 'B-2', to: 'workspace:1', text: '1\n2\n3\n4\n5\n6' }));
-  await putMessage(request, 'cmp', 'm-5', message({ sentAt: '2026-11-05T00:00:00Z', state: 'waiting', via: 'gate', deliveries: 1, text: 'あ'.repeat(200) }));
-
-  const all = await same(request, '/messages');
-  // 空の画面どうしを比べていないこと。
-  expect(all.list).toContain('data-id="cmp/m-3"');
-  expect(all.filters).toContain('<h2>受け手</h2>');
-  expect(all.title).toMatch(/^まだ届いていない \d+ 件 ・ メッセージの記録$/);
-  for (const path of [
-    '/messages?project=cmp',
-    '/messages?state=waiting',
-    '/messages?state=undeliverable&project=cmp',
-    '/messages?to=a%20b%3Fc%26d%23e%2Ff',
-    '/messages?to=workspace%3A1&key=B-2',
-    '/messages?from=pm.1&project=cmp',
-    '/messages?key=A-1',
-    // 置き場に無い値（候補に、件数 0 で入る）。
-    '/messages?to=nobody&from=nobody&key=NONE',
-    // 空の値と、知らない状態と、知らない引数は、書かないのと同じ。
-    '/messages?state=done&to=&nope=1&project=cmp',
-    '/messages?project=no-such',
-  ]) {
-    await same(request, path);
-  }
-  expect((await same(request, '/messages?project=no-such')).list).toContain('合うメッセージは無い');
-  await putMessage(request, 'cmp', 'm-5', message({ sentAt: '2026-11-05T00:00:00Z', state: 'delivered', text: 'あ'.repeat(200) }));
-  await same(request, '/messages?project=cmp');
-});
-
-test('新旧の比べ: 続きの link を辿っても、どの頁も pagetray の画面と同じ（201 件）', async ({ request }) => {
+test('続きの link を辿ると、201 件が 200 件と 1 件の 2 頁に出る（境に同じ時刻の行が並んでも抜けない）', async ({ page, request }) => {
   for (let i = 0; i < 201; i += 1) {
     // 境に、同じ時刻の行を並べる。
     const minute = String(Math.floor(i / 3) % 60).padStart(2, '0');
-    await putMessage(request, 'cmp-many', `m-${String(i).padStart(3, '0')}`, message({ sentAt: `2026-10-01T0${Math.floor(i / 180)}:${minute}:00Z`, to: `seat-${i % 7}`, text: `記録 ${i}` }));
+    await putMessage(request, 'more-many', `m-${String(i).padStart(3, '0')}`, message({ sentAt: `2026-10-01T0${Math.floor(i / 180)}:${minute}:00Z`, to: `seat-${i % 7}`, text: `記録 ${i}` }));
   }
-  const first = await same(request, '/messages?project=cmp-many&to=seat-3');
-  expect(first.list).not.toContain('続きを出す');
-  const head = await same(request, '/messages?project=cmp-many');
-  const more = /<a class="more" href="([^"]+)">続きを出す<\/a>/.exec(head.list);
-  expect(more, '続きの link が無い').toBeTruthy();
-  const next = more![1].replaceAll('&#38;', '&');
-  expect(next).toMatch(/^\/messages\?project=cmp-many&at=[0-9a-f]+$/);
-  const tail = await same(request, next);
-  expect(tail.list.match(/<li data-id=/g)).toHaveLength(1);
-  expect(tail.list).not.toContain('続きを出す');
-});
-
-test('新旧の比べ: 同じ名の引数を 2 度書いた物は、どちらも 400', async ({ request }) => {
-  expect((await request.get(`${PAGETRAY}/messages?to=a&to=b`)).status()).toBe(400);
-  const now = await request.get('/messages?to=a&to=b');
-  expect(now.status()).toBe(400);
-  expect(await now.text()).toContain('引数を読めません（to を 2 度書いています）');
-});
-
-test('違う所: 値の形が違う引数と読めない続きの印は、pagetray の画面は条件が無い物として出し、callboard は 400 の画面で訳を書く', async ({ request }) => {
-  for (const path of [`/messages?to=${'a'.repeat(201)}`, '/messages?key=a%2Fb', '/messages?at=zz']) {
-    expect((await request.get(`${PAGETRAY}${path}`)).status(), path).toBe(200);
-    const now = await request.get(path);
-    expect(now.status(), path).toBe(400);
-    expect(await now.text(), path).toContain('pagetray が引数を断りました');
-  }
+  await page.goto('/messages?project=more-many');
+  await expect(messageRows(page)).toHaveCount(200);
+  const seen = new Set(await messageRows(page).evaluateAll((rows) => rows.map((r) => r.getAttribute('data-id'))));
+  await page.getByRole('link', { name: '続きを出す' }).click();
+  await expect(page).toHaveURL(/\/messages\?project=more-many&at=[0-9a-f]+$/);
+  await expect(messageRows(page)).toHaveCount(1);
+  const last = await messageRows(page).first().getAttribute('data-id');
+  expect(seen.has(last), `${last} が 2 度出た`).toBe(false);
+  await expect(page.getByRole('link', { name: '続きを出す' })).toHaveCount(0);
 });

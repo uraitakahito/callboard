@@ -11,9 +11,9 @@ callboard が HTML を組んで返す画面（askama。`templates/`）。callboa
 
 ## 移した画面と、まだ移していない画面
 
-castlist と pagetray の画面を、1 つずつ callboard に移した。castlist の 4 つの画面（0.2.0 まで）と、pagetray の 2 つの画面（メッセージの一覧は 0.3.0、ページの一覧は 0.4.0）。castlist は、2.0.0 で自分の画面を外した（表の「castlist での道」は、前の道。今は 404）。pagetray の画面は、まだ残っている。ページの本文と file の中身は、画面でなく pagetray が持つ物なので、browser が pagetray から直に読む（URL の頭は設定の `CALLBOARD_PAGETRAY_LINK_URL`。[動かす](run.md)）。
+castlist と pagetray の画面を、1 つずつ callboard に移した。castlist の 4 つの画面（0.2.0 まで）と、pagetray の 2 つの画面（メッセージの一覧は 0.3.0、ページの一覧は 0.4.0）。castlist は 2.0.0 で、pagetray は 2.0.0 で、自分の画面を外した（表の「castlist・pagetray での道」は、前の道。今は 404）。ページの本文と file の中身は、画面でなく pagetray が持つ物なので、browser が pagetray から直に読む（URL の頭は設定の `CALLBOARD_PAGETRAY_LINK_URL`。[動かす](run.md)）。
 
-| 画面 | 今ある所 | callboard の道 | castlist・pagetray での道（castlist の物は、2.0.0 で無くなった） |
+| 画面 | 今ある所 | callboard の道 | castlist・pagetray での道（どちらも 2.0.0 で無くなった） |
 |---|---|---|---|
 | 入口 | callboard | `/` | — |
 | アクターの一覧 | callboard（0.2.0 から） | `/actors/` | castlist の `/` |
@@ -281,7 +281,7 @@ script（`/static/messages.js`）が、`GET /api/pagetray/events` を `EventSour
 - pagetray の答えの頭は 4 秒まで待つ。届かない・知らせの流れでない答え（200 でない・型が `text/event-stream` でない）は 503 `Unavailable`。
 - script が動かなくても、一覧は開き、絞り込みも続きも link で動く（新着は、読み直すと出る）。
 
-pagetray の画面との違いは 3 つ: 時刻を callboard が日本時間で組むこと（pagetray の画面は、UTC の字を出して、script がその機械の時刻に書き替える）・値の形が違う引数と読めない続きの印を 400 の画面にすること（pagetray の画面は、条件が無い物として出す）・頭の帯。CI の browser の試験（`e2e/tests/messages.spec.ts`）が、同じ pagetray を相手に、題・まだ届いていない数・絞り込みの列・一覧の列を、絞り込みごと・続きの頁ごとに比べる。
+pagetray の画面との違いは 3 つ: 時刻を callboard が日本時間で組むこと（pagetray の画面は、UTC の字を出して、script がその機械の時刻に書き替える）・値の形が違う引数と読めない続きの印を 400 の画面にすること（pagetray の画面は、条件が無い物として出す）・頭の帯。外す前（pagetray 1.3.0 まで）は、CI の browser の試験が、同じ pagetray を相手に、pagetray の画面と中身を比べていた（動いている置き場の 109 画面でも、違いは 0）。比べる相手が無くなったので、その試験は外した（1.0.0）。
 
 ## `GET /pages/` ページの一覧
 
@@ -316,4 +316,4 @@ project と Key を 1 つずつ選んだ時（`?project=…&key=…`）だけ、
 - **この道の守り**: callboard の、ただ 1 つの書く道。この callboard の画面の form からの要求（`Origin` が `http://<Host>` とそのまま同じで、`Sec-Fetch-Site` が無いか `same-origin`）だけを通す。ほかの site・本文の枠の中のページ（pagetray の origin か、sandbox の `null`）・`Origin` の無い要求は 403。本文は 16 MiB まで（pagetray が file 1 つに受ける大きさ。ほかの道は 2 MiB）。project と Key の形が違う・名が無い要求は 400。
 - ほかの所（`roster file put` など）から、この Key に file が置かれると（`file` の知らせ）、file の枠を押さずに読み直す。
 
-pagetray の画面との違いは 5 つ: 一覧の道が `/pages/` の 1 つなこと（pagetray の `/<project>/`・`/<project>/<key>/` の道は無い）・時刻を callboard が日本時間で組むこと・値の形が違う引数と読めない続きの印を 400 の画面にすること・送り手の名の link が callboard のプロフィールなこと・未読の印を callboard の origin で覚え直すこと。CI の browser の試験（`e2e/tests/pages.spec.ts`）が、同じ pagetray を相手に、題・探す form・待ちの数の釦・絞り込みの列・一覧の列・本文の枠・file の枠と上げる枠を、絞り込みごと・続きの頁ごとに比べる。
+pagetray の画面との違いは 5 つ: 一覧の道が `/pages/` の 1 つなこと（pagetray の `/<project>/`・`/<project>/<key>/` の道は無い）・時刻を callboard が日本時間で組むこと・値の形が違う引数と読めない続きの印を 400 の画面にすること・送り手の名の link が callboard のプロフィールなこと・未読の印を callboard の origin で覚え直すこと。外す前（pagetray 1.3.0 まで）は、CI の browser の試験が、同じ pagetray を相手に、pagetray の画面と中身を比べていた（動いている置き場の 330 画面でも、違いは 0）。比べる相手が無くなったので、その試験は外した（1.0.0）。
