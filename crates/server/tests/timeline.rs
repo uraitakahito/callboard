@@ -375,7 +375,20 @@ fn big(n: usize) -> Value {
 /// callboard の container の CPU は 1 なので、糸の上で組むと、ほかの画面が止まる）。
 #[tokio::test(flavor = "current_thread")]
 async fn 大きなタイムラインを組んでいる間も_ほかの問い合わせを待たせない() {
-    let app = start(big(1500)).await;
+    // 偽の castlist の答えは、先に字にしておく（1500 人の JSON を組む所を、試験が見ている糸の上で走らせない）。
+    let answer = big(1500).to_string();
+    let app = App::start_with(
+        common::castlist_routes().route(
+            "/api/timeline",
+            route_get(move || {
+                let answer = answer.clone();
+                async move { common::json(StatusCode::OK, &answer) }
+            }),
+        ),
+        common::pagetray_routes(),
+        callboard::Config::default(),
+    )
+    .await;
     // 1 度組むのにかかる長さ（これが短すぎると、待たされたかを見分けられない）。
     let started = std::time::Instant::now();
     let body = app.html("/graph/timeline").await;
@@ -410,9 +423,13 @@ async fn 大きなタイムラインを組んでいる間も_ほかの問い合�
         asked >= 3,
         "組んでいる間に /healthz を {asked} 回しか問えていない"
     );
-    // 糸の上で組んでいれば、1 回りは図 1 つ分（once）ほど待たされる。
+
+    // 余裕を見えるようにする（cargo test -- --nocapture で出る）。
+    println!("図を 1 度組む: {once:?}・一番遅い 1 回り: {slowest:?}・問うた数: {asked}");
+    // 糸の上で組んでいれば、1 回りは図 1 つ分（once）ほど待たされる（手元で spawn_blocking を外すと、once の 7 割）。
+    // 糸の外で組んでいても、castlist の答えの JSON を読む所は糸の上で走る（手元で、once の 2 割ほど）。その間を取って、半分で見る。
     assert!(
-        slowest < once / 3,
+        slowest < once / 2,
         "/healthz が {slowest:?} 待たされた（図を 1 度組むのは {once:?}）"
     );
 }
