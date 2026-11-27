@@ -82,6 +82,14 @@ test('プロフィールは、推しの幕引きで終わった者に停止（�
   await expect(page.locator('#children')).toContainText('tpm.1');
 });
 
+test('時刻ずれの印は、登録・出来事・model と effort のどれがずれたアクターにも付き、ずれの無いアクターには付かない', async ({ page, request }) => {
+  for (const [name, skewed] of [['pm.1', true], ['tpm.1', true], ['other.1', true], ['se.1', false], ['se.2', false]] as const) {
+    const node = await byName(request, name);
+    await page.goto(`/actors/${node.id}`);
+    await expect(page.locator('#state .skew'), name).toHaveCount(skewed ? 1 : 0);
+  }
+});
+
 test('プロフィールは script を使わず、console の誤りも CSP の違反も無い', async ({ page, request }) => {
   const problems: string[] = [];
   page.on('console', (m) => {

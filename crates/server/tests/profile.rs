@@ -248,6 +248,34 @@ async fn プロフィールの出来事は_日本語の名と理由ときっか�
 }
 
 #[tokio::test]
+async fn 時刻ずれの印は_登録_出来事_model_と_effort_のどれか_1_つがずれていれば付く() {
+    // 見本の se.1 から、時刻ずれの行を無くした物。
+    let clean = || {
+        let mut actor = se1_actor();
+        actor["events"][2]["clockSkew"] = json!(false);
+        actor
+    };
+    let skewed = |actor: serde_json::Value| async move {
+        let app = start_with(actor, se1_lineage()).await;
+        let body = app.html(&format!("/actors/{SE1}")).await;
+        section(&body, "state").contains("class=\"skew\"")
+    };
+    assert!(!skewed(clean()).await);
+    // 登録だけ。
+    let mut actor = clean();
+    actor["clockSkew"] = json!(true);
+    assert!(skewed(actor).await);
+    // 出来事だけ。
+    let mut actor = clean();
+    actor["events"][0]["clockSkew"] = json!(true);
+    assert!(skewed(actor).await);
+    // model と effort だけ。
+    let mut actor = clean();
+    actor["settings"][3]["clockSkew"] = json!(true);
+    assert!(skewed(actor).await);
+}
+
+#[tokio::test]
 async fn 推しの幕引きで終わった者は_停止_推しと書く() {
     let mut actor = se1_actor();
     actor["state"] = json!({"presence": "closed", "present": false, "inferred": true});

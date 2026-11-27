@@ -436,6 +436,64 @@ async fn 中継の道は_答えの頭が遅ければ_callboard_の時間切れ�
 }
 
 #[tokio::test]
+async fn 中継の道は_本文が遅くても_読み終えるまでを区切り_unavailable_で返す() {
+    // 頭はすぐ返し、本文の途中で止まる castlist。
+    let app = App::start_with(
+        Router::new().route(
+            "/api/graph",
+            route_get(|| async {
+                let stream = stalled();
+                axum::response::Response::builder()
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(axum::body::Body::new(stream))
+                    .unwrap()
+            }),
+        ),
+        common::pagetray_routes(),
+        callboard::Config::default(),
+    )
+    .await;
+    // 直す前は、答えが終わらない。試験は 10 秒で見切る。
+    let answer = tokio::time::timeout(
+        Duration::from_secs(10),
+        app.send(get("/api/castlist/graph")),
+    )
+    .await;
+    let (status, headers, body) = answer.expect("答えが終わらない");
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{body}");
+    assert_eq!(error_type(&headers), "Unavailable");
+    assert!(
+        body.contains("castlist に聞けません（時間内に答えがありません）"),
+        "{body}"
+    );
+}
+
+/// 初めの 1 片を出した後、終わらない本文。
+fn stalled() -> Stalled {
+    Stalled(false)
+}
+
+struct Stalled(bool);
+
+impl http_body::Body for Stalled {
+    type Data = axum::body::Bytes;
+    type Error = std::convert::Infallible;
+
+    fn poll_frame(
+        mut self: std::pin::Pin<&mut Self>,
+        _: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Result<http_body::Frame<Self::Data>, Self::Error>>> {
+        if self.0 {
+            return std::task::Poll::Pending;
+        }
+        self.0 = true;
+        std::task::Poll::Ready(Some(Ok(http_body::Frame::data(
+            axum::body::Bytes::from_static(b"{\"asOf\":"),
+        ))))
+    }
+}
+
+#[tokio::test]
 async fn 中継の道は読むだけで_head_は本文なし_書く_method_は_405() {
     let app = start().await;
     let (status, headers, body) = app
