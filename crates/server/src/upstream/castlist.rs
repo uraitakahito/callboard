@@ -80,6 +80,9 @@ pub enum Cut {
     Time,
 }
 
+/// 全部の頁の期限を、1 つの問いの時間切れより前に置く幅。
+const USAGE_DEADLINE_MARGIN: std::time::Duration = std::time::Duration::from_millis(250);
+
 /// ListUsage の 1 頁の数（castlist の上限）と、引く頁の上限。越えたら、そこで止める（[`UsageAnswer::truncated`]）。
 pub const USAGE_PAGE_SIZE: i32 = 1000;
 pub const USAGE_MAX_PAGES: usize = 50;
@@ -246,7 +249,9 @@ impl Castlist {
     /// 初めの頁が時間内に読めなければ 503 `Unavailable`。2 頁目より後で時間を過ぎたら、そこまでに読めた行を返す
     /// （[`Cut::Time`]。頁の上限で止めた時と同じ扱い）。2 頁目より後で castlist が頁の印を断った時は、人には直せないので 503。
     pub async fn usage(&self, search: &UsageSearch) -> Result<UsageAnswer, Failure> {
-        let deadline = tokio::time::Instant::now() + TIMEOUT;
+        // 全部の頁の期限は、1 つの問いの時間切れ（client の TIMEOUT）より少し前に置く。同じ時刻だと、2 頁目より後の問いの
+        // 時間切れが先に来て 503 になり、読めた行を捨てる（競り合い）。
+        let deadline = tokio::time::Instant::now() + TIMEOUT - USAGE_DEADLINE_MARGIN;
         let slow = || {
             tracing::warn!(
                 upstream = NAME,
