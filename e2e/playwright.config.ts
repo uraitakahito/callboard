@@ -1,10 +1,13 @@
-// 画面の browser の試験の設定。出した版の castlist-server と、同じ commit の callboard-server を、空いている port で起こして向ける。
+// 画面の browser の試験の設定。出した版の castlist-server・pagetray-server と、同じ commit の callboard-server を、空いている port で
+// 起こして向ける。
 //   CALLBOARD_E2E_CASTLIST  起こす castlist-server の binary（必ず書く。ci/castlist-binary.sh が、出した版の image から取り出す。
 //                           手元では、castlist の同じ版の tag を build した物）
+//   CALLBOARD_E2E_PAGETRAY  起こす pagetray-server の binary（必ず書く。ci/pagetray-binary.sh が、出した版の image から取り出す。
+//                           手元では、pagetray の同じ版の tag を build した物）
 //   CALLBOARD_E2E_SERVER    起こす callboard-server の binary（既定は ../target/debug/callboard-server を cargo build してから）
 //   CALLBOARD_E2E_CHANNEL   この機械に入っている browser を使う時の名（chrome など）。無ければ Playwright の Chromium
 // castlist は一時の DB で起こし、見本の記録は tests/seed.setup.ts が castlist の API で置く（ほかの試験より先に 1 度だけ）。
-// pagetray は起こさない（今ある画面は castlist だけを呼ぶ。聞く先は、だれも待っていない所にする）。
+// pagetray も一時の DB で起こし、メッセージの記録は、試験が pagetray の API で置く（tests/messages.spec.ts）。
 import { defineConfig } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
@@ -21,12 +24,19 @@ const freePort = () =>
     .trim();
 process.env.CALLBOARD_E2E_PORT ??= freePort();
 process.env.CALLBOARD_E2E_CASTLIST_PORT ??= freePort();
+process.env.CALLBOARD_E2E_PAGETRAY_PORT ??= freePort();
 process.env.CALLBOARD_E2E_DB ??= join(mkdtempSync(join(tmpdir(), 'callboard-e2e-')), 'castlist.db');
+// pagetray は、DB の隣に記録の folder（logs/）を作るので、DB ごとに folder を分ける。
+process.env.CALLBOARD_E2E_PAGETRAY_DB ??= join(mkdtempSync(join(tmpdir(), 'callboard-e2e-pagetray-')), 'pages.db');
 const port = Number(process.env.CALLBOARD_E2E_PORT);
 const castlistPort = Number(process.env.CALLBOARD_E2E_CASTLIST_PORT);
+const pagetrayPort = Number(process.env.CALLBOARD_E2E_PAGETRAY_PORT);
 const db = process.env.CALLBOARD_E2E_DB;
+const pagetrayDb = process.env.CALLBOARD_E2E_PAGETRAY_DB;
 const castlist = process.env.CALLBOARD_E2E_CASTLIST;
 if (!castlist) throw new Error('CALLBOARD_E2E_CASTLIST に、起こす castlist-server の binary を書く（docs/src/development.md）');
+const pagetray = process.env.CALLBOARD_E2E_PAGETRAY;
+if (!pagetray) throw new Error('CALLBOARD_E2E_PAGETRAY に、起こす pagetray-server の binary を書く（docs/src/development.md）');
 const server = process.env.CALLBOARD_E2E_SERVER;
 const build = server ? `exec "${server}"` : 'cargo build --locked --bin callboard-server && exec ../target/debug/callboard-server';
 
@@ -62,11 +72,20 @@ export default defineConfig({
       reuseExistingServer: false,
     },
     {
+      // 前の回の DB を消してから起こす（試験は、いつも空の置き場から始まる）。
+      command: `rm -f "${pagetrayDb}" "${pagetrayDb}-wal" "${pagetrayDb}-shm" && exec "${pagetray}"`,
+      env: { PAGETRAY_LISTEN: `127.0.0.1:${pagetrayPort}`, PAGETRAY_DB: pagetrayDb },
+      url: `http://127.0.0.1:${pagetrayPort}/healthz`,
+      timeout: 60_000,
+      reuseExistingServer: false,
+    },
+    {
       command: build,
       env: {
         CALLBOARD_LISTEN: `127.0.0.1:${port}`,
         CALLBOARD_CASTLIST_URL: `http://127.0.0.1:${castlistPort}`,
-        CALLBOARD_PAGETRAY_URL: 'http://127.0.0.1:9',
+        CALLBOARD_PAGETRAY_URL: `http://127.0.0.1:${pagetrayPort}`,
+        CALLBOARD_PAGETRAY_LINK_URL: `http://127.0.0.1:${pagetrayPort}`,
       },
       url: `http://127.0.0.1:${port}/healthz`,
       // cargo build の分も待つ。

@@ -3,15 +3,15 @@
 callboard が HTML を組んで返す画面（askama。`templates/`）。callboard を動かす機械の browser で `http://127.0.0.1:8803/` を開く。
 
 - 字はみな HTML として逃がす（ラベル・名・出来事の `detail` など、送り手が書いた字も）。
-- script を使うのは相関図だけで、callboard が配る file（`GET /static/network.js` と、取り込んだ cytoscape）だけを読む。inline の script は無い。style は callboard が配る CSS（`GET /static/site.css`）だけで、inline の style も無い。どの file も binary に埋め込む。
+- script を使うのは相関図（`GET /static/network.js` と、取り込んだ cytoscape）とメッセージの一覧（`GET /static/messages.js`）だけで、callboard が配る file だけを読む。inline の script は無い。style は callboard が配る CSS（`GET /static/site.css`）だけで、inline の style も無い。どの file も binary に埋め込む。
 - どの画面にも Content-Security-Policy を付ける: `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`。browser は、castlist と pagetray に直には聞かない（`connect-src 'self'`）。
-- 時刻は、castlist が受け取った時刻を日本時間（UTC+9）で表示する。ISO 8601 の字（UTC・ミリ秒まで）は `<time datetime>` と `title` に置く（時刻にマウスを重ねると表示される）。
+- 時刻は、日本時間（UTC+9）で表示する（castlist の画面は castlist が受け取った時刻、メッセージの一覧は送り手が書いた時刻）。ISO 8601 の字（UTC・ミリ秒まで）は `<time datetime>` と `title` に置く（時刻にマウスを重ねると表示される）。
 - 明るい色と暗い色の両方を持つ（`prefers-color-scheme`）。
 - どの画面の頭にも、画面の間の link（アクター・タイムライン・相関図・ページ・メッセージ）を出す。
 
 ## 移した画面と、まだ移していない画面
 
-castlist と pagetray の画面を、1 つずつ callboard に移している。castlist の 4 つの画面は、みな移した（0.2.0）。castlist は、2.0.0 で自分の画面を外した（表の「castlist での道」は、前の道。今は 404）。まだ移していない pagetray の画面への link は、pagetray の画面を指す（link の頭は設定の `CALLBOARD_PAGETRAY_LINK_URL`。[動かす](run.md)）。
+castlist と pagetray の画面を、1 つずつ callboard に移している。castlist の 4 つの画面は、みな移した（0.2.0）。castlist は、2.0.0 で自分の画面を外した（表の「castlist での道」は、前の道。今は 404）。pagetray は、メッセージの一覧を移した（0.3.0。pagetray の画面も、まだ残っている）。まだ移していない pagetray のページの一覧への link は、pagetray の画面を指す（link の頭は設定の `CALLBOARD_PAGETRAY_LINK_URL`。[動かす](run.md)）。
 
 | 画面 | 今ある所 | callboard の道 | castlist・pagetray での道（castlist の物は、2.0.0 で無くなった） |
 |---|---|---|---|
@@ -21,7 +21,7 @@ castlist と pagetray の画面を、1 つずつ callboard に移している。
 | タイムライン | callboard（0.2.0 から） | `/graph/timeline` | castlist の `/graph/timeline` |
 | 相関図 | callboard（0.1.0 から） | `/graph/network` | castlist の `/graph/network` |
 | ページの一覧 | pagetray | これから（`/pages/`） | pagetray の `/` |
-| メッセージ | pagetray | これから（`/messages`） | pagetray の `/messages` |
+| メッセージ | callboard（0.3.0 から） | `/messages` | pagetray の `/messages` |
 
 castlist にあった画面との違い（画面の中身。頭の帯の下）は 2 つだけ: 送り手の時刻の ISO の字をミリ秒までにそろえることと、誤りの画面の戻りの link（「一覧へ」でなく「入口へ」）。castlist が画面を外す前（1.1.0）に、同じ castlist を相手に、castlist の画面と callboard の画面の中身を比べて確かめた（CI の browser の試験と、動いている台帳の写し（アクター 114 人。2026-11-27）。比べる相手が無くなったので、その試験は外した）。
 
@@ -192,3 +192,26 @@ id は英語のまま（castlist の API）。日本語の名は画面だけで�
 | `GET /static/icon.svg` | browser の tab に出す印（`image/svg+xml`） |
 
 どれも binary に埋め込む。画面は CSS と script を `?v=<中身の写しの頭>` を付けて読み、cytoscape は版が path に入るので、中身が替われば browser は読み直す。長く持たせてよい（`Cache-Control: public, max-age=31536000, immutable`）。印だけは 1 日。
+
+## `GET /messages` メッセージの一覧
+
+AI の担当どうしのメッセージ（roster が配る）の記録を、送った時刻の新しい順に表示する。pagetray の `/messages` を移した物で、記録は pagetray の API（`ListMessages` と、絞り込みの候補と件数の `GetMessageFacets`。pagetray 1.2.0 から）で読む。callboard は見せるだけ（状態は、pagetray が残した字を、画面の字にして出す）。
+
+- **操作の帯**: 「メッセージの記録」（条件の無い一覧へ）・「ページ」（pagetray のページの一覧へ）・「まだ届いていない n 件」（押すと、ほかの絞り込みを外して、まだ届いていない物だけに絞る。0 件なら出さない。tab の題にも出す）・「絞り込みを外す」（絞っている時だけ）・新着の印。
+- **絞り込みの列**: 状態・受け手・送り手・Key・project の候補と件数。件数は、絞りに関わらず置き場の全部。押すと今の条件に重ね、選んである候補をもう 1 度押すと外す。条件は URL に出る（`project`・`key`・`to`・`from`・`state`）。受け手・送り手・Key の候補は 100 件まで（今絞っている値は、その外でも出す）。
+- **行**: 送った時刻・Key・見出し・状態（まだ届いていない・届いた・渡せない・期限切れ・ほかの道具で運んだ）・「送り手 → 受け手」・届いた時刻・渡した時（`gate` は「検査が止めた後」、`wake` は「起こした」、`prompt` は「人の入力の時」、`max-deliveries` は「渡し直しの上限を超えた」、`ttl` は「期限で消えた」、`closed` は「席を閉じた」。ほかの名は書かれた字のまま）・渡し直しの数・本文。本文は HTML として出さない。200 字か 5 行を超える本文は、頭の 120 字だけを見せ、開くと全部。
+- **続き**: 1 度に 200 件。続きがあれば「続きを出す」の link（`at` に、pagetray の続きの印を付ける）。
+- **引数**: 空の値・知らない状態（`state`）・知らない引数は、書かないのと同じ。同じ名を 2 度書いた物は 400 の画面。値の形が違う物（受け手の名が 200 字を超える・Key の形が違う・読めない続きの印）は、pagetray が断り、その訳を書いた 400 の画面。
+- pagetray に聞けない時は 503 の画面で、訳を書く。pagetray が 1.2.0 より古いと、「pagetray に聞けません（404 が返りました）」になる。
+
+### 新着の知らせ
+
+script（`/static/messages.js`）が、`GET /api/pagetray/events` を `EventSource` で聞く。この道は、pagetray の新着の知らせ（`GET /api/events`。SSE）を、名も中身もそのまま流す（browser は pagetray に直には聞かない）。
+
+- メッセージの記録が置かれる・書き足されるたびに（`event: message-record`）、script が今の URL を callboard から読み直し、一覧の列と絞り込みの列・まだ届いていない数・tab の題を、押さずに差し替える。開いていた本文は開いたまま。下へ送って見ている時は、見ている行を同じ所に置き、頭に入った数を新着の印（「● 新着 n 件（上へ）」）に出す。続き（`at` のある URL）を見ている時は、行は替えず、「● 新しい記録（読み直す）」を出す。ほかの知らせ（ページを置いた知らせなど）では読み直さない。
+- 流れには時間切れを付けない（つなぎっぱなし。pagetray が 15 秒ごとに送る注釈の行も、そのまま流す）。browser 1 つにつき、pagetray へのつなぎが 1 本。browser が閉じれば、pagetray へのつなぎも切れる。
+- pagetray を起こし直すと流れが終わり、browser がつなぎ直す。つなぎ直した時に pagetray が止まっていれば（callboard が 503 を返す）、script が 3 秒ごとに試し、つながった時に、切れていた間の記録を読み直す。callboard を起こし直した時も同じ。
+- pagetray の答えの頭は 4 秒まで待つ。届かない・知らせの流れでない答え（200 でない・型が `text/event-stream` でない）は 503 `Unavailable`。
+- script が動かなくても、一覧は開き、絞り込みも続きも link で動く（新着は、読み直すと出る）。
+
+pagetray の画面との違いは 3 つ: 時刻を callboard が日本時間で組むこと（pagetray の画面は、UTC の字を出して、script がその機械の時刻に書き替える）・値の形が違う引数と読めない続きの印を 400 の画面にすること（pagetray の画面は、条件が無い物として出す）・頭の帯。CI の browser の試験（`e2e/tests/messages.spec.ts`）が、同じ pagetray を相手に、題・まだ届いていない数・絞り込みの列・一覧の列を、絞り込みごと・続きの頁ごとに比べる。

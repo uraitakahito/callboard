@@ -57,6 +57,16 @@ pub fn time(t: &DateTime) -> Time {
     }
 }
 
+/// 時刻を、短い字（日本の時刻の `11-23 09:00`。メッセージの一覧の行）と、元の ISO の字にする。
+pub fn short(t: &DateTime) -> Time {
+    let full = time(t);
+    Time {
+        // `2026-11-23 09:00:00` の、月から分まで。扱える時刻の外（秒の数の字）は、そのまま。
+        local: full.local.get(5..16).unwrap_or(&full.local).to_owned(),
+        iso: full.iso,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

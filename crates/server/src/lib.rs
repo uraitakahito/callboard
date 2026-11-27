@@ -61,6 +61,10 @@ struct App {
     castlist: Castlist,
     pagetray: Pagetray,
     nav: ui::Nav,
+    /// 新着の知らせの中継で、pagetray の答えの頭を待つ長さ。
+    events_wait: Duration,
+    /// 止める合図を受けた印。
+    closing: Closing,
 }
 
 /// 動かす Router。
@@ -77,6 +81,8 @@ pub fn app_with(settings: &Settings, config: Config) -> Router {
         castlist,
         pagetray,
         nav,
+        events_wait: config.events_wait,
+        closing: config.closing,
     });
     ui::routes(app)
         .route("/healthz", get(healthz))

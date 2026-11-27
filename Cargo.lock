@@ -422,7 +422,7 @@ dependencies = [
 
 [[package]]
 name = "callboard"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "askama",
  "aws-smithy-http-client",

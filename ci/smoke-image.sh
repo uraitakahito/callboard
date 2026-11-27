@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # image が、空の image の中で起き、/healthz に答え、外の Host と browser からの書き込みを断り、
-# 入口の画面と CSS が CSP の決まりどおりに出て、castlist と pagetray に名で届き、一覧・タイムライン・相関図・プロフィールが castlist の API を
-# 通して出て、止める合図で自分から終わり、起こし直しても答えるかを見る。
+# 入口の画面と CSS が CSP の決まりどおりに出て、castlist と pagetray に名で届き、一覧・タイムライン・相関図・プロフィールが castlist の API を、
+# メッセージの一覧と新着の知らせの中継が pagetray の API を通して出て、止める合図で（流れを開いたままでも）自分から終わり、
+# 起こし直しても答えるかを見る。
 # 呼ぶ先は、出した版の castlist と pagetray の image（ghcr.io の物を digest で取る）を、同じ network に起こす。
 # 使い方: ci/smoke-image.sh <image>
 # container の名は smoke-callboard で始める（callboard・castlist・pagetray の設定の守りの match（--name callboard など）に当てないため）。
@@ -149,15 +150,44 @@ test "$(code "$url/actors/?nope=1")" = 400
 # プロフィール: castlist に無いアクターは 404 の画面（castlist に聞いた答え）。
 test "$(curl -s -o "$tmp/profile.html" -w '%{http_code}' "$url/actors/019a0000-0000-7000-8000-0000000000ff")" = 404
 grep -qF 'そのアクターは無い' "$tmp/profile.html"
-# 呼ぶ先を止めても、callboard は生きていると答え、入口は届かないと出す。
-docker stop "$name-pagetray" >/dev/null
-curl -fsS "$url/healthz" >/dev/null
-curl -fsS -o "$tmp/index.html" "$url/"
-test "$(grep -cF 'つながっています' "$tmp/index.html")" = 1
-test "$(grep -cF '届きません' "$tmp/index.html")" = 1
-# 止める合図（SIGTERM）で、自分から終わるか（PID 1 は受け口が無いと合図を無視する）。
+# メッセージの一覧: 同じ CSP が付き、inline の style が無く、script は callboard が配る 1 つを src で読むだけ。本物の pagetray（空の置き場）の
+# API（ListMessages と、1.2.0 からの GetMessageFacets）に聞いた答えを出す。
+curl -fsS -D "$tmp/messages-head.txt" -o "$tmp/messages.html" "$url/messages"
+tr -d '\r' <"$tmp/messages-head.txt" | grep -qixF "content-security-policy: $csp"
+if grep -qiE '<style|style=' "$tmp/messages.html"; then
+  echo "NG: メッセージの一覧に inline の style がある" >&2
+  exit 1
+fi
+scripts=$(grep -oiE '<script[^>]*>' "$tmp/messages.html" | sed -E 's/\?v=[0-9a-f]+"/"/')
+if [ "$scripts" != '<script src="/static/messages.js">' ]; then
+  echo "NG: メッセージの一覧の script が、callboard の配る 1 つでない: $scripts" >&2
+  exit 1
+fi
+grep -qF '合うメッセージは無い' "$tmp/messages.html"
+grep -qF 'data-events="/api/pagetray/events"' "$tmp/messages.html"
+curl -fsS -D "$tmp/js-head.txt" -o "$tmp/got.js" "$url/static/messages.js"
+tr -d '\r' <"$tmp/js-head.txt" | grep -qi '^content-type: application/javascript'
+cmp -s "$tmp/got.js" "$here/../static/messages.js" || {
+  echo "NG: 配る static/messages.js が repo の物と違う" >&2
+  exit 1
+}
+# pagetray が断る引数は、pagetray の訳を書いた 400 の画面。
+test "$(curl -s -o "$tmp/messages.html" -w '%{http_code}' "$url/messages?at=zz")" = 400
+grep -qF 'pagetray が引数を断りました' "$tmp/messages.html"
+# 新着の知らせの中継: 本物の pagetray の流れ（SSE）につながる。流れは終わらないので、頭を見たら切る（curl は時間切れの 28 で終わる）。
+curl -s -N -D "$tmp/events-head.txt" -o /dev/null --max-time 2 "$url/api/pagetray/events" || test $? = 28
+tr -d '\r' <"$tmp/events-head.txt" | grep -qi '^HTTP/1.1 200'
+tr -d '\r' <"$tmp/events-head.txt" | grep -qix 'content-type: text/event-stream'
+# 止める合図（SIGTERM）で、自分から終わるか（PID 1 は受け口が無いと合図を無視する）。新着の知らせの流れを開いたままでも、
+# 流れを閉じて終わる（閉じないと、browser が切るまで終われず、docker が 10 秒後に SIGKILL で落とす: 終わりの code が 137 になる）。
+curl -s -N -o /dev/null "$url/api/pagetray/events" &
+stream=$!
+sleep 1
+kill -0 "$stream"
 docker stop "$name"
 test "$(docker inspect -f '{{.State.ExitCode}}' "$name")" = 0
+# 開いていた流れは、callboard が閉じる（curl が自分から終わる）。
+wait "$stream" || true
 docker start "$name"
 up
 # 起きた時の行に、版と聞く先が出る（grep -q に pipe でつながない: grep が先に終わると、書く側が SIGPIPE で落ちる）。
@@ -166,4 +196,15 @@ docker logs "$name" >"$logs" 2>&1
 grep -q "callboard .* listen=0.0.0.0:8080 castlist=http://$name-castlist:8080 pagetray=http://$name-pagetray:8080" "$logs"
 grep -q 'signal SIGTERM' "$logs"
 rm -f "$logs"
+# 呼ぶ先を止めても、callboard は生きていると答え、入口は届かないと出す。
+docker stop "$name-pagetray" >/dev/null
+curl -fsS "$url/healthz" >/dev/null
+curl -fsS -o "$tmp/index.html" "$url/"
+test "$(grep -cF 'つながっています' "$tmp/index.html")" = 1
+test "$(grep -cF '届きません' "$tmp/index.html")" = 1
+# メッセージの一覧と、新着の知らせの中継は 503（中継は、restJson1 の形の Unavailable）。
+test "$(curl -s -o "$tmp/messages.html" -w '%{http_code}' "$url/messages")" = 503
+grep -qF 'pagetray に聞けません' "$tmp/messages.html"
+test "$(curl -s -D "$tmp/events-head.txt" -o "$tmp/events.json" -w '%{http_code}' --max-time 10 "$url/api/pagetray/events")" = 503
+tr -d '\r' <"$tmp/events-head.txt" | grep -qix 'x-amzn-errortype: unavailable'
 echo "image は動く: ${image}"

@@ -237,6 +237,73 @@ svg.timeline { display: block; font-family: system-ui, "Hiragino Sans", "Noto Sa
 .legend .node-key.human { width: 16px; border-radius: 3px; border: 2px solid var(--on); }
 .noscript { margin: 0 0 12px; }
 
+/* メッセージの一覧（/messages）。pagetray の画面の作りを移した物: 操作の帯の下に、絞り込みの列と一覧の列を横に並べ、
+   それぞれを自分の枠の中で送る（幅が狭い時は縦に並べ、画面全体を送る）。新着の差し替えは static/messages.js。 */
+[hidden] { display: none !important; }
+body.fill { height: 100vh; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow-anchor: none; }
+body.fill main { padding: 0; max-width: none; min-height: 0; }
+body.fill footer { padding: 4px 16px; border-top: 1px solid var(--line); }
+.messages { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.messages a { color: inherit; }
+.messages a:hover { text-decoration: none; }
+.messages .toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--card);
+}
+.messages .toolbar h1 { font-size: 1rem; margin: 0; }
+.messages .btn {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  white-space: nowrap;
+}
+.messages #fresh { color: var(--on); font-weight: 700; border-color: var(--on); }
+.messages #undelivered { color: var(--warn); font-weight: 700; border-color: var(--warn); }
+.messages #undelivered.on { background: var(--chip); }
+.messages .columns { display: grid; grid-template-columns: 15rem minmax(0, 1fr); min-height: 0; }
+.messages .columns > * { min-height: 0; overflow: auto; overflow-anchor: none; border-right: 1px solid var(--line); }
+.messages nav { padding: 8px 12px; }
+.messages nav h2 { font-size: 0.8rem; color: var(--muted); margin: 12px 0 2px; }
+.messages nav ul, .messages .rows { list-style: none; margin: 0; padding: 0; }
+.messages nav li a { display: flex; gap: 6px; justify-content: space-between; padding: 2px 6px; border-radius: 4px; }
+.messages nav li a span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.messages .n { color: var(--muted); font-variant-numeric: tabular-nums; }
+.messages nav li a.on, .messages nav li a:hover { background: var(--chip); }
+.messages .rows li { border-bottom: 1px solid var(--line); padding: 6px 12px; background: var(--card); }
+.messages .rows li[data-state="waiting"] { box-shadow: inset 3px 0 var(--warn); }
+.messages .rows li[data-state="undeliverable"] { box-shadow: inset 3px 0 var(--bad); }
+.messages .rows .top { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; font-size: 0.8rem; color: var(--muted); }
+.messages .rows .name { color: var(--accent); }
+.messages .rows .route { display: block; overflow-wrap: anywhere; font-weight: 700; }
+.messages .rows .who { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 0.75rem; color: var(--muted); }
+.messages .state { margin-left: auto; padding: 0 8px; border: 1px solid; border-radius: 999px; font-size: 0.72rem; white-space: nowrap; }
+.messages .state.waiting { color: var(--warn); }
+.messages .state.delivered { color: var(--on); }
+.messages .state.undeliverable { color: var(--bad); }
+.messages .state.expired { color: var(--muted); }
+.messages .state.carried { color: var(--accent); }
+.messages pre { margin: 4px 0 0; font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
+.messages details { margin-top: 4px; }
+.messages summary { cursor: pointer; overflow-wrap: anywhere; }
+.messages details[open] summary { color: var(--muted); }
+.messages details pre { padding-left: 1rem; }
+.messages .more, .messages .empty { display: block; margin: 0; padding: 10px 12px; color: var(--muted); }
+.messages .more { color: var(--accent); }
+@media (max-width: 900px) {
+  body.fill { height: auto; display: block; }
+  .messages { display: block; height: auto; }
+  .messages .columns { display: block; }
+  .messages .columns > * { border-right: 0; border-bottom: 1px solid var(--line); }
+  .messages nav { max-height: 14rem; }
+}
+
 @media (max-width: 700px) {
   main { padding: 8px; }
   .filters input:not([type]), .filters input[type="datetime-local"] { width: 100%; }

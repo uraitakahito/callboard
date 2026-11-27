@@ -1,11 +1,13 @@
-//! 画面: 入口（`/`）・プロフィール（`/actors/{id}`）・相関図（`/graph/network`）と、それが読む CSS（`/static/site.css`）と
-//! script（`/static/network.js` と、取り込んだ cytoscape）。
+//! 画面: 入口（`/`）・アクターの一覧（`/actors/`）・プロフィール（`/actors/{id}`）・タイムライン（`/graph/timeline`）・
+//! 相関図（`/graph/network`）・メッセージの一覧（`/messages`）と、それが読む CSS（`/static/site.css`）と
+//! script（`/static/network.js` と取り込んだ cytoscape、`/static/messages.js`）。
 //!
 //! - サーバーが HTML を組んで返す（askama。`templates/`）。字はみな HTML として逃がす。
-//!   script を使うのは相関図だけで、callboard が配る file だけを読む（inline の script は無い）。
+//!   script を使うのは相関図とメッセージの一覧だけで、callboard が配る file だけを読む（inline の script は無い）。
 //! - CSP（[`crate::CSP`]）が inline の script と style を断るので、style は callboard が配る CSS の file だけ。
-//! - まだ callboard に移していない画面（pagetray の 2 つ）への link は、pagetray の link の頭（[`crate::config`]）で組む。
+//! - まだ callboard に移していない画面（pagetray のページの一覧）への link は、pagetray の link の頭（[`crate::config`]）で組む。
 mod list;
+mod messages;
 mod network;
 mod params;
 mod profile;
@@ -50,6 +52,11 @@ const CYTOSCAPE_PATH: &str = "/static/vendor/cytoscape-3.35.0.min.js";
 /// 相関図を描く、callboard の script。
 const NETWORK_JS: &str = include_str!("../../../static/network.js");
 
+/// メッセージの一覧（`/messages`）の、新着の知らせの script。
+const MESSAGES_JS: &str = include_str!("../../../static/messages.js");
+
+static MESSAGES_JS_HREF: LazyLock<String> =
+    LazyLock::new(|| versioned("/static/messages.js", MESSAGES_JS));
 static CSS_HREF: LazyLock<String> = LazyLock::new(|| versioned("/static/site.css", SITE_CSS));
 static NETWORK_JS_HREF: LazyLock<String> =
     LazyLock::new(|| versioned("/static/network.js", NETWORK_JS));
@@ -88,6 +95,11 @@ async fn cytoscape_js() -> Response {
     asset("application/javascript; charset=utf-8", CYTOSCAPE_JS)
 }
 
+/// `GET /static/messages.js`: メッセージの一覧の、新着の知らせの script。
+async fn messages_js() -> Response {
+    asset("application/javascript; charset=utf-8", MESSAGES_JS)
+}
+
 /// `GET /static/network.js`: 相関図を描く script。
 async fn network_js() -> Response {
     asset("application/javascript; charset=utf-8", NETWORK_JS)
@@ -100,7 +112,7 @@ fn kind_name(kind: &str) -> &'static str {
     if kind == "human" { "人" } else { "" }
 }
 
-/// どの画面の頭にも出す、画面の間の link。まだ移していない画面（pagetray のページの一覧・メッセージ）は、pagetray の画面を指す。
+/// どの画面の頭にも出す、画面の間の link。まだ移していない画面（pagetray のページの一覧）は、pagetray の画面を指す。
 pub struct Nav {
     actors: String,
     timeline: String,
@@ -120,7 +132,8 @@ impl Nav {
             // 相関図は callboard に移した。
             network: "/graph/network".to_owned(),
             pages: format!("{pagetray}/"),
-            messages: format!("{pagetray}/messages"),
+            // メッセージの一覧は callboard に移した。
+            messages: messages::PATH.to_owned(),
         }
     }
 }
@@ -210,9 +223,12 @@ pub fn routes(app: Arc<App>) -> Router {
         .route("/graph/timeline", get(timeline::timeline))
         .route("/graph/network", get(network::network))
         .route(network::DATA_PATH, get(network::graph))
+        .route(messages::PATH, get(messages::messages))
+        .route(messages::EVENTS_PATH, get(messages::events))
         .route("/static/site.css", get(site_css))
         .route("/static/icon.svg", get(icon_svg))
         .route("/static/network.js", get(network_js))
+        .route("/static/messages.js", get(messages_js))
         .route(CYTOSCAPE_PATH, get(cytoscape_js))
         .fallback(not_found)
         .with_state(app)

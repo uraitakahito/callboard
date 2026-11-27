@@ -2,6 +2,17 @@
 
 版ごとに、画面と、呼ぶ先（castlist・pagetray）の要る版と、動かし方（設定・image）が変わったかを書く。release の workflow は、tag の版の節（`## <版>`）が無いと何も出さない（`ci/check-release-version.sh`）。
 
+## 0.3.0
+
+pagetray のメッセージの一覧を移した版。pagetray の 2 つの画面のうち 1 つが、callboard で開く。
+
+- **呼ぶ先の要る版: pagetray 1.2.0 から**（0.2.0 までは 1.1.1 から）。メッセージの一覧が、1.2.0 で足した操作（`GetMessageFacets`。絞り込みの候補と件数）を使う。pagetray を先に 1.2.0 に上げてから、callboard を上げる。古い pagetray に向けると、メッセージの一覧は「pagetray に聞けません（404 が返りました）」になる（ほかの画面は動く）。castlist は 1.1.0 からのまま（2.0.0 でも動く）。
+- **callboard から pagetray に、container の名で届くこと**が要る（今までは、入口の画面が「届きません」と出すだけだった）。pagetray の container の名は `pagetray.box`（pagetray 1.2.0 の docs から）で、聞く先は `CALLBOARD_PAGETRAY_URL=http://pagetray.box:8080`（[動かす](https://uraitakahito.github.io/callboard/run.html)）。
+- 画面: メッセージの一覧（`/messages`。pagetray の `/messages` を移した物）。行・絞り込みの列・「まだ届いていない n 件」・続きの link・長い本文の畳みは、pagetray の画面と同じ（同じ pagetray を相手に、題・数・絞り込みの列・一覧の列を比べる試験が通る）。違いは 3 つ: 時刻を、callboard が日本時間（UTC+9）で組む（pagetray の画面は、script がその機械の時刻に書き替える）。値の形が違う引数と読めない続きの印は、400 の画面で pagetray の訳を書く（pagetray の画面は、条件が無い物として出す）。頭の帯は callboard の物（画面の間の link）。
+- 新着の知らせ: pagetray の `GET /api/events`（SSE）を、`GET /api/pagetray/events` でそのまま流す（browser は pagetray に直に聞かない。CSP の `connect-src 'self'`）。メッセージの一覧の script（`/static/messages.js`）が聞き、記録が置かれる・書き足されると、一覧の列と絞り込みの列を、押さずに差し替える。流れには時間切れを付けない。pagetray が閉じれば流れも終わり、browser がつなぎ直す（つなぎ直した時に pagetray が止まっていれば、3 秒ごとに試す）。止める合図（SIGTERM）で、流れを閉じてから終わる。
+- 画面の間の link: 頭の帯と入口の「メッセージ」が、callboard の `/messages` を指す。「ページ」（ページの一覧）だけ、まだ pagetray を指す。
+- 設定は変わらない（4 つ）。image の中身も同じ（binary 1 つ）。
+
 ## 0.2.0
 
 castlist の残りの 2 つの画面（アクターの一覧・タイムライン）を移した版。castlist の 4 つの画面が、みな callboard で開く。
