@@ -95,6 +95,8 @@
         const response = await fetch(fresh.href, { cache: 'no-store' });
         if (!response.ok) continue;
         const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+        // 読み直した木は、比べと差し替えの前に今の言語の字にする（英語の画面が日本語に戻らない。題も訳される）。
+        window.callboardLocalize(doc);
         const next = doc.getElementById('list');
         const nextFilters = doc.getElementById('filters');
         if (!next || !nextFilters) continue;
@@ -104,7 +106,8 @@
             const nextCounter = doc.getElementById(counter.id);
             if (nextCounter) {
               counter.hidden = nextCounter.hidden;
-              counter.textContent = nextCounter.textContent;
+              // 数の字は中の <span>（鍵と値を持つ）にあるので、textContent でなく子ごと写す（訳した木から）。
+              counter.replaceChildren(...nextCounter.childNodes);
             }
           }
           if (text) show(text);
@@ -115,12 +118,12 @@
         count += added;
         document.title = count ? `(${count}) ${title}` : title;
         if (paged) {
-          swap(null, nextFilters, band(count ? `● 新着 ${count} 件（読み直す）` : ''));
+          swap(null, nextFilters, band(count ? window.callboardT('pages.freshPaged', { count }) : ''));
           continue;
         }
         const down = added && !atTop();
         if (down) above += added;
-        swap(shape(list) !== shape(next) ? next : null, nextFilters, band(down ? `● 新着 ${above} 件（上へ）` : ''));
+        swap(shape(list) !== shape(next) ? next : null, nextFilters, band(down ? window.callboardT('common.tray.freshAbove', { count: above }) : ''));
       } catch {
         // 読み直せなかった時は、今の画面のまま（次の知らせか、つなぎ直しで読み直す）。
       }
@@ -154,7 +157,9 @@
   const refresh = async () => {
     // file の枠は、サーバーが組んだ HTML を読み直して差し替える（行の作りを 2 か所に持たない）。
     const html = await (await fetch(location.href, { cache: 'no-store' })).text();
-    const next = new DOMParser().parseFromString(html, 'text/html').getElementById('files');
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    window.callboardLocalize(doc);
+    const next = doc.getElementById('files');
     if (next && shelf) shelf.replaceChildren(...next.childNodes);
   };
 
@@ -244,15 +249,15 @@
     const dot = file.name.lastIndexOf('.');
     const ext = dot > 0 ? file.name.slice(dot + 1).replace(/[A-Z]/g, (x) => x.toLowerCase()) : '';
     if (!types.has(ext)) {
-      tell(`.${ext || '（拡張子なし）'} は上げられない。上げられるのは ${[...types.keys()].join('・')}`, true);
+      tell(window.callboardT('pages.upload.js.badExt', { ext: ext || window.callboardT('pages.upload.js.noExt'), types: [...types.keys()].join(window.callboardT('common.listSep')) }), true);
       return;
     }
     if (file.size > max) {
-      tell(`${size(file.size)} は大きすぎる。1 つ ${size(max)} まで`, true);
+      tell(window.callboardT('pages.upload.js.tooBig', { size: size(file.size), max: size(max) }), true);
       return;
     }
     if (file.size === 0) {
-      tell('中身が空', true);
+      tell(window.callboardT('pages.upload.js.empty'), true);
       return;
     }
     const type = types.get(ext);
@@ -265,7 +270,7 @@
       const img = document.createElement('img');
       shown = URL.createObjectURL(file);
       img.src = shown;
-      img.alt = '上げる図の見本';
+      img.alt = window.callboardT('pages.upload.js.previewAlt');
       preview.append(img);
     } else if (type !== 'application/pdf') {
       const pre = document.createElement('pre');
@@ -297,7 +302,7 @@
     if (!chosen || !reviewed.checked) return;
     const { file, name, type } = chosen;
     send.disabled = true;
-    tell('送っている…');
+    tell(window.callboardT('pages.upload.js.sending'));
     try {
       target.searchParams.set('name', name);
       const response = await fetch(target, {
@@ -310,11 +315,11 @@
         // 断った訳は message に入る。code（字の鍵）と values があれば、選んだ言語の字で組む（日本語の字は message と同じ）。
         const why = json.code
           ? window.callboardT('pages.upload.failed', { status: response.status, why: window.callboardT(json.code, json.values) })
-          : `上げられなかった（${response.status}）: ${json.message || json.error || response.statusText}`;
+          : window.callboardT('pages.upload.failed', { status: response.status, why: json.message || json.error || response.statusText });
         if (response.status === 503) {
           // 聞けなかった時（時間切れなど）は、置かれたかもしれない。file の枠を読み直して、送り直す前に確かめられるようにする。
           await refresh().catch(() => {});
-          tell(`${why}。上の file の枠に出ていないかを確かめてから、送り直す`, true);
+          tell(window.callboardT('pages.upload.js.check', { why }), true);
         } else {
           tell(why, true);
         }
@@ -323,11 +328,11 @@
       }
       reset();
       input.value = '';
-      say.replaceChildren('上げた。ページからは ', Object.assign(document.createElement('code'), { textContent: `files/${json.name}-${json.n}.${json.ext}` }), ' で参照する');
+      say.replaceChildren(window.callboardT('pages.upload.js.doneBefore'), Object.assign(document.createElement('code'), { textContent: `files/${json.name}-${json.n}.${json.ext}` }), window.callboardT('pages.upload.js.doneAfter'));
       say.classList.remove('bad');
       await refresh();
     } catch (error) {
-      tell(`上げられなかった: ${error}`, true);
+      tell(window.callboardT('pages.upload.js.error', { error }), true);
       send.disabled = false;
     }
   });

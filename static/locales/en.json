@@ -45,7 +45,8 @@
       "list": "List column",
       "reset": "Remove filters",
       "fresh": "● New",
-      "more": "Show more"
+      "more": "Show more",
+      "freshAbove": "● {{count}} new (scroll up)"
     },
     "quickRange": {
       "hour": "Last hour",
@@ -158,7 +159,8 @@
       "maxDeliveries": "exceeded the redelivery limit",
       "ttl": "expired by TTL",
       "closed": "the seat was closed"
-    }
+    },
+    "freshPaged": "● New records (reload)"
   },
   "network": {
     "title": "Network · callboard",
@@ -177,6 +179,14 @@
       "human": "Angular shape: human",
       "launched": "Solid arrow: launched",
       "continued": "Dotted arrow: continued (/clear handoff or fork)"
+    },
+    "js": {
+      "human": " (human)",
+      "noModel": "no model record",
+      "total": "{{actors}} actors, {{edges}} edges (as of {{at}})",
+      "shown": "{{total}}. Showing {{actors}} actors and {{edges}} edges",
+      "empty": "No actors match the filters. Remove some filters or clear them.",
+      "failed": "Cannot show the network: {{why}}"
     }
   },
   "timeline": {
@@ -250,7 +260,19 @@
         "segment": "project or Key has the wrong form",
         "name": "name (the file name) is required"
       },
-      "failed": "Upload failed ({{status}}): {{why}}"
+      "failed": "Upload failed ({{status}}): {{why}}",
+      "js": {
+        "badExt": ".{{ext}} cannot be uploaded. Allowed: {{types}}",
+        "noExt": "(no extension)",
+        "tooBig": "{{size}} is too large. The limit is {{max}} per file",
+        "empty": "The file is empty",
+        "previewAlt": "Preview of the image to upload",
+        "sending": "Sending…",
+        "check": "{{why}}. Check whether it appears in the file list above before sending again",
+        "doneBefore": "Uploaded. Refer to it from a page as ",
+        "doneAfter": ".",
+        "error": "Upload failed: {{error}}"
+      }
     },
     "viewer": {
       "label": "Page panel",
@@ -288,7 +310,8 @@
     "targets": {
       "seen": "Reviewed",
       "toSee": "To review"
-    }
+    },
+    "freshPaged": "● {{count}} new (reload)"
   },
   "profile": {
     "issuer": "Issuer",

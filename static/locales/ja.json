@@ -45,7 +45,8 @@
       "list": "一覧の列",
       "reset": "絞り込みを外す",
       "fresh": "● 新着",
-      "more": "続きを出す"
+      "more": "続きを出す",
+      "freshAbove": "● 新着 {{count}} 件（上へ）"
     },
     "quickRange": {
       "hour": "直近 1 時間",
@@ -158,7 +159,8 @@
       "maxDeliveries": "渡し直しの上限を超えた",
       "ttl": "期限で消えた",
       "closed": "席を閉じた"
-    }
+    },
+    "freshPaged": "● 新しい記録（読み直す）"
   },
   "network": {
     "title": "相関図 ・ callboard",
@@ -177,6 +179,14 @@
       "human": "角のある形: 人",
       "launched": "実線の矢印: 起動した",
       "continued": "点線の矢印: 引き継いだ（/clear の交代・fork の分身）"
+    },
+    "js": {
+      "human": "（人）",
+      "noModel": "model の記録なし",
+      "total": "{{actors}} のアクター・{{edges}} の線（{{at}} の時点）",
+      "shown": "{{total}}。見えているのは {{actors}} のアクター・{{edges}} の線",
+      "empty": "条件に合うアクターはいません。条件を減らすか、条件を消してください。",
+      "failed": "相関図を表示できません: {{why}}"
     }
   },
   "timeline": {
@@ -250,7 +260,19 @@
         "segment": "project と Key の形が違う",
         "name": "name（file の名）が要る"
       },
-      "failed": "上げられなかった（{{status}}）: {{why}}"
+      "failed": "上げられなかった（{{status}}）: {{why}}",
+      "js": {
+        "badExt": ".{{ext}} は上げられない。上げられるのは {{types}}",
+        "noExt": "（拡張子なし）",
+        "tooBig": "{{size}} は大きすぎる。1 つ {{max}} まで",
+        "empty": "中身が空",
+        "previewAlt": "上げる図の見本",
+        "sending": "送っている…",
+        "check": "{{why}}。上の file の枠に出ていないかを確かめてから、送り直す",
+        "doneBefore": "上げた。ページからは ",
+        "doneAfter": " で参照する",
+        "error": "上げられなかった: {{error}}"
+      }
     },
     "viewer": {
       "label": "本文の枠",
@@ -288,7 +310,8 @@
     "targets": {
       "seen": "見た物",
       "toSee": "見る物"
-    }
+    },
+    "freshPaged": "● 新着 {{count}} 件（読み直す）"
   },
   "profile": {
     "issuer": "発行元（issuer）",

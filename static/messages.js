@@ -64,6 +64,8 @@
         const response = await fetch(fresh.href, { cache: 'no-store' });
         if (!response.ok) continue;
         const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+        // 読み直した木は、比べと差し替えの前に今の言語の字にする（英語の画面が日本語に戻らない。題も訳される）。
+        window.callboardLocalize(doc);
         const next = doc.getElementById('list');
         const nextFilters = doc.getElementById('filters');
         if (!next || !nextFilters) continue;
@@ -72,20 +74,25 @@
           const nextCounter = doc.getElementById('undelivered');
           if (nextCounter) {
             counter.hidden = nextCounter.hidden;
-            counter.textContent = nextCounter.textContent;
+            counter.replaceChildren(...nextCounter.childNodes);
+            for (const name of ['data-i18n-options']) {
+              const value = nextCounter.getAttribute(name);
+              if (value === null) counter.removeAttribute(name);
+              else counter.setAttribute(name, value);
+            }
           }
           if (text) show(text);
         };
         document.title = doc.title || document.title;
         if (paged) {
-          swap(null, nextFilters, band('● 新しい記録（読み直す）'));
+          swap(null, nextFilters, band(window.callboardT('messages.freshPaged')));
           continue;
         }
         const had = new Set(rowsOf(list).map((li) => li.dataset.id));
         const added = rowsOf(next).filter((li) => !had.has(li.dataset.id)).length;
         const down = added && !atTop();
         if (down) above += added;
-        swap(shape(list) !== shape(next) ? next : null, nextFilters, band(down ? `● 新着 ${above} 件（上へ）` : ''));
+        swap(shape(list) !== shape(next) ? next : null, nextFilters, band(down ? window.callboardT('common.tray.freshAbove', { count: above }) : ''));
       } catch {
         // 読み直せなかった時は、今の画面のまま（次の知らせか、つなぎ直しで読み直す）。
       }
