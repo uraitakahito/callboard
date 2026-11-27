@@ -30,6 +30,27 @@ pub struct Health {
     pub version: String,
 }
 
+/// 呼べなかった訳。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Failure {
+    /// 名指した物が無い（呼ぶ先の 404 `NotFound`）。
+    NotFound,
+    /// 聞けなかった（訳は [`reason`] の字）。
+    Unavailable(String),
+}
+
+/// 答えをそのまま browser に返す道が使う、生の HTTP の client（TLS の無い HTTP/1.1。接続は使い回さない）。
+pub(crate) type Raw = hyper_util::client::legacy::Client<
+    hyper_util::client::legacy::connect::HttpConnector,
+    axum::body::Body,
+>;
+
+pub(crate) fn raw_client() -> Raw {
+    hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new())
+        .pool_max_idle_per_host(0)
+        .build_http()
+}
+
 /// 呼ぶ先に渡す HTTP の client。
 fn http_client() -> castlist_client::config::SharedHttpClient {
     aws_smithy_http_client::Builder::new()

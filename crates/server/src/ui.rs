@@ -1,8 +1,15 @@
-//! 画面: 入口（`/`）と、画面が読む CSS（`/static/site.css`）。
+//! 画面: 入口（`/`）・プロフィール（`/actors/{id}`）・相関図（`/graph/network`）と、それが読む CSS（`/static/site.css`）と
+//! script（`/static/network.js` と、取り込んだ cytoscape）。
 //!
 //! - サーバーが HTML を組んで返す（askama。`templates/`）。字はみな HTML として逃がす。
+//!   script を使うのは相関図だけで、callboard が配る file だけを読む（inline の script は無い）。
 //! - CSP（[`crate::CSP`]）が inline の script と style を断るので、style は callboard が配る CSS の file だけ。
 //! - まだ callboard に移していない画面への link は、castlist・pagetray の link の頭（[`crate::config`]）で組む。
+mod network;
+mod params;
+mod profile;
+mod time;
+
 use std::sync::{Arc, LazyLock};
 
 use askama::Template;
@@ -16,7 +23,7 @@ use sha2::{Digest, Sha256};
 use crate::App;
 use crate::upstream::Health;
 
-// --- CSS ---
+// --- CSS と script ---
 
 // 配る file は repo の static/ の物を、binary に埋め込む。
 const SITE_CSS: &str = include_str!("../../../static/site.css");
@@ -28,7 +35,21 @@ fn versioned(path: &str, body: &str) -> String {
     format!("{path}?v={v}")
 }
 
+/// browser の tab に出す印（掲示の板）。画面が名指すので、browser は `/favicon.ico` を取りに来ない。
+const ICON_SVG: &str = include_str!("../../../static/icon.svg");
+
+/// 相関図（`/graph/network`）が使う cytoscape（npm の物をそのまま取り込んだ。static/vendor/SOURCES.md）。
+const CYTOSCAPE_JS: &str = include_str!("../../../static/vendor/cytoscape-3.35.0.min.js");
+
+/// cytoscape の path。版が名に入るので、中身が替われば path も替わる。
+const CYTOSCAPE_PATH: &str = "/static/vendor/cytoscape-3.35.0.min.js";
+
+/// 相関図を描く、callboard の script。
+const NETWORK_JS: &str = include_str!("../../../static/network.js");
+
 static CSS_HREF: LazyLock<String> = LazyLock::new(|| versioned("/static/site.css", SITE_CSS));
+static NETWORK_JS_HREF: LazyLock<String> =
+    LazyLock::new(|| versioned("/static/network.js", NETWORK_JS));
 
 /// binary に埋め込んだ file を、長く持たせてよい答えで返す（path が中身ごとに替わるので）。
 fn asset(content_type: &'static str, body: &'static str) -> Response {
@@ -45,6 +66,28 @@ fn asset(content_type: &'static str, body: &'static str) -> Response {
 /// `GET /static/site.css`: 画面の CSS。
 async fn site_css() -> Response {
     asset("text/css; charset=utf-8", SITE_CSS)
+}
+
+/// `GET /static/icon.svg`: browser の tab に出す印。path に中身の写しを付けないので、長くは持たせない。
+async fn icon_svg() -> Response {
+    (
+        [
+            (header::CONTENT_TYPE, "image/svg+xml"),
+            (header::CACHE_CONTROL, "public, max-age=86400"),
+        ],
+        ICON_SVG,
+    )
+        .into_response()
+}
+
+/// `GET /static/vendor/cytoscape-3.35.0.min.js`: 相関図が使う cytoscape。
+async fn cytoscape_js() -> Response {
+    asset("application/javascript; charset=utf-8", CYTOSCAPE_JS)
+}
+
+/// `GET /static/network.js`: 相関図を描く script。
+async fn network_js() -> Response {
+    asset("application/javascript; charset=utf-8", NETWORK_JS)
 }
 
 // --- 画面に出す形 ---
@@ -64,7 +107,8 @@ impl Nav {
         Self {
             actors: format!("{castlist}/"),
             timeline: format!("{castlist}/graph/timeline"),
-            network: format!("{castlist}/graph/network"),
+            // 相関図は callboard に移した。
+            network: "/graph/network".to_owned(),
             pages: format!("{pagetray}/"),
             messages: format!("{pagetray}/messages"),
         }
@@ -151,7 +195,13 @@ fn error_page(nav: &Nav, status: StatusCode, message: &str) -> Response {
 pub fn routes(app: Arc<App>) -> Router {
     Router::new()
         .route("/", get(home))
+        .route("/actors/{id}", get(profile::profile))
+        .route("/graph/network", get(network::network))
+        .route(network::DATA_PATH, get(network::graph))
         .route("/static/site.css", get(site_css))
+        .route("/static/icon.svg", get(icon_svg))
+        .route("/static/network.js", get(network_js))
+        .route(CYTOSCAPE_PATH, get(cytoscape_js))
         .fallback(not_found)
         .with_state(app)
 }

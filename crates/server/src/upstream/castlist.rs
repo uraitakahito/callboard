@@ -1,11 +1,18 @@
 //! castlist を呼ぶ所（決まりは [`super`]）。
+use axum::body::Body;
+use axum::http::{Request, StatusCode, header};
+use axum::response::Response;
 use castlist_client::Client;
 use castlist_client::config::retry::RetryConfig;
 use castlist_client::config::timeout::TimeoutConfig;
 use castlist_client::config::{BehaviorVersion, Config};
+use castlist_client::operation::get_actor::GetActorOutput;
+use castlist_client::operation::get_lineage::GetLineageOutput;
+use http_body_util::BodyExt;
 
-use super::{Health, TIMEOUT, http_client, reason, unreadable, within};
+use super::{Failure, Health, Raw, TIMEOUT, http_client, raw_client, reason, unreadable, within};
 use crate::config::Base;
+use crate::errors::reply;
 
 /// 記録に書く、呼ぶ先の名。
 const NAME: &str = "castlist";
@@ -18,6 +25,8 @@ pub struct Castlist {
     /// browser が castlist を開く URL の頭（`http://<host>:<port>`）。
     link: String,
     client: Client,
+    /// 答えをそのまま browser に返す道（[`Castlist::graph`]）が使う、生の HTTP の client。
+    raw: Raw,
 }
 
 impl Castlist {
@@ -33,6 +42,7 @@ impl Castlist {
             api: base.api.clone(),
             link: base.link.clone(),
             client: Client::from_conf(config),
+            raw: raw_client(),
         }
     }
 
@@ -63,5 +73,113 @@ impl Castlist {
             })
         })
         .await
+    }
+
+    /// アクター 1 つ（GetActor）。
+    pub async fn actor(&self, id: &str) -> Result<GetActorOutput, Failure> {
+        self.client
+            .get_actor()
+            .actor_id(id)
+            .customize()
+            .mutate_request(|request| {
+                request.headers_mut().insert("host", "127.0.0.1");
+            })
+            .send()
+            .await
+            .map_err(|e| match e.as_service_error() {
+                Some(e) if e.is_not_found() => Failure::NotFound,
+                _ => Failure::Unavailable(reason(NAME, &self.api, &e)),
+            })
+    }
+
+    /// アクターから、起こした・継いだ線を上り下りした先（GetLineage。上は人の根まで、下は 1 段）。
+    pub async fn lineage(&self, id: &str) -> Result<GetLineageOutput, Failure> {
+        self.client
+            .get_lineage()
+            .actor_id(id)
+            .customize()
+            .mutate_request(|request| {
+                request.headers_mut().insert("host", "127.0.0.1");
+            })
+            .send()
+            .await
+            .map_err(|e| match e.as_service_error() {
+                Some(e) if e.is_not_found() => Failure::NotFound,
+                _ => Failure::Unavailable(reason(NAME, &self.api, &e)),
+            })
+    }
+
+    /// 図の点と線（GetGraph。`GET /api/graph`）の答えを、そのまま返す（相関図の script が browser から引く）。
+    /// `query` は、問い合わせの引数の字（`label=…&from=…`。castlist が確かめる）。渡すのは引数だけで、browser の header は渡さない。
+    /// 返すのは、状態・本文の型・誤りの型の名（`X-Amzn-Errortype`）・本文。聞けなければ（つながらない・本文を読み終えるまで
+    /// [`TIMEOUT`]）503 `Unavailable`。
+    pub async fn graph(&self, query: Option<&str>) -> Response {
+        let uri = match query {
+            Some(query) => format!("{}/api/graph?{query}", self.api),
+            None => format!("{}/api/graph", self.api),
+        };
+        let unavailable = |why: &str| {
+            reply(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "Unavailable",
+                &format!("castlist に聞けません（{why}）"),
+            )
+        };
+        let request = match Request::get(&uri)
+            .header(header::HOST, "127.0.0.1")
+            .header(header::ACCEPT, "application/json")
+            .body(Body::empty())
+        {
+            Ok(request) => request,
+            // 引数の字が URL として読めない（守りの層を通った要求では起きない見込み）。
+            Err(_) => {
+                return reply(
+                    StatusCode::BAD_REQUEST,
+                    "ValidationException",
+                    "引数を読めません",
+                );
+            }
+        };
+        // 答えの頭だけでなく、本文を読み終えるまでを [`TIMEOUT`] で区切る（[`super`] の決まり）。図の答えは小さいので、
+        // 読み終えてから返す（頭を返した後に本文が止まっても、browser を待たせ続けない）。
+        let answer = tokio::time::timeout(TIMEOUT, async {
+            let (parts, body) = self
+                .raw
+                .request(request)
+                .await
+                .map_err(|e| e.to_string())?
+                .into_parts();
+            let body = body.collect().await.map_err(|e| e.to_string())?;
+            Ok::<_, String>((parts, body.to_bytes()))
+        })
+        .await;
+        match answer {
+            Err(_) => {
+                tracing::warn!(
+                    upstream = NAME,
+                    api = self.api,
+                    error = "timeout",
+                    "呼ぶ先に聞けない"
+                );
+                unavailable("時間内に答えがありません")
+            }
+            Ok(Err(error)) => {
+                tracing::warn!(upstream = NAME, api = self.api, error, "呼ぶ先に聞けない");
+                unavailable("つながりません")
+            }
+            Ok(Ok((parts, body))) => {
+                let mut response = Response::new(Body::from(body));
+                *response.status_mut() = parts.status;
+                for name in [header::CONTENT_TYPE.as_str(), "x-amzn-errortype"] {
+                    if let Some(value) = parts.headers.get(name) {
+                        response.headers_mut().insert(
+                            header::HeaderName::from_bytes(name.as_bytes()).expect("header の名"),
+                            value.clone(),
+                        );
+                    }
+                }
+                response
+            }
+        }
     }
 }

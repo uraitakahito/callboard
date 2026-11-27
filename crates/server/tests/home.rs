@@ -55,18 +55,18 @@ async fn 呼ぶ先には_host_127_0_0_1_で聞き_browser_の_header_を渡さ�
 }
 
 #[tokio::test]
-async fn 入口と頭の_link_は_まだ移していない画面を_link_の頭で指す() {
+async fn 入口と頭の_link_は_まだ移していない画面を_link_の頭で_移した画面を_callboard_の道で指す() {
     let app = App::start().await;
     let body = app.html("/").await;
     let castlist = section(&body, "castlist");
-    for (name, path) in [
-        ("アクターの一覧", "/"),
-        ("タイムライン", "/graph/timeline"),
-        ("相関図", "/graph/network"),
-    ] {
+    for (name, path) in [("アクターの一覧", "/"), ("タイムライン", "/graph/timeline")]
+    {
         let link = format!("<a href=\"{CASTLIST_LINK}{path}\">{name}</a>");
         assert!(castlist.contains(&link), "{link}: {castlist}");
     }
+    // 相関図は callboard に移したので、callboard の中の道を指す。
+    let link = "<a href=\"/graph/network\">相関図</a>";
+    assert!(castlist.contains(link), "{castlist}");
     let pagetray = section(&body, "pagetray");
     for (name, path) in [("ページの一覧", "/"), ("メッセージ", "/messages")] {
         let link = format!("<a href=\"{PAGETRAY_LINK}{path}\">{name}</a>");
@@ -79,7 +79,7 @@ async fn 入口と頭の_link_は_まだ移していない画面を_link_の頭�
         for link in [
             format!("<a href=\"{CASTLIST_LINK}/\">アクター</a>"),
             format!("<a href=\"{CASTLIST_LINK}/graph/timeline\">タイムライン</a>"),
-            format!("<a href=\"{CASTLIST_LINK}/graph/network\">相関図</a>"),
+            "<a href=\"/graph/network\">相関図</a>".to_owned(),
             format!("<a href=\"{PAGETRAY_LINK}/\">ページ</a>"),
             format!("<a href=\"{PAGETRAY_LINK}/messages\">メッセージ</a>"),
         ] {
@@ -213,9 +213,43 @@ async fn 画面は_callboard_が配る_css_だけを読み_inline_の_script_と
 }
 
 #[tokio::test]
+async fn 画面は_tab_の印を名指し_callboard_が_svg_で配る() {
+    let app = App::start().await;
+    let (_, _, missing) = app.send(get("/no/such")).await;
+    for body in [app.html("/").await, missing] {
+        assert!(
+            body.contains("<link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/icon.svg\">"),
+            "{body}"
+        );
+    }
+    let (status, headers, body) = app.send(get("/static/icon.svg")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(headers.get(header::CONTENT_TYPE).unwrap(), "image/svg+xml");
+    assert_eq!(
+        headers.get(header::X_CONTENT_TYPE_OPTIONS).unwrap(),
+        "nosniff"
+    );
+    // 絵だけ（script も、外の物を読む字も無い）。
+    assert!(
+        body.starts_with("<svg xmlns=\"http://www.w3.org/2000/svg\""),
+        "{body}"
+    );
+    for word in ["<script", "href", "url(", "style"] {
+        assert!(!body.contains(word), "{word}");
+    }
+}
+
+#[tokio::test]
 async fn 無い道は_404_の画面で_入口への_link_を出す() {
     let app = App::start().await;
-    for path in ["/no/such", "/actors/", "/api/graph", "/static/none.css"] {
+    for path in [
+        "/no/such",
+        "/actors/",
+        "/api/graph",
+        "/api/castlist/actors",
+        "/graph/timeline",
+        "/static/none.css",
+    ] {
         let (status, headers, body) = app.send(get(path)).await;
         assert_eq!(status, StatusCode::NOT_FOUND, "{path}");
         assert_eq!(
