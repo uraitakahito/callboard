@@ -60,21 +60,21 @@ async fn 入口と頭の_link_は_どの画面も_callboard_の道で指す() {
     let body = app.html("/").await;
     // castlist の 4 つの画面は callboard に移したので、callboard の中の道を指す。
     let castlist = section(&body, "castlist");
-    for (name, path) in [
-        ("アクターの一覧", "/actors/"),
-        ("タイムライン", "/graph/timeline"),
-        ("相関図", "/graph/network"),
-        ("使用量", "/usage/"),
+    for (name, path, key) in [
+        ("アクターの一覧", "/actors/", "home.castlist.actors"),
+        ("タイムライン", "/graph/timeline", "nav.timeline"),
+        ("相関図", "/graph/network", "nav.network"),
+        ("使用量", "/usage/", "nav.usage"),
     ] {
-        let link = format!("<a href=\"{path}\">{name}</a>");
+        let link = format!("<a href=\"{path}\" data-i18n=\"{key}\">{name}</a>");
         assert!(castlist.contains(&link), "{link}: {castlist}");
     }
     assert!(!body.contains(":8802"), "{body}");
     let pagetray = section(&body, "pagetray");
     // pagetray の 2 つの画面も、callboard に移した。
     for link in [
-        "<a href=\"/pages/\">ページの一覧</a>",
-        "<a href=\"/messages\">メッセージ</a>",
+        "<a href=\"/pages/\" data-i18n=\"home.pagetray.pages\">ページの一覧</a>",
+        "<a href=\"/messages\" data-i18n=\"nav.messages\">メッセージ</a>",
     ] {
         assert!(pagetray.contains(link), "{link}: {pagetray}");
     }
@@ -111,6 +111,12 @@ async fn 呼ぶ先が止まっていても入口は_200_で_届かないこと�
     let castlist = section(&body, "castlist");
     assert!(castlist.contains("届きません"), "{castlist}");
     assert!(castlist.contains("つながりません"), "{castlist}");
+    assert!(
+        castlist.contains(
+            r#"<span class="muted" data-i18n="upstream.unreachable">つながりません</span>"#
+        ),
+        "{castlist}"
+    );
     // 聞く先の URL は出さない。
     assert!(!body.contains(&down), "{body}");
     assert!(section(&body, "pagetray").contains("つながっています"));

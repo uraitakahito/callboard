@@ -17,9 +17,11 @@ use castlist_client::types::{Usage, UsageActor};
 use http_body_util::BodyExt;
 
 use super::{
-    Failure, Health, Raw, SLOW, TIMEOUT, http_client, raw_client, reason, unreadable, within,
+    Failure, Health, Raw, SLOW, TIMEOUT, UNREACHABLE, http_client, raw_client, reason, unreadable,
+    within,
 };
-use crate::errors::reply;
+use crate::errors::{reply, with_code};
+use crate::ui::i18n::Text;
 
 /// 記録に書く、呼ぶ先の名。
 const NAME: &str = "castlist";
@@ -115,7 +117,7 @@ impl Castlist {
     }
 
     /// 生きているかを聞く（GetHealth）。聞けなければ、その訳。
-    pub async fn health(&self) -> Result<Health, String> {
+    pub async fn health(&self) -> Result<Health, Text> {
         within(NAME, &self.api, async {
             let output = self
                 .client
@@ -263,7 +265,7 @@ impl Castlist {
         let Ok(first) = tokio::time::timeout_at(deadline, self.usage_page(search, None)).await
         else {
             slow();
-            return Err(Failure::Unavailable(SLOW.to_owned()));
+            return Err(Failure::Unavailable(Text::new(SLOW)));
         };
         let mut page = first?;
         let mut answer = UsageAnswer {
@@ -291,7 +293,9 @@ impl Castlist {
                 Ok(Ok(next)) => next,
                 // 次の頁の印を断られた: 人の打った問いの誤りでないので、503 の側に寄せる。
                 Ok(Err(Failure::Rejected(why))) => {
-                    return Err(Failure::Unavailable(format!("次の頁を断られました: {why}")));
+                    return Err(Failure::Unavailable(
+                        Text::new("upstream.nextPageRejected").with("why", why),
+                    ));
                 }
                 Ok(Err(e)) => return Err(e),
                 Err(_) => {
@@ -343,11 +347,13 @@ impl Castlist {
             Some(query) => format!("{}/api/graph?{query}", self.api),
             None => format!("{}/api/graph", self.api),
         };
-        let unavailable = |why: &str| {
+        let unavailable = |why: Text| {
             reply(
                 StatusCode::SERVICE_UNAVAILABLE,
                 "Unavailable",
-                &format!("castlist に聞けません（{why}）"),
+                &Text::new("errors.unreachable")
+                    .with("service", NAME)
+                    .with_text("why", &why),
             )
         };
         let request = match Request::get(&uri)
@@ -361,7 +367,7 @@ impl Castlist {
                 return reply(
                     StatusCode::BAD_REQUEST,
                     "ValidationException",
-                    "引数を読めません",
+                    &Text::new("errors.badArguments"),
                 );
             }
         };
@@ -386,13 +392,23 @@ impl Castlist {
                     error = "timeout",
                     "呼ぶ先に聞けない"
                 );
-                unavailable("時間内に答えがありません")
+                unavailable(Text::new(SLOW))
             }
             Ok(Err(error)) => {
                 tracing::warn!(upstream = NAME, api = self.api, error, "呼ぶ先に聞けない");
-                unavailable("つながりません")
+                unavailable(Text::new(UNREACHABLE))
             }
             Ok(Ok((parts, body))) => {
+                // 断った答えには、型の名の鍵（`code`）を足す（ブラウザーが、選んだ言語の字で出せるように）。
+                let body = if parts.status.is_success() {
+                    body.to_vec()
+                } else {
+                    let kind = parts
+                        .headers
+                        .get("x-amzn-errortype")
+                        .and_then(|v| v.to_str().ok());
+                    with_code(kind, &body).unwrap_or_else(|| body.to_vec())
+                };
                 let mut response = Response::new(Body::from(body));
                 *response.status_mut() = parts.status;
                 for name in [header::CONTENT_TYPE.as_str(), "x-amzn-errortype"] {

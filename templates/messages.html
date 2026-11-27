@@ -13,15 +13,15 @@
 </div>
 <div class="columns">
 <nav id="filters" aria-label="{{ "common.tray.filters"|t }}" data-i18n-attr="aria-label:common.tray.filters">
-{% for group in filters %}{% if !group.choices.is_empty() %}<h2>{{ group.title }}</h2>
+{% for group in filters %}{% if !group.choices.is_empty() %}<h2{{ group.title.attrs()|safe }}>{{ group.title }}</h2>
 <ul>
-{% for c in group.choices %}<li><a href="{{ c.href }}"{% if c.active %} class="on" aria-current="true"{% endif %}><span>{{ c.label }}</span><span class="n">{{ c.count }}</span></a></li>
+{% for c in group.choices %}<li><a href="{{ c.href }}"{% if c.active %} class="on" aria-current="true"{% endif %}><span{{ c.label.attrs()|safe }}>{{ c.label }}</span><span class="n">{{ c.count }}</span></a></li>
 {% endfor %}</ul>
 {% endif %}{% endfor %}</nav>
 <div class="middle">
 <div id="list" role="region" aria-label="{{ "common.tray.list"|t }}" data-i18n-attr="aria-label:common.tray.list">
 <ul class="rows">
-{% for r in rows %}<li data-id="{{ r.project }}/{{ r.id }}" data-state="{{ r.state }}" data-at="{{ r.updated_at }}"><span class="top"><time datetime="{{ r.sent.iso }}" title="{{ r.sent.iso }}">{{ r.sent.local }}</time>{% if !r.key.is_empty() %}<span>{{ r.key }}</span>{% endif %}<span class="name">{{ r.heading }}</span><span class="state {{ r.state }}">{{ r.state_label }}</span></span><span class="route">{{ r.from }} → {{ r.to }}</span>{% if r.has_notes() %}<span class="who">{% if let Some(at) = r.delivered %}<span><span data-i18n="messages.delivered">{{ "messages.delivered"|t }}</span> <time datetime="{{ at.iso }}" title="{{ at.iso }}">{{ at.local }}</time></span>{% endif %}{% if !r.via.is_empty() %}<span data-i18n="messages.via" data-i18n-options="{{ "via"|opts1(r.via) }}">{{ "messages.via"|t1("via", r.via) }}</span>{% endif %}{% if r.again > 0 %}<span data-i18n="messages.again" data-i18n-options="{{ "n"|opts1(r.again) }}">{{ "messages.again"|t1("n", r.again) }}</span>{% endif %}</span>{% endif %}{% if let Some(head) = r.head %}<details><summary>{{ head }}</summary><pre>{{ r.text }}</pre></details>{% else %}<pre>{{ r.text }}</pre>{% endif %}</li>
+{% for r in rows %}<li data-id="{{ r.project }}/{{ r.id }}" data-state="{{ r.state }}" data-at="{{ r.updated_at }}"><span class="top"><time datetime="{{ r.sent.iso }}" title="{{ r.sent.iso }}">{{ r.sent.local }}</time>{% if !r.key.is_empty() %}<span>{{ r.key }}</span>{% endif %}<span class="name">{{ r.heading }}</span><span class="state {{ r.state }}"{% if let Some(l) = r.state_label %}{{ l.attrs()|safe }}>{{ l }}{% else %}>{% endif %}</span></span><span class="route">{{ r.from }} → {{ r.to }}</span>{% if r.has_notes() %}<span class="who">{% if let Some(at) = r.delivered %}<span><span data-i18n="messages.delivered">{{ "messages.delivered"|t }}</span> <time datetime="{{ at.iso }}" title="{{ at.iso }}">{{ at.local }}</time></span>{% endif %}{% if let Some(via) = r.via %}<span{{ via.attrs()|safe }}>{{ via }}</span>{% endif %}{% if r.again > 0 %}<span data-i18n="messages.again" data-i18n-options="{{ "n"|opts1(r.again) }}">{{ "messages.again"|t1("n", r.again) }}</span>{% endif %}</span>{% endif %}{% if let Some(head) = r.head %}<details><summary>{{ head }}</summary><pre>{{ r.text }}</pre></details>{% else %}<pre>{{ r.text }}</pre>{% endif %}</li>
 {% endfor %}</ul>
 {% if rows.is_empty() %}<span class="empty" data-i18n="messages.empty">{{ "messages.empty"|t }}</span>{% endif %}
 {% if let Some(href) = more_href %}<a class="more" href="{{ href }}" data-i18n="common.tray.more">{{ "common.tray.more"|t }}</a>{% endif %}

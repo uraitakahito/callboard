@@ -17,7 +17,8 @@ use castlist_client::types::{ActorRow, Link};
 use serde_json::Value;
 use time::OffsetDateTime;
 
-use super::i18n::filters;
+use super::i18n::{Text, filters};
+use super::params;
 use super::time::{Time, local, stamp, time};
 use super::usage::{self, ChartView};
 use super::usage_summary as summary;
@@ -29,33 +30,33 @@ use crate::upstream::castlist::UsageAnswer;
 /// 線を上る段の上限（castlist の GetLineage の上限と同じ）。
 const MAX_DEPTH: usize = 20;
 
-/// 出来事の種類と、画面に出す日本語の名（id は英語のまま。名は画面だけ）。
-const EVENT_NAMES: [(&str, &str); 10] = [
-    ("entered", "登場"),
-    ("reentered", "再登場"),
-    ("forked", "分身"),
-    ("compacted", "要約"),
-    ("cleared", "交代"),
-    ("exited", "退場"),
-    ("closed", "幕引き"),
-    ("reported_in", "名乗り"),
-    ("model_unreadable", "model 不明"),
-    ("retracted", "取り消し"),
+/// 出来事の種類と、画面に出す名の鍵（id は英語のまま。名は画面だけで、字は `static/locales/` の `events`）。
+pub(crate) const EVENT_NAMES: [(&str, &str); 10] = [
+    ("entered", "events.entered"),
+    ("reentered", "events.reentered"),
+    ("forked", "events.forked"),
+    ("compacted", "events.compacted"),
+    ("cleared", "events.cleared"),
+    ("exited", "events.exited"),
+    ("closed", "events.closed"),
+    ("reported_in", "events.reportedIn"),
+    ("model_unreadable", "events.modelUnreadable"),
+    ("retracted", "events.retracted"),
 ];
 
-/// 出来事の種類の、画面に出す日本語の名。知らない種類は id のまま。
-pub fn event_name(kind: &str) -> &str {
+/// 出来事の種類の、画面に出す名。知らない種類は id のまま（鍵は付けない）。
+pub fn event_name(kind: &str) -> Text {
     EVENT_NAMES
         .iter()
         .find(|(id, _)| *id == kind)
-        .map_or(kind, |(_, name)| name)
+        .map_or_else(|| Text::plain(kind), |(_, key)| Text::new(key))
 }
 
 /// アクターを指す link（名と種類）。
 struct ActorLink {
     href: String,
     name: String,
-    kind: &'static str,
+    kind: Option<Text>,
 }
 
 fn actor_link(id: &str, nodes: &BTreeMap<&str, &ActorRow>) -> ActorLink {
@@ -63,19 +64,19 @@ fn actor_link(id: &str, nodes: &BTreeMap<&str, &ActorRow>) -> ActorLink {
     ActorLink {
         href: format!("/actors/{id}"),
         name: node.map_or_else(|| id.to_owned(), |n| n.name.clone()),
-        kind: node.map_or("", |n| kind_name(&n.kind)),
+        kind: node.and_then(|n| kind_name(&n.kind)),
     }
 }
 
 /// プロフィールの頭と「今の状態」に出す物。
 struct Me {
     name: String,
-    kind: &'static str,
+    kind: Option<Text>,
     present: bool,
     /// 今の状態を決めた出来事が、推しの幕引き（「停止（推し）」と書く）。
     inferred: bool,
-    /// 稼働を替える出来事の最新（日本語の名・id）。
-    presence: Option<(String, String)>,
+    /// 稼働を替える出来事の最新（名・id）。
+    presence: Option<(Text, String)>,
     /// ラベルの全部（鍵・値。鍵の順）。
     labels: Vec<(String, String)>,
     /// 最新の model と effort。
@@ -98,7 +99,7 @@ struct ProfilePage<'a> {
     current: Option<CurrentSetting>,
     bindings: Vec<BindingRow>,
     /// 起こした人（根の人から、このアクターの手前まで）。線の種類の名も。
-    chain: Vec<(ActorLink, &'static str)>,
+    chain: Vec<(ActorLink, Text)>,
     children: Vec<ActorLink>,
     before: Vec<ActorLink>,
     after: Vec<ActorLink>,
@@ -112,7 +113,7 @@ struct ProfilePage<'a> {
 struct UsageSection {
     from: Time,
     to: Time,
-    error: Option<String>,
+    error: Option<Text>,
     view: Option<UsageView>,
 }
 
@@ -122,7 +123,7 @@ struct UsageView {
     helper_cost: String,
     turns: String,
     helper_turns: String,
-    max_context: Option<String>,
+    max_context: Option<Text>,
     /// 行が多すぎて、途中で止めた。
     truncated: bool,
     /// 本体の回が無ければ無い。
@@ -151,7 +152,8 @@ fn usage_section(
     let answer = match found {
         Ok(answer) => answer,
         Err(e) => {
-            section.error = Some(usage::unreadable(e));
+            section.error =
+                Some(Text::new("profile.usage.error").with_text("why", &usage::unreadable(e)));
             return section;
         }
     };
@@ -167,7 +169,7 @@ fn usage_section(
         .max()
         .unwrap_or(0);
     let (from, to) = (window.0.unix_timestamp(), window.1.unix_timestamp());
-    let marks: Vec<(i64, String)> = actor
+    let marks: Vec<(i64, Text)> = actor
         .events
         .iter()
         .filter(|e| e.r#type == "compacted")
@@ -190,22 +192,25 @@ fn usage_section(
 }
 
 /// 圧縮の印の字: 出来事の名と時刻と、detail に前と後の文脈の長さ（`preTokens`・`postTokens`）が在れば、それも。
-fn compaction_title(event: &castlist_client::types::Event) -> String {
+fn compaction_title(event: &castlist_client::types::Event) -> Text {
     let detail = json(&event.detail);
     let tokens = |key: &str| detail.get(key).and_then(Value::as_i64);
-    let base = format!(
-        "{} · {}",
-        event_name(&event.r#type),
-        time(&event.received_at).local
-    );
+    let name = event_name(&event.r#type);
+    let at = time(&event.received_at).local;
     match (tokens("preTokens"), tokens("postTokens")) {
-        (Some(pre), Some(post)) => format!("{base}（{} → {}）", usage::man(pre), usage::man(post)),
-        _ => base,
+        (Some(pre), Some(post)) => Text::new("profile.compaction.tokens")
+            .with_text("name", &name)
+            .with("at", at)
+            .with_text("pre", &usage::man(pre))
+            .with_text("post", &usage::man(post)),
+        _ => Text::new("common.eventAt")
+            .with_text("name", &name)
+            .with("at", at),
     }
 }
 
 struct CurrentSetting {
-    source: &'static str,
+    source: Text,
     received: Time,
 }
 
@@ -221,7 +226,7 @@ struct SettingRow {
     received: Time,
     model: String,
     effort: String,
-    source: &'static str,
+    source: Text,
     /// 実際の行（observed）が、その前に最後に指定した物（requested）と違う（画面の「食い違い」）。
     mismatch: bool,
     skewed: bool,
@@ -229,7 +234,7 @@ struct SettingRow {
 
 struct EventRow {
     received: Time,
-    name: String,
+    name: Text,
     kind: String,
     reason: Option<String>,
     source: Option<String>,
@@ -239,12 +244,12 @@ struct EventRow {
     skewed: bool,
 }
 
-pub fn source_name(source: &str) -> &'static str {
-    if source == "requested" {
-        "指定"
+pub fn source_name(source: &str) -> Text {
+    Text::new(if source == "requested" {
+        "profile.source.requested"
     } else {
-        "実際"
-    }
+        "profile.source.observed"
+    })
 }
 
 /// castlist のアクターの id の形（`ai.common#ActorId`: 小文字の 16 進の UUID の字）。違う形の id は、castlist に聞かずに 404 にする
@@ -260,7 +265,7 @@ fn is_actor_id(s: &str) -> bool {
 /// `GET /actors/{id}`: 1 つのアクターのプロフィール。無いアクターは 404 の画面。castlist に聞けなければ 503 の画面。
 pub async fn profile(State(app): State<Arc<App>>, Path(id): Path<String>) -> Response {
     let nav = &app.nav;
-    let not_found = || error_page(nav, StatusCode::NOT_FOUND, "そのアクターは無い");
+    let not_found = || error_page(nav, StatusCode::NOT_FOUND, &Text::new("profile.notFound"));
     if !is_actor_id(&id) {
         return not_found();
     }
@@ -286,11 +291,10 @@ pub async fn profile(State(app): State<Arc<App>>, Path(id): Path<String>) -> Res
         // castlist が id を断った時（形は先に見てあるので、ふつうは起きない）も、無いアクターと同じに見せる。
         (Err(Failure::NotFound | Failure::Rejected(_)), _)
         | (_, Err(Failure::NotFound | Failure::Rejected(_))) => not_found(),
-        (Err(Failure::Unavailable(why)), _) | (_, Err(Failure::Unavailable(why))) => error_page(
-            nav,
-            StatusCode::SERVICE_UNAVAILABLE,
-            &format!("castlist に聞けません（{why}）。少し待ってから開き直してください。"),
-        ),
+        (Err(e @ Failure::Unavailable(_)), _) | (_, Err(e @ Failure::Unavailable(_))) => {
+            let params::PageError(status, message) = params::failed("castlist", e);
+            error_page(nav, status, &message)
+        }
     }
 }
 
@@ -381,7 +385,7 @@ fn profile_page<'a>(
             };
             EventRow {
                 received: time(&e.received_at),
-                name: event_name(&e.r#type).to_owned(),
+                name: event_name(&e.r#type),
                 kind: e.r#type.clone(),
                 reason,
                 source,
@@ -412,7 +416,7 @@ fn profile_page<'a>(
             presence: me
                 .presence
                 .as_deref()
-                .map(|p| (event_name(p).to_owned(), p.to_owned())),
+                .map(|p| (event_name(p), p.to_owned())),
             labels,
             setting: me.model.clone().zip(me.effort.clone()),
             first_entered: me.first_entered_at.as_ref().map(time),
@@ -461,11 +465,7 @@ fn json(document: &Document) -> Value {
 
 /// 起こした人の鎖: このアクターから、起こした・継がせた線を上り、人で止める。根から順に返す。
 /// 両方の線がある時は、起こした（launched）方を辿る。
-fn chain(
-    id: &str,
-    edges: &[Link],
-    nodes: &BTreeMap<&str, &ActorRow>,
-) -> Vec<(ActorLink, &'static str)> {
+fn chain(id: &str, edges: &[Link], nodes: &BTreeMap<&str, &ActorRow>) -> Vec<(ActorLink, Text)> {
     let mut out = Vec::new();
     let mut seen: HashSet<&str> = HashSet::from([id]);
     let mut current = id;
@@ -478,11 +478,11 @@ fn chain(
         if !seen.insert(from) {
             break;
         }
-        let verb = if edge.r#type == "launched" {
-            "起動した"
+        let verb = Text::new(if edge.r#type == "launched" {
+            "profile.chain.launched"
         } else {
-            "引き継がせた"
-        };
+            "profile.chain.continued"
+        });
         out.push((actor_link(from, nodes), verb));
         if nodes.get(from).is_some_and(|n| n.kind == "human") {
             break;
@@ -528,7 +528,10 @@ mod tests {
 
     #[test]
     fn 出来事の種類はみな日本語の名を持つ() {
-        let names: Vec<&str> = EVENT_TYPES.iter().map(|t| event_name(t)).collect();
+        let names: Vec<String> = EVENT_TYPES
+            .iter()
+            .map(|t| event_name(t).to_string())
+            .collect();
         assert_eq!(
             names,
             [
@@ -544,8 +547,12 @@ mod tests {
                 "取り消し"
             ]
         );
-        // 知らない種類は、id のまま出す。
+        // 鍵は static/locales/ の events の物。
+        let keys: Vec<&str> = EVENT_TYPES.iter().map(|t| event_name(t).key()).collect();
+        assert!(keys.iter().all(|k| k.starts_with("events.")), "{keys:?}");
+        // 知らない種類は、id のまま出す（鍵は付けない）。
         assert_eq!(event_name("unknown"), "unknown");
+        assert_eq!(event_name("unknown").attrs(), "");
     }
 
     #[test]

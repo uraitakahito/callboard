@@ -42,7 +42,11 @@ fn time(iso: &str, local: &str) -> String {
 async fn プロフィールは_名_id_issuer_ラベル_今の状態を出す() {
     let app = start().await;
     let body = app.html(&format!("/actors/{SE1}")).await;
-    assert!(body.contains("<title>se.1 ・ callboard</title>"), "{body}");
+    common::check_i18n("profile.rs:44", &body);
+    assert!(
+        body.contains(r#"<title data-i18n="profile.title" data-i18n-options="{&#34;name&#34;:&#34;se.1&#34;}">se.1 ・ callboard</title>"#),
+        "{body}"
+    );
     // AI には種類の印を付けない。
     assert!(body.contains("<h1>se.1</h1>"), "{body}");
     assert!(body.contains(&format!("<dt>id</dt><dd><code>{SE1}</code></dd>")));
@@ -63,7 +67,9 @@ async fn プロフィールは_名_id_issuer_ラベル_今の状態を出す() {
     assert!(!state.contains("推し"), "{state}");
     // 稼働を替えた最新の出来事（日本語の名。id は title に）。
     assert!(
-        state.contains("<span class=\"event\" title=\"cleared\">交代</span>"),
+        state.contains(
+            "<span class=\"event\" title=\"cleared\" data-i18n=\"events.cleared\">交代</span>"
+        ),
         "{state}"
     );
     assert!(
@@ -71,7 +77,7 @@ async fn プロフィールは_名_id_issuer_ラベル_今の状態を出す() {
         "{state}"
     );
     assert!(state.contains(&format!(
-        "（実際・{}）",
+        "（<span data-i18n=\"profile.source.observed\">実際</span>・{}）",
         time("2026-11-22T02:30:00.000Z", "2026-11-22 11:30:00")
     )));
     assert!(state.contains(&format!(
@@ -131,8 +137,12 @@ async fn プロフィールは_起動した人を人の起点まで_起動した
     let app = start().await;
     let body = app.html(&format!("/actors/{SE1}")).await;
     let chain = section(&body, "launched-by");
-    let pm = format!("<a href=\"/actors/{PM}\">pm.1</a> <span class=\"muted\">人・起動した</span>");
-    let tpm = format!("<a href=\"/actors/{TPM}\">tpm.1</a> <span class=\"muted\">起動した</span>");
+    let pm = format!(
+        "<a href=\"/actors/{PM}\">pm.1</a> <span class=\"muted\"><span data-i18n=\"common.kind.human\">人</span>・<span data-i18n=\"profile.chain.launched\">起動した</span></span>"
+    );
+    let tpm = format!(
+        "<a href=\"/actors/{TPM}\">tpm.1</a> <span class=\"muted\"><span data-i18n=\"profile.chain.launched\">起動した</span></span>"
+    );
     assert!(chain.contains(&pm), "{chain}");
     assert!(chain.contains(&tpm), "{chain}");
     assert!(
@@ -181,7 +191,9 @@ async fn 起点のアクターは_起動した人が無いと書き_人には種
     let app = start_with(actor, lineage).await;
     let body = app.html(&format!("/actors/{SE1}")).await;
     assert!(
-        body.contains("<h1>pm.1 <span class=\"kind\">人</span></h1>"),
+        body.contains(
+            "<h1>pm.1 <span class=\"kind\" data-i18n=\"common.kind.human\">人</span></h1>"
+        ),
         "{body}"
     );
     assert!(section(&body, "launched-by").contains("ありません（起点）。"));
@@ -209,17 +221,22 @@ async fn プロフィールの_model_と_effort_の履歴は_指定と違う実�
     let settings = section(&body, "settings");
     let rows: Vec<&str> = settings.split("<tr>").skip(2).collect();
     assert_eq!(rows.len(), 4, "{settings}");
-    assert!(rows[0].contains("<td>指定</td>") && !rows[0].contains("class=\"mismatch\""));
+    assert!(
+        rows[0].contains("<td data-i18n=\"profile.source.requested\">指定</td>")
+            && !rows[0].contains("class=\"mismatch\"")
+    );
     // 指定は opus、実際は sonnet。
     assert!(
-        rows[1].contains("<td>実際</td>") && rows[1].contains("class=\"mismatch\""),
+        rows[1].contains("<td data-i18n=\"profile.source.observed\">実際</td>")
+            && rows[1].contains("class=\"mismatch\""),
         "{}",
         rows[1]
     );
     // 指定し直した後の実際は、合っている。
-    assert!(rows[2].contains("<td>指定</td>"));
+    assert!(rows[2].contains("<td data-i18n=\"profile.source.requested\">指定</td>"));
     assert!(
-        rows[3].contains("<td>実際</td>") && !rows[3].contains("class=\"mismatch\""),
+        rows[3].contains("<td data-i18n=\"profile.source.observed\">実際</td>")
+            && !rows[3].contains("class=\"mismatch\""),
         "{}",
         rows[3]
     );
@@ -232,10 +249,14 @@ async fn プロフィールの出来事は_日本語の名と理由ときっか�
     let events = section(&body, "events");
     let rows: Vec<&str> = events.split("<tr>").skip(2).collect();
     assert_eq!(rows.len(), 3, "{events}");
-    assert!(rows[0].contains("<span class=\"event\" title=\"entered\">登場</span>"));
+    assert!(rows[0].contains(
+        "<span class=\"event\" title=\"entered\" data-i18n=\"events.entered\">登場</span>"
+    ));
     assert!(!rows[0].contains("<code"), "{}", rows[0]);
     // reason と source は欄に分け、残りの detail は鍵の順の JSON の字。
-    assert!(rows[1].contains("<span class=\"event\" title=\"compacted\">要約</span>"));
+    assert!(rows[1].contains(
+        "<span class=\"event\" title=\"compacted\" data-i18n=\"events.compacted\">要約</span>"
+    ));
     assert!(rows[1].contains("<code>context_full</code>"), "{}", rows[1]);
     assert!(rows[1].contains("<code>auto</code>"), "{}", rows[1]);
     assert!(
@@ -244,7 +265,9 @@ async fn プロフィールの出来事は_日本語の名と理由ときっか�
         rows[1]
     );
     // 送り手の時刻は別の欄。ずれた行に印。
-    assert!(rows[2].contains("<span class=\"event\" title=\"cleared\">交代</span>"));
+    assert!(rows[2].contains(
+        "<span class=\"event\" title=\"cleared\" data-i18n=\"events.cleared\">交代</span>"
+    ));
     assert!(rows[2].contains(&time("2026-11-22T04:00:00.000Z", "2026-11-22 13:00:00")));
     assert!(rows[2].contains(&time("2026-11-22T05:00:00.000Z", "2026-11-22 14:00:00")));
     assert!(rows[2].contains("class=\"skew\"") && rows[2].contains("時刻ずれ"));
@@ -275,7 +298,9 @@ async fn 時刻ずれの印と_稼働を替えた出来事は_辿った先の自
     let on = state(with(Some(true), Some("exited"))).await;
     assert!(on.contains("class=\"skew\""), "{on}");
     assert!(
-        on.contains("<span class=\"event\" title=\"exited\">退場</span>"),
+        on.contains(
+            "<span class=\"event\" title=\"exited\" data-i18n=\"events.exited\">退場</span>"
+        ),
         "{on}"
     );
     let off = state(with(Some(false), Some("cleared"))).await;
@@ -303,7 +328,9 @@ async fn 推しの幕引きで終わった者は_停止_推しと書く() {
         "{state}"
     );
     assert!(
-        state.contains("<span class=\"event\" title=\"closed\">幕引き</span>"),
+        state.contains(
+            "<span class=\"event\" title=\"closed\" data-i18n=\"events.closed\">幕引き</span>"
+        ),
         "{state}"
     );
 }
@@ -560,6 +587,7 @@ fn fact<'a>(section: &'a str, name: &str) -> &'a str {
 async fn 使用量の節は_直近_31_日の_そのアクターの額と回と_いちばん長い文脈を出す() {
     let app = start_with_usage(compacted_actor(), usage()).await;
     let body = app.html(&format!("/actors/{SE1}")).await;
+    common::check_i18n("profile.rs:580", &body);
     let usage = section(&body, "usage");
     assert!(
         usage.contains("<h2 data-i18n=\"profile.usage.heading\">使用量（直近 31 日）</h2>"),
@@ -571,9 +599,9 @@ async fn 使用量の節は_直近_31_日の_そのアクターの額と回と_�
     );
     assert_eq!(
         fact(usage, "回"),
-        r#"10<span data-i18n="profile.usage.helperTurns" data-i18n-options="{&#34;n&#34;:4}">（手伝い 4）</span>"#
+        r#"10<span data-i18n="profile.usage.helperTurns" data-i18n-options="{&#34;n&#34;:&#34;4&#34;}">（手伝い 4）</span>"#
     );
-    assert_eq!(fact(usage, "いちばん長い文脈"), "23 万");
+    assert_eq!(fact(usage, "いちばん長い文脈"), common::tokens("23", "230"));
     // castlist には、そのアクターの行を、今を時の境に切り上げた時刻までの 31 日で聞く。
     let seen = app.castlist.seen();
     let usage_uri = seen
@@ -620,6 +648,7 @@ async fn 使用量の節は_直近_31_日の_そのアクターの額と回と_�
 async fn 使用量の節の線は_時ごとの本体のいちばん長い文脈の段々で_圧縮の印を立てる() {
     let app = start_with_usage(compacted_actor(), usage()).await;
     let body = app.html(&format!("/actors/{SE1}")).await;
+    common::check_i18n("profile.rs:640", &body);
     let usage = section(&body, "usage");
     let start = usage.find("<svg class=\"chart\"").expect("図が無い");
     let svg = &usage[start..start + usage[start..].find("</svg>").unwrap()];
@@ -636,11 +665,11 @@ async fn 使用量の節の線は_時ごとの本体のいちばん長い文脈�
     assert_eq!(d.matches('M').count(), 2, "{d}");
     // 時にマウスを重ねると、時と値。
     assert!(
-        svg.contains("<title>2026-11-22 10:00〜11:00: 23 万</title>"),
+        svg.contains(r#"<title data-i18n="usage.line.hit" data-i18n-options="{&#34;from&#34;:&#34;2026-11-22 10:00&#34;,&#34;to&#34;:&#34;11:00&#34;,&#34;value&#34;:{&#34;$t&#34;:&#34;common.tokens&#34;,&#34;values&#34;:{&#34;k&#34;:&#34;230&#34;,&#34;man&#34;:&#34;23&#34;}}}">2026-11-22 10:00〜11:00: 23 万</title>"#),
         "{svg}"
     );
     assert!(
-        svg.contains("<title>2026-11-22 12:00〜13:00: 12 万</title>"),
+        svg.contains(">2026-11-22 12:00〜13:00: 12 万</title>"),
         "{svg}"
     );
     // 20 万の点線（横）。
@@ -648,7 +677,7 @@ async fn 使用量の節の線は_時ごとの本体のいちばん長い文脈�
     // 圧縮（要約）の印は 1 つ。detail の前と後の文脈の長さを出す。
     assert_eq!(svg.matches("<line class=\"compact\"").count(), 1, "{svg}");
     assert!(
-        svg.contains("<title>要約 · 2026-11-22 12:00:00（18 万 → 3 万）</title>"),
+        svg.contains(r#"<title data-i18n="profile.compaction.tokens" data-i18n-options="{&#34;at&#34;:&#34;2026-11-22 12:00:00&#34;,&#34;name&#34;:{&#34;$t&#34;:&#34;events.compacted&#34;},&#34;post&#34;:{&#34;$t&#34;:&#34;common.tokens&#34;,&#34;values&#34;:{&#34;k&#34;:&#34;30&#34;,&#34;man&#34;:&#34;3&#34;}},&#34;pre&#34;:{&#34;$t&#34;:&#34;common.tokens&#34;,&#34;values&#34;:{&#34;k&#34;:&#34;180&#34;,&#34;man&#34;:&#34;18&#34;}}}">要約 · 2026-11-22 12:00:00（18 万 → 3 万）</title>"#),
         "{svg}"
     );
     assert!(
@@ -660,7 +689,7 @@ async fn 使用量の節の線は_時ごとの本体のいちばん長い文脈�
     let app = start_with_usage(se1_actor(), usage_answer_only_main()).await;
     let body = app.html(&format!("/actors/{SE1}")).await;
     assert!(
-        section(&body, "usage").contains("<title>要約 · 2026-11-22 12:00:00</title>"),
+        section(&body, "usage").contains(r#"<title data-i18n="common.eventAt" data-i18n-options="{&#34;at&#34;:&#34;2026-11-22 12:00:00&#34;,&#34;name&#34;:{&#34;$t&#34;:&#34;events.compacted&#34;}}">要約 · 2026-11-22 12:00:00</title>"#),
         "{body}"
     );
 }
@@ -684,6 +713,7 @@ fn usage_answer_only_main() -> serde_json::Value {
 async fn 使用量の節は_行が無ければ_そう書く() {
     let app = start_with_usage(se1_actor(), usage_page(vec![], vec![], None)).await;
     let body = app.html(&format!("/actors/{SE1}")).await;
+    common::check_i18n("profile.rs:704", &body);
     let usage = section(&body, "usage");
     assert!(
         usage.contains("<p class=\"empty\" data-i18n=\"profile.usage.empty\">この 31 日に、数の記録はありません。</p>"),
@@ -699,7 +729,7 @@ async fn 数を聞けなくても_頁は_200_で出し_使用量の節だけに�
     let body = app.html(&format!("/actors/{SE1}")).await;
     let usage = section(&body, "usage");
     assert!(
-        usage.contains("<p class=\"error\" data-i18n=\"profile.usage.error\" data-i18n-options=\"{&#34;why&#34;:&#34;404 が返りました&#34;}\">数を読めません（404 が返りました）。</p>"),
+        usage.contains("<p class=\"error\" data-i18n=\"profile.usage.error\" data-i18n-options=\"{&#34;why&#34;:{&#34;$t&#34;:&#34;upstream.returned&#34;,&#34;values&#34;:{&#34;status&#34;:&#34;404&#34;}}}\">数を読めません（404 が返りました）。</p>"),
         "{usage}"
     );
     // ほかの節は、今までどおり。

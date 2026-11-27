@@ -8,6 +8,9 @@
 //   window.callboardT で字を引ける。新着で server の HTML を読み直す script は、比べと差し替えの前に
 //   window.callboardLocalize(読み直した木) で訳す。JavaScript は、起きた時に DOM の字を読まない（日本語を取ってしまう）。
 // - 字は textContent と属性でだけ置く（innerHTML は使わない。i18next の escapeValue は切る）。
+// - 差し込む値には、サーバーが鍵と値のまま配る入れ子の字（{"$t":"<鍵>","values":{…}}）と、名の並び
+//   （{"$join":[…],"sep":"<区切りの鍵>"}）がある。i18next に渡す前に、今の言語で先に組む（resolve。入れ子の中の入れ子も）。
+//   訳の file には $t(…) を書かない（入れ子は値の側にだけある）。
 (() => {
   'use strict';
 
@@ -47,14 +50,32 @@
     return typeof node === 'string' ? node : undefined;
   }
 
+  /**
+   * 差し込む値のうち、入れ子の字（$t）と名の並び（$join）を、字の引き方 t（鍵, 値 → 字）で先に組んだ値にする。
+   * ほかの値（字・数・count など）は、そのまま。
+   */
+  function resolve(options, t) {
+    if (!options || typeof options !== 'object') return options;
+    const one = (value) => {
+      if (!value || typeof value !== 'object') return value;
+      if (typeof value.$t === 'string') return t(value.$t, resolve(value.values, t));
+      if (Array.isArray(value.$join)) return value.$join.map(one).join(typeof value.sep === 'string' ? t(value.sep) : '');
+      return value;
+    };
+    const out = {};
+    for (const [name, value] of Object.entries(options)) out[name] = one(value);
+    return out;
+  }
+
   // i18next が届かない時の仮の callboardT（日本語の字を鍵で引き、{{名}} に値を入れるだけ。サーバーの filter と同じ）。
   // 本文の script（messages.js など）は callboardT が無いと止まるので、i18next を起こす前に出しておく。
-  window.callboardT = (key, options) => {
+  const japanese = (key, options) => {
     let text = lookup(locales.ja, key) ?? lookup(locales.ja, `${key}_other`);
     if (text === undefined) return key;
-    for (const [name, value] of Object.entries(options || {})) text = text.split(`{{${name}}}`).join(String(value));
+    for (const [name, value] of Object.entries(resolve(options, japanese) || {})) text = text.split(`{{${name}}}`).join(String(value));
     return text;
   };
+  window.callboardT = japanese;
   window.callboardLocalize = () => {};
   if (typeof i18next === 'undefined') return;
 
@@ -79,8 +100,9 @@
   // 本文を隠すのは、i18next が起きてから（起きられなければ、隠さずに日本語のまま見せる）。
   if (lang !== 'ja') root.classList.add('i18n-wait');
 
-  /** 鍵の字（今の言語）。options は i18next の物（値・count）。 */
-  window.callboardT = (key, options) => i18next.t(key, options);
+  /** 鍵の字（今の言語）。options は i18next の物（値・count）に、入れ子の字（$t）と名の並び（$join）を足した物。 */
+  const t = (key, options) => i18next.t(key, resolve(options, t));
+  window.callboardT = t;
 
   /** data-i18n-options の値（JSON）。読めなければ空。 */
   function options(element) {
@@ -105,13 +127,13 @@
     for (const element of [...own, ...tree.querySelectorAll('[data-i18n], [data-i18n-attr]')]) {
       const values = options(element);
       const key = element.getAttribute('data-i18n');
-      if (key) element.textContent = i18next.t(key, values);
+      if (key) element.textContent = t(key, values);
       const attrs = element.getAttribute('data-i18n-attr');
       if (attrs) {
         for (const pair of attrs.split(';')) {
           const at = pair.indexOf(':');
           if (at <= 0) continue;
-          element.setAttribute(pair.slice(0, at).trim(), i18next.t(pair.slice(at + 1).trim(), values));
+          element.setAttribute(pair.slice(0, at).trim(), t(pair.slice(at + 1).trim(), values));
         }
       }
     }

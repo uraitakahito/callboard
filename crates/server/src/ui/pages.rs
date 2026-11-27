@@ -20,7 +20,7 @@ use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 
-use super::i18n::filters;
+use super::i18n::{Text, filters};
 use super::messages::EVENTS_PATH;
 use super::params::{self, PageError, Pairs, bad_request, strict};
 use super::time::{Time, short};
@@ -39,12 +39,12 @@ pub const UPLOAD_ROUTE: &str = "/api/pagetray/projects/{project}/keys/{key}/file
 /// 1 度に出す数（pagetray の画面と同じ）。
 const PAGE_SIZE: i32 = 200;
 
-/// レビューの判定の字（pagetray の定義の `Verdict`）と、画面に出す字。
+/// レビューの判定の字（pagetray の定義の `Verdict`）と、画面に出す字の鍵。
 const VERDICTS: [(&str, &str); 4] = [
-    ("approve", "よい"),
-    ("concerns", "気になる所あり"),
-    ("reject", "直すべき"),
-    ("not-assessed", "見られなかった"),
+    ("approve", "pages.verdict.approve"),
+    ("concerns", "pages.verdict.concerns"),
+    ("reject", "pages.verdict.reject"),
+    ("not-assessed", "pages.verdict.notAssessed"),
 ];
 
 /// この画面の答えに付ける Content-Security-Policy。ほかの画面の物（[`crate::CSP`]）に、pagetray の link の頭を足す:
@@ -112,9 +112,7 @@ impl View {
                 continue;
             };
             if seen.contains(&name) {
-                return Err(bad_request(format!(
-                    "引数を読めません（{name} を 2 度書いています）"
-                )));
+                return Err(bad_request(Text::new("errors.twice").with("name", name)));
             }
             *field = Some(value).filter(|v| name == "workspace" || !v.trim().is_empty());
             seen.push(name);
@@ -198,25 +196,28 @@ fn page_parts(path: &str) -> Option<(&str, &str, &str, &str)> {
 }
 
 /// レビューの判定の名（'static にする）と、画面に出す字。知らない字なら None。
-fn verdict_label(verdict: &str) -> Option<(&'static str, &'static str)> {
-    VERDICTS.into_iter().find(|(name, _)| *name == verdict)
+fn verdict_label(verdict: &str) -> Option<(&'static str, Text)> {
+    VERDICTS
+        .into_iter()
+        .find(|(name, _)| *name == verdict)
+        .map(|(name, key)| (name, Text::new(key)))
 }
 
 /// 返事の状態と待ちの相手の、画面に出す字。
-fn reply_label(answered: bool, on: &str) -> &'static str {
-    match (answered, on) {
-        (false, "review") => "レビュー待ち",
-        (true, "review") => "レビュー済み",
-        (false, "tpm") => "上げた",
-        (true, "tpm") => "決まった",
-        (false, _) => "返事待ち",
-        (true, _) => "答えた",
-    }
+fn reply_label(answered: bool, on: &str) -> Text {
+    Text::new(match (answered, on) {
+        (false, "review") => "pages.reply.reviewWaiting",
+        (true, "review") => "pages.reply.reviewed",
+        (false, "tpm") => "pages.reply.escalated",
+        (true, "tpm") => "pages.reply.decided",
+        (false, _) => "pages.reply.waiting",
+        (true, _) => "pages.reply.answered",
+    })
 }
 
 /// 絞り込みの列の、候補 1 つ。
 struct Choice {
-    label: String,
+    label: Text,
     /// 候補に添える字（workspace の Key）。無ければ空。
     note: String,
     count: i64,
@@ -226,15 +227,16 @@ struct Choice {
 
 /// 絞り込みの列の、見出し 1 つと、その候補。
 struct FilterGroup {
-    title: &'static str,
+    title: Text,
     choices: Vec<Choice>,
 }
 
 /// 操作の帯の、待ちの数の釦 1 つ（押すと、その待ちだけに絞る）。数が 0 なら隠す。
 struct Counter {
     id: &'static str,
-    label: &'static str,
-    title: &'static str,
+    label: Text,
+    /// `title` の字の鍵（値は無い）。
+    title: Text,
     count: i64,
     href: String,
     active: bool,
@@ -251,13 +253,13 @@ struct LinkView {
 struct ReviewView {
     link: LinkView,
     verdict: &'static str,
-    verdict_label: &'static str,
+    verdict_label: Option<Text>,
 }
 
 /// 行に出す送り手: castlist の名（callboard のプロフィールへの link）と、その下に小さく付随する id。
 struct SenderView {
     /// castlist の名。castlist の答えが無ければ「未確認」。
-    name: String,
+    name: Text,
     /// アクターのプロフィール（`/actors/<id>`）。castlist の答えが無ければ無い。
     href: Option<String>,
     /// 付随する id。
@@ -267,8 +269,11 @@ struct SenderView {
 fn sender_view(sender: Option<Sender>) -> Option<SenderView> {
     let sender = sender?;
     let (name, href) = match sender.actor {
-        Some(actor) => (actor.name, Some(format!("/actors/{}", strict(&actor.id)))),
-        None => ("未確認".to_owned(), None),
+        Some(actor) => (
+            Text::plain(actor.name),
+            Some(format!("/actors/{}", strict(&actor.id))),
+        ),
+        None => (Text::new("pages.unconfirmed"), None),
     };
     Some(SenderView {
         name,
@@ -293,12 +298,12 @@ struct Row {
     reply: &'static str,
     /// 待ちの相手（`review`・`tpm`）。Product Manager と、返事を求めていないページは空。
     on: &'static str,
-    reply_label: &'static str,
+    reply_label: Option<Text>,
     /// レビューの判定の名と字。判定の無いページは空。
     verdict: &'static str,
-    verdict_label: &'static str,
+    verdict_label: Option<Text>,
     /// 見た物（レビューのページ）・見る物（ほかのページ）の見出しと link。
-    targets_label: &'static str,
+    targets_label: Text,
     targets: Vec<LinkView>,
     /// このページを見たレビュー（古い順）。
     reviews: Vec<ReviewView>,
@@ -346,7 +351,8 @@ struct PagesPage<'a> {
     q: String,
     hidden: Vec<(&'static str, String)>,
     sort_href: String,
-    sort_label: &'static str,
+    /// 並びの釦の字（「並び: 新しい順」）。
+    sort_label: Text,
     reload_href: String,
     reset_href: String,
     filtered: bool,
@@ -400,9 +406,15 @@ pub async fn upload(
     headers: HeaderMap,
     body: Body,
 ) -> Response {
-    let invalid = |message: &str| reply(StatusCode::BAD_REQUEST, "ValidationException", message);
+    let invalid = |key: &'static str| {
+        reply(
+            StatusCode::BAD_REQUEST,
+            "ValidationException",
+            &Text::new(key),
+        )
+    };
     if !is_segment(&project) || !is_segment(&key) || project == "api" {
-        return invalid("project と Key の形が違う");
+        return invalid("pages.upload.errors.segment");
     }
     // browser から受けるのは、名だけ（役割・workspace・番号・時刻・付随する id は読まない）。
     let name = q.ok().and_then(|Query(pairs)| {
@@ -412,7 +424,7 @@ pub async fn upload(
             .map(|(_, value)| value)
     });
     let Some(name) = name.filter(|name| !name.is_empty()) else {
-        return invalid("name（file の名）が要る");
+        return invalid("pages.upload.errors.name");
     };
     app.pagetray
         .upload(
@@ -427,16 +439,7 @@ pub async fn upload(
 
 /// pagetray に聞けなかった訳を、画面の誤りにする。
 fn failed(e: Failure) -> PageError {
-    match e {
-        Failure::Rejected(message) => {
-            bad_request(format!("pagetray が引数を断りました: {message}"))
-        }
-        Failure::NotFound => bad_request("pagetray が引数を断りました"),
-        Failure::Unavailable(why) => PageError(
-            StatusCode::SERVICE_UNAVAILABLE,
-            format!("pagetray に聞けません（{why}）。少し待ってから開き直してください。"),
-        ),
-    }
+    params::failed("pagetray", e)
 }
 
 /// 条件を読み、pagetray に聞き、画面を組む。
@@ -444,7 +447,8 @@ async fn page(
     app: &App,
     q: Result<Query<Pairs>, QueryRejection>,
 ) -> Result<PagesPage<'_>, PageError> {
-    let view = View::read(params::pairs(q).map_err(|_| bad_request("引数を読めません"))?)?;
+    let view =
+        View::read(params::pairs(q).map_err(|_| bad_request(Text::new("errors.badArguments")))?)?;
     let oldest_first = view.oldest_first();
     let search = PageSearch {
         project: view.project.clone(),
@@ -503,8 +507,8 @@ async fn page(
     let group = |title,
                  counts: Vec<FacetCount>,
                  field: fn(&mut View) -> &mut Option<String>,
-                 show: fn(&FacetCount) -> (String, String)| FilterGroup {
-        title,
+                 show: fn(&FacetCount) -> (Text, String)| FilterGroup {
+        title: Text::new(title),
         choices: counts
             .into_iter()
             .map(|c| {
@@ -523,11 +527,11 @@ async fn page(
             .collect(),
     };
     // 値そのものを出す候補（空の値は「（不明）」）と、添える字。
-    let plain: fn(&FacetCount) -> (String, String) = |c| {
+    let plain: fn(&FacetCount) -> (Text, String) = |c| {
         let label = if c.value.is_empty() {
-            "（不明）".to_owned()
+            Text::new("pages.unknown")
         } else {
-            c.value.clone()
+            Text::plain(c.value.clone())
         };
         (label, c.note.clone().unwrap_or_default())
     };
@@ -536,7 +540,7 @@ async fn page(
     };
     // 返事の候補は、値でなく画面の字で出す。件数が 0 の候補は出さない。
     let replies = FilterGroup {
-        title: "返事",
+        title: Text::new("pages.filters.reply"),
         choices: [
             ("waiting", "", facets.waiting),
             ("answered", "", facets.answered),
@@ -548,7 +552,7 @@ async fn page(
         .map(|(state, on, count)| {
             let active = waits(state, on);
             Choice {
-                label: reply_label(state == "answered", on).to_owned(),
+                label: reply_label(state == "answered", on),
                 note: String::new(),
                 count,
                 href: view.with(|v| {
@@ -561,10 +565,10 @@ async fn page(
         .collect(),
     };
     // 操作の帯の釦は、ほかの絞り込みを外して、その待ちだけに絞り込む（並びは保つ）。
-    let counter = |id, label, title, on: &str, count| Counter {
+    let counter = |id, label: &'static str, title: &'static str, on: &str, count| Counter {
         id,
-        label,
-        title,
+        label: Text::new(label),
+        title: Text::new(title),
         count,
         href: View {
             reply: Some("waiting".to_owned()),
@@ -614,11 +618,14 @@ async fn page(
         q: view.q.clone().unwrap_or_default(),
         hidden,
         sort_href: view.with(|v| v.sort = (!oldest_first).then(|| "created_at".to_owned())),
-        sort_label: if oldest_first {
-            "古い順"
-        } else {
-            "新しい順"
-        },
+        sort_label: Text::new("pages.sort.label").with_text(
+            "sort",
+            &Text::new(if oldest_first {
+                "pages.sort.oldest"
+            } else {
+                "pages.sort.newest"
+            }),
+        ),
         reload_href: view.with(|_| {}),
         reset_href: View {
             sort: view.sort.clone(),
@@ -642,22 +649,22 @@ async fn page(
         counters: vec![
             counter(
                 "waiting",
-                "返事待ち",
-                "Product Manager の返事を待っているページだけに絞る",
+                "pages.reply.waiting",
+                "pages.counter.waiting",
                 "",
                 facets.waiting,
             ),
             counter(
                 "review-waiting",
-                "レビュー待ち",
-                "レビューの判定を待っている依頼書だけに絞る",
+                "pages.reply.reviewWaiting",
+                "pages.counter.reviewWaiting",
                 "review",
                 facets.review_waiting,
             ),
             counter(
                 "escalated",
-                "上げた",
-                "判定を受けずに TPM 担当へ上げ、まだ決まっていないレビューだけに絞る",
+                "pages.reply.escalated",
+                "pages.counter.escalated",
                 "tpm",
                 facets.escalated,
             ),
@@ -666,27 +673,42 @@ async fn page(
             replies,
             // 判定と送り手の候補は、値でなく画面の字（判定の字・castlist の名）で出す。
             group(
-                "判定",
+                "pages.filters.verdict",
                 facets.verdicts,
                 |v| &mut v.verdict,
                 |c| {
                     (
-                        verdict_label(&c.value).map_or("", |(_, l)| l).to_owned(),
+                        verdict_label(&c.value).map_or_else(|| Text::plain(""), |(_, l)| l),
                         String::new(),
                     )
                 },
             ),
             group(
-                "送り手",
+                "filters.sender",
                 facets.senders,
                 |v| &mut v.actor,
-                |c| (c.note.clone().unwrap_or_default(), String::new()),
+                |c| {
+                    (
+                        Text::plain(c.note.clone().unwrap_or_default()),
+                        String::new(),
+                    )
+                },
             ),
-            group("担当者（役割）", facets.roles, |v| &mut v.role, plain),
-            group("workspace", facets.workspaces, |v| &mut v.workspace, plain),
-            group("種類", facets.kinds, |v| &mut v.kind, plain),
-            group("Key", facets.keys, |v| &mut v.key, plain),
-            group("project", facets.projects, |v| &mut v.project, plain),
+            group("pages.filters.role", facets.roles, |v| &mut v.role, plain),
+            group(
+                "filters.workspace",
+                facets.workspaces,
+                |v| &mut v.workspace,
+                plain,
+            ),
+            group("filters.kind", facets.kinds, |v| &mut v.kind, plain),
+            group("filters.key", facets.keys, |v| &mut v.key, plain),
+            group(
+                "filters.project",
+                facets.projects,
+                |v| &mut v.project,
+                plain,
+            ),
         ],
         rows: found
             .pages
@@ -742,7 +764,7 @@ fn row(view: &View, reviews: &[ReviewOf], p: Page) -> Row {
         .verdict
         .as_deref()
         .and_then(verdict_label)
-        .unwrap_or(("", ""));
+        .map_or(("", None), |(v, l)| (v, Some(l)));
     let targets = p
         .targets
         .iter()
@@ -757,7 +779,7 @@ fn row(view: &View, reviews: &[ReviewOf], p: Page) -> Row {
                 .verdict
                 .as_deref()
                 .and_then(verdict_label)
-                .unwrap_or(("", ""));
+                .map_or(("", None), |(v, l)| (v, Some(l)));
             ReviewView {
                 link: link_view(view, &p.project, &p.key, &r.path),
                 verdict,
@@ -768,11 +790,11 @@ fn row(view: &View, reviews: &[ReviewOf], p: Page) -> Row {
     Row {
         href: view.opening(&p.path),
         active: view.open.as_deref() == Some(p.path.as_str()),
-        targets_label: if p.kind == "review" {
-            "見た物"
+        targets_label: Text::new(if p.kind == "review" {
+            "pages.targets.seen"
         } else {
-            "見る物"
-        },
+            "pages.targets.toSee"
+        }),
         name: format!("{}-{}", p.kind, p.n),
         created: short(&p.created_at),
         reply: match answered {
@@ -781,7 +803,7 @@ fn row(view: &View, reviews: &[ReviewOf], p: Page) -> Row {
             None => "",
         },
         on: if answered.is_some() { on } else { "" },
-        reply_label: answered.map_or("", |a| reply_label(a, on)),
+        reply_label: answered.map(|a| reply_label(a, on)),
         verdict,
         verdict_label: verdict_label_,
         targets,

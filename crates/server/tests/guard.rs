@@ -14,7 +14,7 @@ use axum::http::{HeaderMap, Request, StatusCode, header};
 use common::{App, error_type, get, with_host};
 use serde_json::Value;
 
-/// 断る答えの形: 種類の header・JSON の本文・`message` の字。`message` を返す。
+/// 断る答えの形: 種類の header・JSON の本文・`message` の字・`code`（字の鍵）と `values`（差し込む値）。`message` を返す。
 fn refused(headers: &HeaderMap, body: &str, kind: &str) -> String {
     assert_eq!(error_type(headers), kind, "{body}");
     assert_eq!(
@@ -27,6 +27,10 @@ fn refused(headers: &HeaderMap, body: &str, kind: &str) -> String {
     let json: Value = serde_json::from_str(body).unwrap_or_else(|e| panic!("{e}: {body}"));
     let message = json["message"].as_str().unwrap_or_else(|| panic!("{body}"));
     assert!(!message.is_empty());
+    // ブラウザーが選んだ言語の字を組めるように、鍵と値も付ける。日本語の字は、鍵の字に値を入れた物と同じ。
+    let code = json["code"].as_str().unwrap_or_else(|| panic!("{body}"));
+    assert!(json["values"].is_object(), "{body}");
+    assert_eq!(common::ja_text(code, &json["values"]), message, "{body}");
     message.to_owned()
 }
 

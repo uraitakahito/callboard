@@ -16,6 +16,8 @@ use std::time::Duration;
 
 use castlist_client::error::SdkError;
 
+use crate::ui::i18n::Text;
+
 /// 1 度に待つ長さ（つなぐ・送る・答えを読み終えるまでの全部）。callboard 自身の時間切れ（[`crate::REQUEST_TIMEOUT`]）より短くする
 /// （呼ぶ先が答えない時に、守りの層の時間切れより先に、どこが答えないかを書いた画面を返すため）。
 pub const TIMEOUT: Duration = Duration::from_secs(4);
@@ -38,7 +40,7 @@ pub enum Failure {
     /// 呼ぶ先が、引数を断った（400 `ValidationException`。中は、呼ぶ先の訳の字）。送り直しても直らない。
     Rejected(String),
     /// 聞けなかった（訳は [`reason`] の字）。
-    Unavailable(String),
+    Unavailable(Text),
 }
 
 /// 答えをそのまま browser に返す道が使う、生の HTTP の client（TLS の無い HTTP/1.1。接続は使い回さない）。
@@ -62,7 +64,7 @@ fn http_client() -> castlist_client::config::SharedHttpClient {
 
 /// 聞けなかった訳（画面に出す決まった字）。詳しい字（聞く先と、中の誤り）は、ここで記録に書く。
 /// castlist の client と pagetray の client の誤りは、同じ型（smithy の `SdkError`）。
-fn reason<E, R>(name: &str, api: &str, e: &SdkError<E, R>) -> String
+fn reason<E, R>(name: &str, api: &str, e: &SdkError<E, R>) -> Text
 where
     E: std::error::Error + Send + Sync + 'static,
     R: std::fmt::Debug + Send + Sync + 'static,
@@ -70,19 +72,26 @@ where
 {
     tracing::warn!(upstream = name, api, error = %castlist_client::error::DisplayErrorContext(e), "呼ぶ先に聞けない");
     match e {
-        SdkError::TimeoutError(_) => SLOW.to_owned(),
-        SdkError::DispatchFailure(e) if e.is_timeout() => SLOW.to_owned(),
-        SdkError::DispatchFailure(_) => "つながりません".to_owned(),
+        SdkError::TimeoutError(_) => Text::new(SLOW),
+        SdkError::DispatchFailure(e) if e.is_timeout() => Text::new(SLOW),
+        SdkError::DispatchFailure(_) => Text::new(UNREACHABLE),
         SdkError::ServiceError(_) | SdkError::ResponseError(_) => match e.status() {
-            Some(status) if !(200..300).contains(&status) => format!("{status} が返りました"),
-            _ => UNREADABLE.to_owned(),
+            Some(status) if !(200..300).contains(&status) => returned(status),
+            _ => Text::new(UNREADABLE),
         },
-        _ => UNREADABLE.to_owned(),
+        _ => Text::new(UNREADABLE),
     }
 }
 
-const SLOW: &str = "時間内に答えがありません";
-const UNREADABLE: &str = "答えを読めません";
+/// 聞けなかった訳の鍵（字は `static/locales/`）。
+const SLOW: &str = "upstream.slow";
+const UNREACHABLE: &str = "upstream.unreachable";
+const UNREADABLE: &str = "upstream.unreadable";
+
+/// 呼ぶ先が 2xx でない状態を返した訳。
+fn returned(status: u16) -> Text {
+    Text::new("upstream.returned").with("status", status)
+}
 
 /// 誤りに付いている、HTTP の状態。
 trait StatusOf {
@@ -99,8 +108,8 @@ impl<E> StatusOf for SdkError<E, castlist_client::config::http::HttpResponse> {
 async fn within<T>(
     name: &str,
     api: &str,
-    call: impl Future<Output = Result<T, String>>,
-) -> Result<T, String> {
+    call: impl Future<Output = Result<T, Text>>,
+) -> Result<T, Text> {
     match tokio::time::timeout(HEALTH_TIMEOUT, call).await {
         Ok(answer) => answer,
         Err(_) => {
@@ -110,18 +119,18 @@ async fn within<T>(
                 error = "health timeout",
                 "呼ぶ先に聞けない"
             );
-            Err(SLOW.to_owned())
+            Err(Text::new(SLOW))
         }
     }
 }
 
 /// 読めない答え（形は JSON でも、要る欄が無い・値が違う）。記録に残し、画面に出す訳を返す。
-fn unreadable(name: &str, api: &str) -> String {
+fn unreadable(name: &str, api: &str) -> Text {
     tracing::warn!(
         upstream = name,
         api,
         error = "unreadable answer",
         "呼ぶ先に聞けない"
     );
-    UNREADABLE.to_owned()
+    Text::new(UNREADABLE)
 }

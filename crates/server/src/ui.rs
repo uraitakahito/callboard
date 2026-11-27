@@ -33,7 +33,7 @@ use sha2::{Digest, Sha256};
 
 use crate::App;
 use crate::upstream::Health;
-use i18n::filters;
+use i18n::{Text, filters};
 
 pub use pages::csp as pages_csp;
 
@@ -152,8 +152,8 @@ async fn network_js() -> Response {
 // --- 画面に出す形 ---
 
 /// 種類の印。人（Product Manager）にだけ「人」を付け、AI には付けない（アクターはほとんど AI なので。Product Manager の頼み）。
-fn kind_name(kind: &str) -> &'static str {
-    if kind == "human" { "人" } else { "" }
+fn kind_name(kind: &str) -> Option<Text> {
+    (kind == "human").then(|| Text::new("common.kind.human"))
 }
 
 /// どの画面の頭にも出す、画面の間の link。castlist と pagetray の画面は、みな callboard に移した。
@@ -190,26 +190,31 @@ impl Nav {
 struct Service<'a> {
     /// 呼ぶ先の名（`castlist`・`pagetray`）。
     id: &'static str,
-    title: &'static str,
+    title: Text,
     /// つながれば、呼ぶ先の版。
     version: Option<String>,
     /// つながらない訳。
-    reason: String,
+    reason: Option<Text>,
     /// その呼ぶ先の画面（名と URL）。
-    links: Vec<(&'static str, &'a str)>,
+    links: Vec<(Text, &'a str)>,
 }
 
 impl<'a> Service<'a> {
     fn new(
         id: &'static str,
         title: &'static str,
-        health: Result<Health, String>,
+        health: Result<Health, Text>,
         links: Vec<(&'static str, &'a str)>,
     ) -> Self {
         let (version, reason) = match health {
-            Ok(health) => (Some(health.version), String::new()),
-            Err(reason) => (None, reason),
+            Ok(health) => (Some(health.version), None),
+            Err(reason) => (None, Some(reason)),
         };
+        let title = Text::new(title);
+        let links = links
+            .into_iter()
+            .map(|(name, href)| (Text::new(name), href))
+            .collect();
         Self {
             id,
             title,
@@ -234,7 +239,7 @@ struct ErrorPage<'a> {
     css: &'static str,
     nav: &'a Nav,
     status: u16,
-    message: &'a str,
+    message: &'a Text,
 }
 
 fn render(status: StatusCode, page: &impl Template) -> Response {
@@ -248,7 +253,7 @@ fn render(status: StatusCode, page: &impl Template) -> Response {
 }
 
 /// 誤りの画面。
-fn error_page(nav: &Nav, status: StatusCode, message: &str) -> Response {
+fn error_page(nav: &Nav, status: StatusCode, message: &Text) -> Response {
     render(
         status,
         &ErrorPage {
@@ -302,20 +307,23 @@ async fn home(State(app): State<Arc<App>>) -> Response {
         services: vec![
             Service::new(
                 "castlist",
-                "アクター",
+                "nav.actors",
                 castlist,
                 vec![
-                    ("アクターの一覧", &nav.actors),
-                    ("タイムライン", &nav.timeline),
-                    ("相関図", &nav.network),
-                    ("使用量", &nav.usage),
+                    ("home.castlist.actors", &nav.actors),
+                    ("nav.timeline", &nav.timeline),
+                    ("nav.network", &nav.network),
+                    ("nav.usage", &nav.usage),
                 ],
             ),
             Service::new(
                 "pagetray",
-                "ページ",
+                "nav.pages",
                 pagetray,
-                vec![("ページの一覧", &nav.pages), ("メッセージ", &nav.messages)],
+                vec![
+                    ("home.pagetray.pages", &nav.pages),
+                    ("nav.messages", &nav.messages),
+                ],
             ),
         ],
     };
@@ -323,5 +331,9 @@ async fn home(State(app): State<Arc<App>>) -> Response {
 }
 
 async fn not_found(State(app): State<Arc<App>>) -> Response {
-    error_page(&app.nav, StatusCode::NOT_FOUND, "その画面はありません")
+    error_page(
+        &app.nav,
+        StatusCode::NOT_FOUND,
+        &Text::new("error.noSuchScreen"),
+    )
 }

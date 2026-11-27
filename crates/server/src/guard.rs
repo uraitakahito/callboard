@@ -18,6 +18,7 @@ use axum::response::Response;
 use http_body_util::{BodyExt, LengthLimitError, Limited};
 
 use crate::errors::reply;
+use crate::ui::i18n::Text;
 use crate::{BODY_LIMIT, CSP, UPLOAD_LIMIT};
 
 /// host（callboard を動かす機械）の中からの要求だけを受ける。
@@ -38,7 +39,7 @@ pub async fn guard(mut request: Request, next: Next) -> Response {
         return reply(
             StatusCode::FORBIDDEN,
             "Forbidden",
-            "Host は 127.0.0.1 か localhost だけを受ける",
+            &Text::new("errors.host"),
         );
     }
     if request.method() != Method::GET && request.method() != Method::HEAD {
@@ -49,7 +50,7 @@ pub async fn guard(mut request: Request, next: Next) -> Response {
                 return reply(
                     StatusCode::FORBIDDEN,
                     "Forbidden",
-                    "file は、ページの一覧の画面の form からだけ上げられる",
+                    &Text::new("errors.formOnly"),
                 );
             }
         } else if request.headers().contains_key(header::ORIGIN) {
@@ -57,7 +58,7 @@ pub async fn guard(mut request: Request, next: Next) -> Response {
             return reply(
                 StatusCode::FORBIDDEN,
                 "Forbidden",
-                "browser の中のページからは書けない",
+                &Text::new("errors.origin"),
             );
         }
     }
@@ -131,20 +132,17 @@ pub async fn timeout(State(limit): State<Duration>, request: Request, next: Next
         Err(_) => reply(
             StatusCode::SERVICE_UNAVAILABLE,
             "Unavailable",
-            &format!(
-                "時間がかかりすぎた（{}）。少し待ってから送り直す",
-                length(limit)
-            ),
+            &too_slow(limit),
         ),
     }
 }
 
-/// 長さの字（秒で割り切れれば秒、ほかは ms）。
-fn length(d: Duration) -> String {
+/// 時間切れの訳。長さは、秒で割り切れれば秒、ほかは ms（単位は言語で替わるので、鍵を分ける）。
+fn too_slow(d: Duration) -> Text {
     if d.subsec_nanos() == 0 {
-        format!("{} 秒", d.as_secs())
+        Text::new("errors.tooSlow.seconds").with_num("n", d.as_secs())
     } else {
-        format!("{} ms", d.as_millis())
+        Text::new("errors.tooSlow.ms").with_num("n", d.as_millis())
     }
 }
 
@@ -165,7 +163,7 @@ pub async fn limit(request: Request, next: Next) -> Response {
         Err(e) if e.is::<LengthLimitError>() => reply(
             StatusCode::PAYLOAD_TOO_LARGE,
             "PayloadTooLarge",
-            &format!("本文は {} MiB まで", max / (1024 * 1024)),
+            &Text::new("errors.tooLarge").with_num("n", max / (1024 * 1024)),
         ),
         // 送り手が途中で切った、など。castlist・pagetray が読めない本文に返すのと同じ型にする。
         Err(e) => {
@@ -173,7 +171,7 @@ pub async fn limit(request: Request, next: Next) -> Response {
             reply(
                 StatusCode::BAD_REQUEST,
                 "SerializationException",
-                "本文を読めない",
+                &Text::new("errors.unreadableBody"),
             )
         }
     }
@@ -207,12 +205,20 @@ pub async fn stamp(request: Request, next: Next) -> Response {
 
 #[cfg(test)]
 mod tests {
-    use super::length;
+    use super::too_slow;
     use std::time::Duration;
 
     #[test]
     fn 長さの字() {
-        assert_eq!(length(Duration::from_secs(5)), "5 秒");
-        assert_eq!(length(Duration::from_millis(200)), "200 ms");
+        let seconds = too_slow(Duration::from_secs(5));
+        assert!(seconds.to_string().contains("（5 秒）"), "{seconds}");
+        assert_eq!(seconds.key(), "errors.tooSlow.seconds");
+        let ms = too_slow(Duration::from_millis(200));
+        assert!(ms.to_string().contains("（200 ms）"), "{ms}");
+        assert_eq!(ms.key(), "errors.tooSlow.ms");
+        assert_eq!(
+            seconds.to_string(),
+            "時間がかかりすぎた（5 秒）。少し待ってから送り直す"
+        );
     }
 }

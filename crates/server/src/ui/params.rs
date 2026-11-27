@@ -9,14 +9,35 @@ use axum::http::StatusCode;
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
+use super::i18n::Text;
 use super::time::{OFFSET, stamp};
+use crate::upstream::Failure;
 
 /// 画面の誤り（状態と、画面に書く訳）。
-pub struct PageError(pub StatusCode, pub String);
+pub struct PageError(pub StatusCode, pub Text);
 
 /// 引数の誤り（400）。訳には、誤った引数の名を入れる。
-pub fn bad_request(message: impl Into<String>) -> PageError {
-    PageError(StatusCode::BAD_REQUEST, message.into())
+pub fn bad_request(message: Text) -> PageError {
+    PageError(StatusCode::BAD_REQUEST, message)
+}
+
+/// 呼ぶ先（`service`: castlist・pagetray）に聞けなかった訳を、画面の誤りにする。断った訳（呼ぶ先の字）は、そのまま書く。
+pub fn failed(service: &'static str, e: Failure) -> PageError {
+    match e {
+        Failure::Rejected(message) => bad_request(
+            Text::new("errors.rejected")
+                .with("service", service)
+                .with("detail", message),
+        ),
+        // 名指す物の無い問いの 404。
+        Failure::NotFound => bad_request(Text::new("errors.rejectedBare").with("service", service)),
+        Failure::Unavailable(why) => PageError(
+            StatusCode::SERVICE_UNAVAILABLE,
+            Text::new("errors.unreachableRetry")
+                .with("service", service)
+                .with_text("why", &why),
+        ),
+    }
 }
 
 pub type Pairs = Vec<(String, String)>;
@@ -24,7 +45,7 @@ pub type Pairs = Vec<(String, String)>;
 /// 問い合わせの引数を、名と値の並びで読む（読めなければ 400）。
 pub fn pairs(q: Result<Query<Pairs>, QueryRejection>) -> Result<Pairs, PageError> {
     q.map(|Query(pairs)| pairs)
-        .map_err(|e| bad_request(format!("問い合わせの引数が読めない: {e}")))
+        .map_err(|e| bad_request(Text::new("params.unreadable").with("detail", e)))
 }
 
 /// ラベルの鍵の名: 英小文字・数字・`-`・`.` で 64 字まで。
@@ -46,13 +67,14 @@ impl Params {
     pub fn new(pairs: Pairs, known: &[&str], repeatable: &[&str]) -> Result<Self, PageError> {
         for (i, (name, _)) in pairs.iter().enumerate() {
             if !known.contains(&name.as_str()) {
-                return Err(bad_request(format!(
-                    "知らない引数: {name}（使えるのは {}）",
-                    known.join("・")
-                )));
+                return Err(bad_request(
+                    Text::new("params.unknown")
+                        .with("name", name)
+                        .with_list("known", known),
+                ));
             }
             if !repeatable.contains(&name.as_str()) && pairs[..i].iter().any(|(n, _)| n == name) {
-                return Err(bad_request(format!("{name} は 1 つだけ付ける")));
+                return Err(bad_request(Text::new("params.once").with("name", name)));
             }
         }
         Ok(Self(pairs))
@@ -76,11 +98,9 @@ impl Params {
     pub fn time(&self, name: &str) -> Result<Option<String>, PageError> {
         self.one(name)
             .map(|v| {
-                OffsetDateTime::parse(v, &Rfc3339).map(stamp).map_err(|_| {
-                    bad_request(format!(
-                        "{name} は RFC 3339 の時刻（例 2026-11-22T13:00:00+09:00）"
-                    ))
-                })
+                OffsetDateTime::parse(v, &Rfc3339)
+                    .map(stamp)
+                    .map_err(|_| bad_request(Text::new("params.time").with("name", name)))
             })
             .transpose()
     }
@@ -92,7 +112,7 @@ impl Params {
             None => Ok(None),
             Some("true") => Ok(Some(true)),
             Some("false") => Ok(Some(false)),
-            Some(_) => Err(bad_request(format!("{name} は true か false"))),
+            Some(_) => Err(bad_request(Text::new("params.flag").with("name", name))),
         }
     }
 
@@ -101,9 +121,7 @@ impl Params {
         match self.one(name) {
             None => Ok(false),
             Some("true") => Ok(true),
-            Some(_) => Err(bad_request(format!(
-                "{name} は true だけ（絞らないなら付けない）"
-            ))),
+            Some(_) => Err(bad_request(Text::new("params.onlyTrue").with("name", name))),
         }
     }
 
@@ -114,9 +132,7 @@ impl Params {
                 if is_name(v) {
                     Ok(v.to_owned())
                 } else {
-                    Err(bad_request(format!(
-                        "{name} は英小文字・数字・- . で 64 字まで"
-                    )))
+                    Err(bad_request(Text::new("params.name").with("name", name)))
                 }
             })
             .transpose()
@@ -129,7 +145,7 @@ impl Params {
                 if is_value(v) {
                     Ok(v.to_owned())
                 } else {
-                    Err(bad_request(format!("{name} は空でない 256 字まで")))
+                    Err(bad_request(Text::new("params.value").with("name", name)))
                 }
             })
             .transpose()
@@ -144,18 +160,32 @@ impl Params {
         self.one(name)
             .map(|v| {
                 choices.iter().find(|c| **c == v).copied().ok_or_else(|| {
-                    bad_request(format!("{name} は {} のどれか", choices.join("・")))
+                    bad_request(
+                        Text::new("params.choice")
+                            .with("name", name)
+                            .with_list("choices", choices),
+                    )
                 })
             })
             .transpose()
     }
 }
 
-/// `鍵:値` を初めの `:` で分けられるか。
-pub fn pair(name: &str, v: &str, shape: &str) -> Result<(), PageError> {
+/// `鍵:値` の形の字（誤りの訳に書く）。
+pub const LABEL_SHAPE: &str = "params.shape.label";
+/// `種類:値` の形の字。
+pub const BINDING_SHAPE: &str = "params.shape.binding";
+
+/// `鍵:値` を初めの `:` で分けられるか。`shape` は形の字の鍵（[`LABEL_SHAPE`]・[`BINDING_SHAPE`]）。
+pub fn pair(name: &str, v: &str, shape: &'static str) -> Result<(), PageError> {
     match v.split_once(':') {
         Some((key, value)) if is_name(key) && is_value(value) => Ok(()),
-        _ => Err(bad_request(format!("{name} は「{shape}」の形（{v}）"))),
+        _ => Err(bad_request(
+            Text::new("params.pair")
+                .with("name", name)
+                .with_text("shape", &Text::new(shape))
+                .with("value", v),
+        )),
     }
 }
 
@@ -171,7 +201,7 @@ pub fn graph_query(pairs: &Pairs) -> Result<Pairs, PageError> {
     for (name, value) in pairs {
         let value = match name.as_str() {
             "label" => {
-                pair("label", value, "鍵:値")?;
+                pair("label", value, LABEL_SHAPE)?;
                 value.clone()
             }
             _ => p.time(name)?.unwrap_or_default(),
@@ -187,12 +217,12 @@ pub fn graph_query(pairs: &Pairs) -> Result<Pairs, PageError> {
 pub const LIST_PERIOD: [&str; 2] = ["active_from", "active_to"];
 pub const GRAPH_PERIOD: [&str; 2] = ["from", "to"];
 
-/// 期間の欄の引数の名と、画面の見出しの字（読めない値の 400 の画面に書く）。
+/// 期間の欄の引数の名と、画面の見出しの字の鍵（読めない値の 400 の画面に書く）。
 const PERIOD_LABELS: [(&str, &str); 4] = [
-    ("active_from", "稼働した期間（から）"),
-    ("active_to", "稼働した期間（まで）"),
-    ("from", "登録した期間（から）"),
-    ("to", "登録した期間（まで）"),
+    ("active_from", "list.filters.activeFrom"),
+    ("active_to", "list.filters.activeTo"),
+    ("from", "filters.registeredFrom"),
+    ("to", "filters.registeredTo"),
 ];
 
 /// 期間の欄の値を RFC 3339 にする。browser の日時の欄（`datetime-local`）が送る
@@ -243,24 +273,24 @@ pub fn to_local(value: &str) -> String {
 /// 引数のうち、期間の欄（`names`）の値を RFC 3339 にそろえる（[`from_local`]）。読めない値は、欄の見出しと
 /// 直し方を書いた 400（API の字「RFC 3339 の時刻」は、欄から打つ人には硬いので、画面では使わない）。
 pub fn period(pairs: &mut Pairs, names: [&str; 2]) -> Result<(), PageError> {
-    fn label(name: &str) -> &str {
+    fn label(name: &str) -> &'static str {
         PERIOD_LABELS
             .iter()
             .find(|(n, _)| *n == name)
-            .map_or(name, |(_, l)| l)
+            .map_or("filters.period", |(_, l)| l)
     }
     period_named(pairs, names.map(|name| (name, label(name))))
 }
 
-/// [`period`] と同じ。欄の見出しを、画面が渡す（同じ名の欄でも、画面ごとに見出しが違う時）。
-pub fn period_named(pairs: &mut Pairs, fields: [(&str, &str); 2]) -> Result<(), PageError> {
+/// [`period`] と同じ。欄の見出しの字の鍵を、画面が渡す（同じ名の欄でも、画面ごとに見出しが違う時）。
+pub fn period_named(pairs: &mut Pairs, fields: [(&str, &'static str); 2]) -> Result<(), PageError> {
     for (name, value) in pairs.iter_mut() {
         if let Some((_, label)) = fields.iter().find(|(n, _)| n == name) {
             *value = from_local(value);
             if OffsetDateTime::parse(value, &Rfc3339).is_err() {
-                return Err(bad_request(format!(
-                    "「{label}」の日時を読めません。日時の欄で選ぶか、2026-11-22T13:00 の形で入れてください。"
-                )));
+                return Err(bad_request(
+                    Text::new("params.period").with_text("label", &Text::new(label)),
+                ));
             }
         }
     }
@@ -270,7 +300,7 @@ pub fn period_named(pairs: &mut Pairs, fields: [(&str, &str); 2]) -> Result<(), 
 /// 期間をすぐ選ぶ link の名と、その期間（RFC 3339・`+09:00`。秒まで）。`now` から決める。
 /// 直近 1 時間・直近 7 日は今まで（今の秒を切り上げる。今の秒の中に来た記録も入れる）、
 /// 今日・昨日は日本時間の 0 時から次の 0 時まで。
-fn quick_ranges(now: OffsetDateTime) -> [(&'static str, String, String); 4] {
+fn quick_ranges(now: OffsetDateTime) -> [(Text, String, String); 4] {
     let now = now.to_offset(OFFSET);
     let now = if now.nanosecond() == 0 {
         now
@@ -281,12 +311,12 @@ fn quick_ranges(now: OffsetDateTime) -> [(&'static str, String, String); 4] {
     let (hour, day) = (time::Duration::HOUR, time::Duration::DAY);
     let iso = |t: OffsetDateTime| t.format(&Rfc3339).unwrap_or_default();
     [
-        ("直近 1 時間", now - hour, now),
-        ("今日", today, today + day),
-        ("昨日", today - day, today),
-        ("直近 7 日", now - day * 7, now),
+        ("common.quickRange.hour", now - hour, now),
+        ("common.quickRange.today", today, today + day),
+        ("common.quickRange.yesterday", today - day, today),
+        ("common.quickRange.week", now - day * 7, now),
     ]
-    .map(|(name, from, to)| (name, iso(from), iso(to)))
+    .map(|(name, from, to)| (Text::new(name), iso(from), iso(to)))
 }
 
 /// 期間をすぐ選ぶ link（名と URL）。今の引数のまま、期間（`names`）だけを替え、次のページの `after` は落とす。
@@ -295,7 +325,7 @@ pub fn quick_links(
     pairs: &Pairs,
     names: [&str; 2],
     now: OffsetDateTime,
-) -> Vec<(&'static str, String)> {
+) -> Vec<(Text, String)> {
     let kept = pairs
         .iter()
         .filter(|(n, _)| n != "after" && !names.contains(&n.as_str()));
@@ -485,10 +515,12 @@ mod tests {
                 "2026-11-23T10:30:16+09:00",
             ),
         ];
-        let got: Vec<(&str, &str, &str)> = ranges
+        let got: Vec<(String, &str, &str)> = ranges
             .iter()
-            .map(|(n, f, t)| (*n, f.as_str(), t.as_str()))
+            .map(|(n, f, t)| (n.to_string(), f.as_str(), t.as_str()))
             .collect();
+        let got: Vec<(&str, &str, &str)> =
+            got.iter().map(|(n, f, t)| (n.as_str(), *f, *t)).collect();
         assert_eq!(got, want);
         // ちょうどの秒なら、切り上げない。
         let ranges = quick_ranges(at("2026-11-23T01:30:15Z"));
@@ -504,8 +536,18 @@ mod tests {
         let now = at("2026-11-23T01:30:15Z");
         let graph = pairs(&[("to", "2026-11-01T00:00:00+09:00"), ("label", "a:b")]);
         let links = quick_links("/graph/network", &graph, GRAPH_PERIOD, now);
-        let names: Vec<&str> = links.iter().map(|(n, _)| *n).collect();
+        let names: Vec<String> = links.iter().map(|(n, _)| n.to_string()).collect();
         assert_eq!(names, ["直近 1 時間", "今日", "昨日", "直近 7 日"]);
+        let keys: Vec<&str> = links.iter().map(|(n, _)| n.key()).collect();
+        assert_eq!(
+            keys,
+            [
+                "common.quickRange.hour",
+                "common.quickRange.today",
+                "common.quickRange.yesterday",
+                "common.quickRange.week"
+            ]
+        );
         assert_eq!(
             links[0].1,
             "/graph/network?label=a:b&from=2026-11-23T09:30:15%2B09:00&to=2026-11-23T10:30:15%2B09:00"
@@ -548,6 +590,7 @@ mod tests {
         ] {
             let PageError(status, message) = graph_query(&bad).err().unwrap();
             assert_eq!(status, StatusCode::BAD_REQUEST);
+            let message = message.to_string();
             assert!(message.contains(word), "{message}");
         }
     }

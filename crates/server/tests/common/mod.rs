@@ -259,3 +259,136 @@ pub fn without_i18n_scripts(body: &str) -> String {
     }
     out
 }
+
+/// 鍵の日本語の字（`static/locales/ja.json`。数で言い分ける鍵は `_other`）に、`values` の `{{名}}` を入れた物。
+pub fn ja_text(key: &str, values: &serde_json::Value) -> String {
+    let ja: serde_json::Value =
+        serde_json::from_str(include_str!("../../../../static/locales/ja.json")).unwrap();
+    let mut node = &ja;
+    for part in key.split('.') {
+        node = &node[part];
+    }
+    let mut text = node
+        .as_str()
+        .or_else(|| {
+            let (head, last) = key.rsplit_once('.')?;
+            let mut node = &ja;
+            for part in head.split('.') {
+                node = &node[part];
+            }
+            node[format!("{last}_other")].as_str()
+        })
+        .unwrap_or_else(|| panic!("{key} が ja.json に無い"))
+        .to_owned();
+    for (name, value) in values.as_object().into_iter().flatten() {
+        text = text.replace(&format!("{{{{{name}}}}}"), &ja_value(value));
+    }
+    text
+}
+
+/// 差し込む値の日本語の字。入れ子の字（`{"$t":…,"values":…}`）と名の並び（`{"$join":[…],"sep":…}`）は、日本語で組む。
+fn ja_value(value: &serde_json::Value) -> String {
+    if let Some(key) = value.get("$t").and_then(serde_json::Value::as_str) {
+        return ja_text(key, value.get("values").unwrap_or(&serde_json::json!({})));
+    }
+    if let Some(items) = value.get("$join").and_then(serde_json::Value::as_array) {
+        let sep = ja_text(value["sep"].as_str().unwrap(), &serde_json::json!({}));
+        return items.iter().map(ja_value).collect::<Vec<_>>().join(&sep);
+    }
+    value
+        .as_str()
+        .map_or_else(|| value.to_string(), str::to_owned)
+}
+
+/// 鍵を付けた `<span data-i18n="…" …>字</span>` だけの字なら、中の字を返す（ほかは、そのまま）。数の字（`23 万` など）の
+/// 鍵と値は、[`tokens`] の試験が見る。
+pub fn unwrap_text(cell: &str) -> &str {
+    match cell.strip_prefix("<span data-i18n=\"") {
+        Some(rest) if cell.ends_with("</span>") && cell.matches("<span").count() == 1 => {
+            let start = rest.find('>').unwrap() + 1;
+            &rest[start..rest.len() - "</span>".len()]
+        }
+        _ => cell,
+    }
+}
+
+/// トークンの数の字（`common.tokens`）の要素。日本語は `{man} 万`。値は数の部分だけ（`k` は千の数）。
+pub fn tokens(man: &str, k: &str) -> String {
+    format!(
+        "<span data-i18n=\"common.tokens\" data-i18n-options=\"{{&#34;k&#34;:&#34;{k}&#34;,&#34;man&#34;:&#34;{man}&#34;}}\">{man} 万</span>"
+    )
+}
+
+/// askama と callboard が数字の形で逃がした字（`&#60;` など）を戻す。
+pub fn unescape(text: &str) -> String {
+    let mut out = String::new();
+    let mut rest = text;
+    while let Some(at) = rest.find("&#") {
+        out.push_str(&rest[..at]);
+        let end = rest[at..].find(';').unwrap();
+        let code: u32 = rest[at + 2..at + end].parse().unwrap();
+        out.push(char::from_u32(code).unwrap());
+        rest = &rest[at + end + 1..];
+    }
+    out.push_str(rest);
+    out
+}
+
+/// HTML の 1 つの tag（`tag` は `<名 …>` の字）の、属性 `name` の値（逃がしたまま）。
+fn attr_in<'a>(tag: &'a str, name: &str) -> Option<&'a str> {
+    let needle = format!(" {name}=\"");
+    let at = tag.find(&needle)? + needle.len();
+    Some(&tag[at..at + tag[at..].find('"')?])
+}
+
+/// 画面の鍵の決まりを見る（`what` は落ちた時に出す名）:
+/// - `data-i18n` の要素は子の要素を持たない（英語の時は textContent で丸ごと替えるので、子は消える）。
+/// - サーバーが書いた字は、鍵の日本語の字に `data-i18n-options` の値を入れた物と同じ（ブラウザーは日本語の時に差し替えない）。
+/// - `data-i18n` と `data-i18n-attr` の鍵は、みな `ja.json` にある。属性の字も、鍵の日本語の字に値を入れた物と同じ。
+pub fn check_i18n(what: &str, body: &str) {
+    let mut seen = 0;
+    for (at, _) in body.match_indices(" data-i18n") {
+        let open = body[..at].rfind('<').unwrap();
+        let tag_end = at + body[at..].find('>').unwrap();
+        let tag = &body[open..=tag_end];
+        let values: serde_json::Value = attr_in(tag, "data-i18n-options").map_or_else(
+            || serde_json::json!({}),
+            |raw| {
+                serde_json::from_str(&unescape(raw))
+                    .unwrap_or_else(|e| panic!("{what}: {e}: {tag}"))
+            },
+        );
+        if body[at..].starts_with(" data-i18n=\"") {
+            seen += 1;
+            let key = attr_in(tag, "data-i18n").unwrap();
+            let text = &body[tag_end + 1..tag_end + 1 + body[tag_end + 1..].find('<').unwrap()];
+            assert_eq!(
+                unescape(text),
+                ja_text(key, &values),
+                "{what} の {key}: {tag}"
+            );
+            let name = &tag[1..tag.find([' ', '>']).unwrap()];
+            let after = &body[tag_end + 1 + text.len()..];
+            assert!(
+                after.starts_with(&format!("</{name}>")),
+                "{what} の {key} の要素（{name}）が子を持つ: {}",
+                &after[..after.len().min(80)]
+            );
+        } else if body[at..].starts_with(" data-i18n-attr=\"") {
+            seen += 1;
+            for pair in attr_in(tag, "data-i18n-attr").unwrap().split(';') {
+                let (name, key) = pair
+                    .split_once(':')
+                    .unwrap_or_else(|| panic!("{what}: {tag}"));
+                let value = attr_in(tag, name.trim())
+                    .unwrap_or_else(|| panic!("{what} の {name} が無い: {tag}"));
+                assert_eq!(
+                    unescape(value),
+                    ja_text(key.trim(), &values),
+                    "{what} の属性 {pair}: {tag}"
+                );
+            }
+        }
+    }
+    assert!(seen > 0, "{what} に鍵が無い");
+}

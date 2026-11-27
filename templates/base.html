@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
-{#- 題は、鍵の字に「 ・ callboard」まで入れる（i18next が <title> の字をまるごと差し替えるので）。鍵の無い題（プロフィールの名・誤りの数）は差し替えない。 #}
+{#- 題は、鍵の字に「 ・ callboard」まで入れる（i18next が <title> の字をまるごと差し替えるので）。プロフィールの名・誤りの数は、値で差し込む。 #}
 <title{% block title_attrs %}{% endblock %}>{% block title %}{% endblock %}</title>
 <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
 <link rel="stylesheet" href="{{ css }}">

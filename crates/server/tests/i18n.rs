@@ -94,7 +94,11 @@ fn 訳の差し込みは_名だけの形() {
     // サーバーは {{名}} だけを入れる（i18next の入れ子 $t(…)・{{n, number}} の形・{{- 名}} は、サーバーとブラウザーで字が食い違う）。
     for (lang, json) in [("ja", JA), ("en", EN)] {
         for (key, text) in keys(json) {
-            assert!(!text.contains("$t("), "{lang} の {key}: {text}");
+            // 入れ子の字（$t）と名の並び（$join）は、data-i18n-options の値の側にだけ置く（訳の file には書かない）。
+            assert!(
+                !text.contains("$t") && !text.contains("$join"),
+                "{lang} の {key}: {text}"
+            );
             let mut rest = text.as_str();
             while let Some(at) = rest.find("{{") {
                 let end = rest[at..]
@@ -111,45 +115,9 @@ fn 訳の差し込みは_名だけの形() {
     }
 }
 
-/// 鍵の日本語の字（数で言い分ける鍵は `_other`）。
-fn text_of(ja: &std::collections::BTreeMap<String, String>, key: &str) -> String {
-    ja.get(key)
-        .or_else(|| ja.get(&format!("{key}_other")))
-        .cloned()
-        .unwrap_or_default()
-}
-
-/// askama が数字の形で逃がした字（`&#60;` など）を戻す。
-fn unescape(text: &str) -> String {
-    let mut out = String::new();
-    let mut rest = text;
-    while let Some(at) = rest.find("&#") {
-        out.push_str(&rest[..at]);
-        let end = rest[at..].find(';').unwrap();
-        let code: u32 = rest[at + 2..at + end].parse().unwrap();
-        out.push(char::from_u32(code).unwrap());
-        rest = &rest[at + end + 1..];
-    }
-    out.push_str(rest);
-    out
-}
-
-/// HTML の `<名>="<値>"` の値をみな集める。
-fn attrs<'a>(body: &'a str, name: &str) -> Vec<&'a str> {
-    let needle = format!(" {name}=\"");
-    body.match_indices(&needle)
-        .map(|(at, _)| {
-            let rest = &body[at + needle.len()..];
-            &rest[..rest.find('"').unwrap()]
-        })
-        .collect()
-}
-
 #[tokio::test]
-async fn 画面に書いた鍵は_みな訳にある() {
+async fn 画面に書いた鍵は_みな訳にあり_字は訳の字と同じで_鍵の要素は子を持たない() {
     let app = App::start().await;
-    let ja = keys(JA);
-    let has = |key: &str| ja.contains_key(key) || ja.contains_key(&format!("{key}_other"));
     for path in [
         "/",
         "/actors/",
@@ -161,41 +129,104 @@ async fn 画面に書いた鍵は_みな訳にある() {
         "/no/such",
     ] {
         let (_, _, body) = app.send(get(path)).await;
-        let found = attrs(&body, "data-i18n");
-        assert!(!found.is_empty(), "{path} に鍵が無い");
-        for key in found {
-            assert!(has(key), "{path} の鍵 {key} が訳に無い");
+        common::check_i18n(path, &body);
+    }
+}
+
+/// template の file の中の字から、`"<鍵>"` の形で書いた鍵を拾う（`data-i18n="…"`・`data-i18n-attr="名:鍵;…"`・
+/// `"…"|t`・`"…"|t1(`・`"…"|t2(`）。
+fn template_keys(source: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for (at, _) in source.match_indices("data-i18n=\"") {
+        let rest = &source[at + 11..];
+        out.push(rest[..rest.find('"').unwrap()].to_owned());
+    }
+    for (at, _) in source.match_indices("data-i18n-attr=\"") {
+        let rest = &source[at + 16..];
+        for pair in rest[..rest.find('"').unwrap()].split(';') {
+            out.push(pair.split_once(':').unwrap().1.trim().to_owned());
         }
-        // サーバーが書いた字は、日本語の訳の字と同じ（ブラウザーは日本語の時に差し替えないので、違うと食い違う）。
-        // 値を差し込む要素（data-i18n-options）は、Playwright の試験が callboardT と比べる。
-        for (at, _) in body.match_indices(" data-i18n=\"") {
-            let tag_end = at + body[at..].find('>').unwrap();
-            if body[at..tag_end].contains("data-i18n-options") {
-                continue;
-            }
-            let key = attrs(&body[at..], "data-i18n")[0];
-            let text = &body[tag_end + 1..tag_end + 1 + body[tag_end + 1..].find('<').unwrap()];
-            assert_eq!(unescape(text), text_of(&ja, key), "{path} の {key}");
-            // data-i18n の要素は子の要素を持たない（英語の時は textContent で丸ごと替えるので、子は消える）。字の次の tag は、
-            // その要素の閉じの tag。
-            let open = body[..at].rfind('<').unwrap() + 1;
-            let name = &body[open..open + body[open..].find([' ', '>']).unwrap()];
-            let after = &body[tag_end + 1 + text.len()..];
-            assert!(
-                after.starts_with(&format!("</{name}>")),
-                "{path} の {key} の要素（{name}）が子を持つ: {}",
-                &after[..after.len().min(80)]
-            );
+    }
+    for filter in ["\"|t }}", "\"|t1(", "\"|t2("] {
+        for (at, _) in source.match_indices(filter) {
+            let open = source[..at].rfind('"').unwrap();
+            out.push(source[open + 1..at].to_owned());
         }
-        for pairs in attrs(&body, "data-i18n-attr") {
-            for pair in pairs.split(';') {
-                let (_, key) = pair
-                    .split_once(':')
-                    .unwrap_or_else(|| panic!("{path}: {pairs}"));
-                assert!(has(key.trim()), "{path} の属性の鍵 {key} が訳に無い");
+    }
+    out
+}
+
+/// Rust の source の字から、訳の file の頭の名（`nav.`・`errors.` など）で始まる `"…"` の字を、鍵として拾う
+/// （`Text::new` に渡す鍵と、鍵の表の鍵）。
+fn rust_keys(source: &str, heads: &[String]) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut rest = source;
+    while let Some(at) = rest.find('"') {
+        rest = &rest[at + 1..];
+        let Some(end) = rest.find('"') else { break };
+        let word = &rest[..end];
+        if word.contains('.')
+            && word.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'_')
+            && heads.iter().any(|h| word.starts_with(&format!("{h}.")))
+            // file の名（`home.html` など）と、鍵の頭（`events.`）は鍵でない。
+            && !word.ends_with('.')
+            && ![".html", ".js", ".css", ".json", ".svg"].iter().any(|ext| word.ends_with(ext))
+        {
+            out.push(word.to_owned());
+        }
+        rest = &rest[end + 1..];
+    }
+    out
+}
+
+/// `dir` の下の file を、みな読む（名と中身）。
+async fn sources(dir: std::path::PathBuf) -> Vec<(std::path::PathBuf, String)> {
+    let mut out = Vec::new();
+    let mut stack = vec![dir];
+    while let Some(dir) = stack.pop() {
+        let mut entries = tokio::fs::read_dir(&dir).await.unwrap();
+        while let Some(entry) = entries.next_entry().await.unwrap() {
+            let path = entry.path();
+            if entry.file_type().await.unwrap().is_dir() {
+                stack.push(path);
+            } else {
+                let source = tokio::fs::read_to_string(&path).await.unwrap();
+                out.push((path, source));
             }
         }
     }
+    out
+}
+
+#[tokio::test]
+async fn template_と_rust_の_source_に書いた鍵は_みな訳にある() {
+    let ja = keys(JA);
+    let has = |key: &str| ja.contains_key(key) || ja.contains_key(&format!("{key}_other"));
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let heads: Vec<String> = serde_json::from_str::<Value>(JA)
+        .unwrap()
+        .as_object()
+        .unwrap()
+        .keys()
+        .cloned()
+        .collect();
+    let mut found = 0;
+    for (path, source) in sources(root.join("../../templates")).await {
+        for key in template_keys(&source) {
+            found += 1;
+            assert!(has(&key), "{} の鍵 {key} が訳に無い", path.display());
+        }
+    }
+    for (path, source) in sources(root.join("src")).await {
+        if path.extension().is_none_or(|e| e != "rs") {
+            continue;
+        }
+        for key in rust_keys(&source, &heads) {
+            found += 1;
+            assert!(has(&key), "{} の鍵 {key} が訳に無い", path.display());
+        }
+    }
+    assert!(found > 300, "拾えた鍵が少ない: {found}");
 }
 
 #[tokio::test]

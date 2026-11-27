@@ -16,10 +16,14 @@ pub use pagetray_client::operation::list_messages::ListMessagesOutput;
 pub use pagetray_client::operation::list_pages::ListPagesOutput;
 pub use pagetray_client::types::{FacetCount, File, Message, Page, ReviewOf, Sender};
 
-use super::{Failure, Health, Raw, TIMEOUT, http_client, raw_client, reason, unreadable, within};
+use super::{
+    Failure, Health, Raw, SLOW, TIMEOUT, UNREACHABLE, UNREADABLE, http_client, raw_client, reason,
+    returned, unreadable, within,
+};
 use crate::Closing;
 use crate::config::Base;
-use crate::errors::reply;
+use crate::errors::{reply, with_code};
+use crate::ui::i18n::Text;
 
 /// 記録に書く、呼ぶ先の名。
 const NAME: &str = "pagetray";
@@ -73,7 +77,7 @@ impl Pagetray {
     }
 
     /// 生きているかを聞く（GetHealth）。聞けなければ、その訳。
-    pub async fn health(&self) -> Result<Health, String> {
+    pub async fn health(&self) -> Result<Health, Text> {
         within(NAME, &self.api, async {
             let output = self
                 .client
@@ -155,11 +159,13 @@ impl Pagetray {
     ///   （browser の `EventSource` が、つなぎ直す）。browser が切れば、pagetray へのつなぎも切れる。
     /// - 止める合図（`closing`）を受けたら、流れを閉じる。
     pub async fn events(&self, wait: Duration, closing: Closing) -> Response {
-        let unavailable = |why: &str| {
+        let unavailable = |why: Text| {
             reply(
                 StatusCode::SERVICE_UNAVAILABLE,
                 "Unavailable",
-                &format!("pagetray に聞けません（{why}）"),
+                &Text::new("errors.unreachable")
+                    .with("service", NAME)
+                    .with_text("why", &why),
             )
         };
         let warn = |error: &str| {
@@ -173,17 +179,17 @@ impl Pagetray {
             Ok(request) => request,
             Err(e) => {
                 warn(&e.to_string());
-                return unavailable("つながりません");
+                return unavailable(Text::new(UNREACHABLE));
             }
         };
         let (parts, body) = match tokio::time::timeout(wait, self.raw.request(request)).await {
             Err(_) => {
                 warn("timeout");
-                return unavailable("時間内に答えがありません");
+                return unavailable(Text::new(SLOW));
             }
             Ok(Err(e)) => {
                 warn(&e.to_string());
-                return unavailable("つながりません");
+                return unavailable(Text::new(UNREACHABLE));
             }
             Ok(Ok(response)) => response.into_parts(),
         };
@@ -194,11 +200,11 @@ impl Pagetray {
             .is_some_and(|v| v.starts_with(EVENT_STREAM));
         if parts.status != StatusCode::OK {
             warn(&format!("status {}", parts.status.as_u16()));
-            return unavailable(&format!("{} が返りました", parts.status.as_u16()));
+            return unavailable(returned(parts.status.as_u16()));
         }
         if !stream {
             warn("not an event stream");
-            return unavailable("答えを読めません");
+            return unavailable(Text::new(UNREADABLE));
         }
         let body = Body::new(body)
             .into_data_stream()
@@ -356,11 +362,13 @@ impl Pagetray {
         content_type: Option<header::HeaderValue>,
         body: Body,
     ) -> Response {
-        let unavailable = |why: &str| {
+        let unavailable = |why: Text| {
             reply(
                 StatusCode::SERVICE_UNAVAILABLE,
                 "Unavailable",
-                &format!("pagetray に聞けません（{why}）"),
+                &Text::new("errors.unreachable")
+                    .with("service", NAME)
+                    .with_text("why", &why),
             )
         };
         let uri = format!(
@@ -376,7 +384,7 @@ impl Pagetray {
             return reply(
                 StatusCode::BAD_REQUEST,
                 "ValidationException",
-                "引数を読めません",
+                &Text::new("errors.badArguments"),
             );
         };
         let answer = tokio::time::timeout(TIMEOUT, async {
@@ -401,13 +409,23 @@ impl Pagetray {
                     "呼ぶ先に聞けない"
                 );
                 // 本文は渡し終えているかもしれない（pagetray が置き終えた後に、答えだけが間に合わなかった時）。
-                unavailable("時間内に答えがありません。file は置かれたかもしれません")
+                unavailable(Text::new("upstream.slowMaybePlaced"))
             }
             Ok(Err(error)) => {
                 tracing::warn!(upstream = NAME, api = self.api, error, "呼ぶ先に聞けない");
-                unavailable("つながりません")
+                unavailable(Text::new(UNREACHABLE))
             }
             Ok(Ok((parts, body))) => {
+                // 断った答えには、型の名の鍵（`code`）を足す（ブラウザーが、選んだ言語の字で出せるように）。
+                let body = if parts.status.is_success() {
+                    body.to_vec()
+                } else {
+                    let kind = parts
+                        .headers
+                        .get("x-amzn-errortype")
+                        .and_then(|v| v.to_str().ok());
+                    with_code(kind, &body).unwrap_or_else(|| body.to_vec())
+                };
                 let mut response = Response::new(Body::from(body));
                 *response.status_mut() = parts.status;
                 for name in [header::CONTENT_TYPE.as_str(), "x-amzn-errortype"] {

@@ -21,8 +21,8 @@ use time::format_description::well_known::Rfc3339;
 
 use castlist_client::types::Usage;
 
-use super::i18n::filters;
-use super::params::{self, PageError, Pairs, Params, bad_request};
+use super::i18n::{Text, filters};
+use super::params::{self, LABEL_SHAPE, PageError, Pairs, Params, bad_request};
 use super::time::{OFFSET, Time, local, stamp, time};
 use super::timeline_layout;
 use super::usage_chart::{self as chart, Axis};
@@ -38,9 +38,10 @@ pub const PATH: &str = "/usage/";
 /// 引数の名。`label` は何度でも。
 const USAGE_PARAMS: &[&str] = &["label", "from", "to"];
 
-/// 期間の欄の引数の名と、画面の見出しの字（読めない値の 400 の画面に書く）。
+/// 期間の欄の引数の名と、画面の見出しの字の鍵（読めない値の 400 の画面に書く）。
 const PERIOD: [&str; 2] = ["from", "to"];
-const PERIOD_FIELDS: [(&str, &str); 2] = [("from", "期間（から）"), ("to", "期間（まで）")];
+const PERIOD_FIELDS: [(&str, &str); 2] =
+    [("from", "usage.filters.from"), ("to", "usage.filters.to")];
 
 /// 期間が無い時の長さ（直近の日数）と、castlist が受ける期間の上限（日数）。
 const DEFAULT_DAYS: i64 = 7;
@@ -105,14 +106,12 @@ fn window(
     now: OffsetDateTime,
 ) -> Result<(OffsetDateTime, OffsetDateTime), PageError> {
     align(from, to, now).map_err(|misfit| match misfit {
-        Misfit::NotAfter => {
-            bad_request("「期間（まで）」は、「期間（から）」より後にしてください。")
+        Misfit::NotAfter => bad_request(Text::new("usage.errors.notAfter")),
+        Misfit::TooLong => {
+            bad_request(Text::new("usage.errors.tooLong").with_num("days", MAX_DAYS))
         }
-        Misfit::TooLong => bad_request(format!(
-            "期間は {MAX_DAYS} 日までです（時の境に揃えた後の長さ）。期間を狭めてください。"
-        )),
         // 打っていない「期間（まで）」の名を出さない。
-        Misfit::StartsLater => bad_request("「期間（から）」が、先の時刻です。"),
+        Misfit::StartsLater => bad_request(Text::new("usage.errors.startsLater")),
     })
 }
 
@@ -142,11 +141,13 @@ pub(super) fn cut(answer: &UsageAnswer) -> bool {
 }
 
 /// 数を読めなかった訳（一覧の列とアクターの頁の節に、頁を落とさずに書く）。
-pub(super) fn unreadable(failure: Failure) -> String {
+pub(super) fn unreadable(failure: Failure) -> Text {
     match failure {
-        Failure::Rejected(message) => format!("castlist が引数を断りました: {message}"),
+        Failure::Rejected(message) => Text::new("errors.rejected")
+            .with("service", "castlist")
+            .with("detail", message),
         // この操作に名指す物は無いので、古い castlist の 404 と同じ。
-        Failure::NotFound => "404 が返りました".to_owned(),
+        Failure::NotFound => Text::new("upstream.returned").with("status", 404),
         Failure::Unavailable(why) => why,
     }
 }
@@ -184,23 +185,27 @@ fn percent(part: i64, whole: i64) -> Option<String> {
     Some(format!("{}.{}%", tenths / 10, tenths % 10))
 }
 
-/// トークンの数を「万」の単位にする（`22.5 万`・`97 万`。小数 1 桁に四捨五入し、`.0` は書かない）。
-pub(super) fn man(tokens: i64) -> String {
+/// トークンの数を「万」の単位にする（`22.5 万`・`97 万`。小数 1 桁に四捨五入し、`.0` は書かない）。値は言語で替わらない数の
+/// 部分だけ（`man` は万の数、`k` は千の数。同じ桁まで）で、形（日本語「{{man}} 万」・英語「{{k}}k」）は訳の file の `common.tokens`。
+pub(super) fn man(tokens: i64) -> Text {
     let tenths = tokens.max(0).saturating_add(500) / 1_000;
-    if tenths % 10 == 0 {
-        format!("{} 万", tenths / 10)
+    let man = if tenths % 10 == 0 {
+        format!("{}", tenths / 10)
     } else {
-        format!("{}.{} 万", tenths / 10, tenths % 10)
-    }
+        format!("{}.{}", tenths / 10, tenths % 10)
+    };
+    Text::new("common.tokens")
+        .with("man", man)
+        .with("k", count(tenths))
 }
 
 /// 段の下の端を、「22.5 万〜」の形にする。
-fn from_man(tokens: i64) -> String {
-    format!("{}〜", man(tokens))
+fn from_man(tokens: i64) -> Text {
+    Text::new("common.tokensFrom").with_text("low", &man(tokens))
 }
 
 /// いちばん長い文脈。本体の回が無ければ（0 なら）無い。
-pub(super) fn longest(tokens: i64) -> Option<String> {
+pub(super) fn longest(tokens: i64) -> Option<Text> {
     (tokens > 0).then(|| man(tokens))
 }
 
@@ -225,9 +230,9 @@ struct RoleView {
     cost: String,
     /// 本体の額の、全体の額に対する比。
     share: Option<String>,
-    median: Option<String>,
-    p90: Option<String>,
-    max_context: Option<String>,
+    median: Option<Text>,
+    p90: Option<Text>,
+    max_context: Option<Text>,
     over_turns: Option<String>,
     over_cost: Option<String>,
     helper_cost: String,
@@ -239,7 +244,7 @@ struct SubjectView {
     seats: String,
     turns: String,
     cost: String,
-    max_context: Option<String>,
+    max_context: Option<Text>,
 }
 
 struct Tables {
@@ -337,7 +342,7 @@ fn summarize(
 /// 目盛り 1 つ（置き場と字）。
 pub(super) struct TickView {
     pub at: u32,
-    pub label: String,
+    pub label: Text,
 }
 
 /// 棒 1 本（と、段々の線の時ごとの、マウスを重ねる所）。
@@ -347,7 +352,7 @@ pub(super) struct BarView {
     pub y: u32,
     pub w: u32,
     pub h: u32,
-    pub title: String,
+    pub title: Text,
 }
 
 /// 20 万の点線と、その字の置き場。
@@ -364,12 +369,13 @@ pub(super) struct LimitView {
 /// 縦の印（圧縮）。
 pub(super) struct MarkView {
     pub x: u32,
-    pub title: String,
+    pub title: Text,
 }
 
 /// 図 1 つ（`templates/macros.html` の `chart`）。
 pub(super) struct ChartView {
-    pub label: String,
+    /// 図の名（`aria-label`）。
+    pub label: Text,
     pub width: u32,
     pub height: u32,
     pub left: u32,
@@ -394,7 +400,7 @@ const LIMIT: i64 = OVER_BUCKET as i64 * BUCKET_WIDTH;
 const LABEL_PX: u32 = 48;
 
 /// 目盛りと縁だけの図。
-fn frame(label: String, axis: Axis, y_label: impl Fn(i64) -> String) -> ChartView {
+fn frame(label: Text, axis: Axis, y_label: impl Fn(i64) -> Text) -> ChartView {
     ChartView {
         label,
         width: chart::WIDTH,
@@ -422,38 +428,40 @@ fn frame(label: String, axis: Axis, y_label: impl Fn(i64) -> String) -> ChartVie
 }
 
 /// 縦の目盛りの額の字（刻みに合わせて、`$2`・`$0.5`・`$0.05`）。
-fn dollar_tick(value: i64, step: i64) -> String {
-    if step % 1_000_000 == 0 {
+fn dollar_tick(value: i64, step: i64) -> Text {
+    Text::plain(if step % 1_000_000 == 0 {
         format!("${}", count(value / 1_000_000))
     } else if step % 100_000 == 0 {
         let dimes = value / 100_000;
         format!("${}.{}", count(dimes / 10), dimes % 10)
     } else {
         dollars(value)
-    }
+    })
 }
 
 /// 縦の目盛りの文脈の長さの字（0 は単位を書かない）。
-fn token_tick(value: i64) -> String {
+fn token_tick(value: i64) -> Text {
     if value == 0 {
-        "0".to_owned()
+        Text::plain("0")
     } else {
         man(value)
     }
 }
 
 /// 段の範囲の字（`22.5 万〜25 万`。段 0 は `0〜2.5 万`、段 40 は `100 万〜`）。
-fn bucket_range(bucket: i64) -> String {
+fn bucket_range(bucket: i64) -> Text {
     let low = bucket * BUCKET_WIDTH;
     if bucket >= i64::from(LAST_BUCKET) {
-        return format!("{}〜", man(low));
+        return from_man(low);
     }
     let low = if bucket == 0 {
-        "0".to_owned()
+        Text::plain("0")
     } else {
         man(low)
     };
-    format!("{low}〜{}", man((bucket + 1) * BUCKET_WIDTH))
+    Text::new("common.tokenRange")
+        .with_text("low", &low)
+        .with_text("high", &man((bucket + 1) * BUCKET_WIDTH))
 }
 
 /// 文脈の長さの段ごとの額（本体の回）。本体の回が無ければ無い。
@@ -468,11 +476,9 @@ fn context_chart(rows: &[summary::Row]) -> Option<ChartView> {
     let total: i64 = buckets.iter().map(|b| b.1).sum();
     let axis = chart::axis(buckets.iter().map(|b| b.1).max().unwrap_or(0), 10_000);
     let mut view = frame(
-        format!(
-            "文脈の長さの段ごとの額（本体の回）。横は文脈の長さ（{}刻みの段）、縦は額。20 万に点線。本体の額の計 {}。",
-            man(BUCKET_WIDTH),
-            dollars(total)
-        ),
+        Text::new("usage.byContext.chartLabel")
+            .with_text("width", &man(BUCKET_WIDTH))
+            .with("total", dollars(total)),
         axis,
         |v| dollar_tick(v, axis.step),
     );
@@ -483,8 +489,8 @@ fn context_chart(rows: &[summary::Row]) -> Option<ChartView> {
         view.x_ticks.push(TickView {
             at: slot.left,
             label: match bucket {
-                0 => "0".to_owned(),
-                b if b >= i64::from(LAST_BUCKET) => format!("{}〜", man(b * BUCKET_WIDTH)),
+                0 => Text::plain("0"),
+                b if b >= i64::from(LAST_BUCKET) => from_man(b * BUCKET_WIDTH),
                 b => man(b * BUCKET_WIDTH),
             },
         });
@@ -497,12 +503,11 @@ fn context_chart(rows: &[summary::Row]) -> Option<ChartView> {
                 y: b.y,
                 w: b.w,
                 h: b.h,
-                title: format!(
-                    "{}: {}（{} 回）",
-                    bucket_range(i64::try_from(i).unwrap_or(0)),
-                    dollars(*cost),
-                    count(*turns)
-                ),
+                title: Text::new("usage.byContext.bar")
+                    .with_text("range", &bucket_range(i64::try_from(i).unwrap_or(0)))
+                    .with("cost", dollars(*cost))
+                    .with("turns", count(*turns))
+                    .with_num("count", *turns),
             });
         }
     }
@@ -521,12 +526,12 @@ fn context_chart(rows: &[summary::Row]) -> Option<ChartView> {
     Some(view)
 }
 
-/// 日ごと（期間が 1 日より長い時）か、時ごと（1 日まで）の額。本体と手伝いを積む。図と、区切りの名（日・時）。
+/// 日ごと（期間が 1 日より長い時）か、時ごと（1 日まで）の額。本体と手伝いを積む。図と、時ごとか（区切りの名の鍵を選ぶ）。
 fn slot_chart(
     rows: &[summary::Row],
     from: OffsetDateTime,
     to: OffsetDateTime,
-) -> (ChartView, &'static str, Vec<SlotRow>) {
+) -> (ChartView, bool, Vec<SlotRow>) {
     let (start, end) = (from.unix_timestamp(), to.unix_timestamp());
     let mut table = Vec::new();
     let hourly = end - start <= chart::DAY;
@@ -537,16 +542,15 @@ fn slot_chart(
     };
     let sums = summary::by_slot(rows, &starts, end);
     let total: i64 = sums.iter().map(|(m, h)| m + h).sum();
-    let unit = if hourly { "時" } else { "日" };
     let axis = chart::axis(sums.iter().map(|(m, h)| m + h).max().unwrap_or(0), 10_000);
-    let mut view = frame(
-        format!(
-            "{unit}ごとの額（日本時間）。本体と手伝いを積んだ棒。額の計 {}。",
-            dollars(total)
-        ),
-        axis,
-        |v| dollar_tick(v, axis.step),
-    );
+    let label = if hourly {
+        "usage.bySlot.chartLabel.hour"
+    } else {
+        "usage.bySlot.chartLabel.day"
+    };
+    let mut view = frame(Text::new(label).with("total", dollars(total)), axis, |v| {
+        dollar_tick(v, axis.step)
+    });
     let slots = chart::slots(starts.len());
     let every = chart::label_every(starts.len(), LABEL_PX);
     for (i, ((slot, at), (main, helper))) in slots.iter().zip(&starts).zip(&sums).enumerate() {
@@ -563,7 +567,7 @@ fn slot_chart(
         if i % every == 0 {
             view.x_ticks.push(TickView {
                 at: slot.mid(),
-                label: if hourly { clock } else { date },
+                label: Text::plain(if hourly { clock } else { date }),
             });
         }
         let sum = dollars(main + helper);
@@ -579,9 +583,9 @@ fn slot_chart(
         // 手伝いの棒は、本体の棒の上の端から積む（本体の棒が 1 px に満たず 1 px で描いた時に、それを覆わない）。
         let main_bar = chart::bar(axis, slot, 0, *main);
         let helper_bar = chart::stacked(axis, slot, main_bar, *main, *helper);
-        for (class, value, what, bar) in [
-            ("bar main", *main, "本体", main_bar),
-            ("bar helper", *helper, "手伝い", helper_bar),
+        for (class, value, key, bar) in [
+            ("bar main", *main, "usage.bySlot.bar.main", main_bar),
+            ("bar helper", *helper, "usage.bySlot.bar.helper", helper_bar),
         ] {
             if let Some(b) = bar {
                 view.bars.push(BarView {
@@ -590,15 +594,15 @@ fn slot_chart(
                     y: b.y,
                     w: b.w,
                     h: b.h,
-                    title: format!(
-                        "{name}: {what} {}（本体と手伝いの計 {sum}）",
-                        dollars(value)
-                    ),
+                    title: Text::new(key)
+                        .with("name", &name)
+                        .with("cost", dollars(value))
+                        .with("sum", &sum),
                 });
             }
         }
     }
-    (view, unit, table)
+    (view, hourly, table)
 }
 
 /// 区切り（日・時）ごとの額の、字の表の 1 行。
@@ -611,7 +615,7 @@ pub(super) struct SlotRow {
 
 /// 文脈の長さの段々の線（1 時間ごとの、本体の回のいちばん長い文脈）と、縦の印（時刻・字）。本体の回が無ければ無い。
 /// 横は、記録の在る初めの時から終わりの時まで（印がその外なら、印まで延ばす）。
-pub(super) fn line_chart(rows: &[summary::Row], marks: &[(i64, String)]) -> Option<ChartView> {
+pub(super) fn line_chart(rows: &[summary::Row], marks: &[(i64, Text)]) -> Option<ChartView> {
     let points = summary::context_by_hour(rows);
     let (first, last) = (points.first()?.0, points.last()?.0 + chart::HOUR);
     // 横は、数の記録の在る時の内だけ（その外の印は描かない。取り込みの始まる前の印で、線が端に縮まないように）。
@@ -619,10 +623,7 @@ pub(super) fn line_chart(rows: &[summary::Row], marks: &[(i64, String)]) -> Opti
     let max = points.iter().map(|p| p.1).max().unwrap_or(0);
     let axis = chart::axis(max.max(LIMIT), 10_000);
     let mut view = frame(
-        format!(
-            "文脈の長さの段々の線（1 時間ごとの、本体の回のいちばん長い文脈）。横は時刻（日本時間）、縦は文脈の長さ。20 万に点線。いちばん長い文脈 {}。",
-            man(max)
-        ),
+        Text::new("usage.line.chartLabel").with_text("max", &man(max)),
         axis,
         token_tick,
     );
@@ -636,7 +637,7 @@ pub(super) fn line_chart(rows: &[summary::Row], marks: &[(i64, String)]) -> Opti
     .into_iter()
     .map(|t| TickView {
         at: t.x,
-        label: t.label,
+        label: Text::plain(t.label),
     })
     .collect();
     let clock = |t: i64| {
@@ -656,12 +657,10 @@ pub(super) fn line_chart(rows: &[summary::Row], marks: &[(i64, String)]) -> Opti
             y: chart::TOP,
             w: (x1 - x0).max(1),
             h: chart::PLOT_H,
-            title: format!(
-                "{}〜{}: {}",
-                from.get(..16).unwrap_or(&from),
-                to.get(11..16).unwrap_or(&to),
-                man(value)
-            ),
+            title: Text::new("usage.line.hit")
+                .with("from", from.get(..16).unwrap_or(&from))
+                .with("to", to.get(11..16).unwrap_or(&to))
+                .with_text("value", &man(value)),
         });
     }
     view.line = Some(chart::steps(&points, start, end, axis));
@@ -692,8 +691,11 @@ struct Charts {
     by_slot: ChartView,
     /// 日ごと・時ごとの額の字の表（畳んで置く）。
     slot_rows: Vec<SlotRow>,
-    /// 区切りの名（日・時）。
-    unit: &'static str,
+    /// 区切りの見出し・注・表の名・表の列の名（時ごとか日ごとかで鍵が替わる）。
+    slot_heading: Text,
+    slot_legend: Text,
+    slot_table: Text,
+    slot_col: Text,
 }
 
 /// 絞りの form に、今の値を入れて出す。
@@ -726,7 +728,7 @@ struct UsagePage<'a> {
     nav: &'a Nav,
     form: Form,
     /// 期間をすぐ選ぶ link（名と URL）。
-    quick: Vec<(&'static str, String)>,
+    quick: Vec<(Text, String)>,
     /// castlist に送った期間（時の境に揃えた後）。
     from: Time,
     to: Time,
@@ -739,8 +741,9 @@ struct UsagePage<'a> {
     read: String,
     /// 行が 1 つも無ければ無い。
     tables: Option<Tables>,
-    /// 段の幅（「2.5 万」）。
-    width: String,
+    /// 段の幅（「2.5 万」）を入れた、文脈の長さの図の注と、表の注。
+    context_legend: Text,
+    bands: Text,
     as_of: Time,
 }
 
@@ -772,7 +775,7 @@ async fn usage_page(
     let p = Params::new(pairs.clone(), USAGE_PARAMS, &["label"])?;
     let labels = p
         .all("label")
-        .map(|v| params::pair("label", v, "鍵:値").map(|()| v.to_owned()))
+        .map(|v| params::pair("label", v, LABEL_SHAPE).map(|()| v.to_owned()))
         .collect::<Result<Vec<_>, _>>()?;
     // 期間の欄の値は、上で RFC 3339 にそろえてある。
     let at = |name: &str| {
@@ -785,18 +788,12 @@ async fn usage_page(
     let form = Form::new(&pairs);
     let quick = params::quick_links(PATH, &pairs, PERIOD, now);
     let search = search((from, to), labels, None);
-    let answer = app.castlist.usage(&search).await.map_err(|e| match e {
-        // castlist が引数を断った（callboard の確かめを通った物なので、ふつうは起きない）。castlist の訳を、そのまま書く。
-        Failure::Rejected(message) => {
-            bad_request(format!("castlist が引数を断りました: {message}"))
-        }
-        // この操作に、名指す物は無い。
-        Failure::NotFound => bad_request("castlist が引数を断りました"),
-        Failure::Unavailable(why) => PageError(
-            StatusCode::SERVICE_UNAVAILABLE,
-            format!("castlist に聞けません（{why}）。少し待ってから開き直してください。"),
-        ),
-    })?;
+    // castlist が引数を断った時（callboard の確かめを通った物なので、ふつうは起きない）は、castlist の訳を、そのまま書く。
+    let answer = app
+        .castlist
+        .usage(&search)
+        .await
+        .map_err(|e| params::failed("castlist", e))?;
     tokio::task::spawn_blocking(move || {
         let as_of = time(&answer.as_of);
         let too_many = answer.truncated == Some(Cut::Pages);
@@ -804,12 +801,16 @@ async fn usage_page(
         let read = count(i64::try_from(answer.rows.len()).unwrap_or(i64::MAX));
         let rows = rows_of(answer.rows);
         let tables = (!rows.is_empty()).then(|| {
-            let (by_slot, unit, slot_rows) = slot_chart(&rows, from, to);
+            let (by_slot, hourly, slot_rows) = slot_chart(&rows, from, to);
+            let pick = |hour, day| Text::new(if hourly { hour } else { day });
             let charts = Charts {
                 by_context: context_chart(&rows),
                 by_slot,
                 slot_rows,
-                unit,
+                slot_heading: pick("usage.bySlot.heading.hour", "usage.bySlot.heading.day"),
+                slot_legend: pick("usage.bySlot.legend.hour", "usage.bySlot.legend.day"),
+                slot_table: pick("usage.bySlot.table.hour", "usage.bySlot.table.day"),
+                slot_col: pick("usage.bySlot.col.hour", "usage.bySlot.col.day"),
             };
             tables(summarize(&rows, answer.actors), charts)
         });
@@ -826,7 +827,9 @@ async fn usage_page(
             too_slow,
             read,
             tables,
-            width: man(BUCKET_WIDTH),
+            context_legend: Text::new("usage.byContext.legend")
+                .with_text("width", &man(BUCKET_WIDTH)),
+            bands: Text::new("usage.notes.bands").with_text("width", &man(BUCKET_WIDTH)),
             as_of,
         };
         render(StatusCode::OK, &page)
@@ -836,7 +839,7 @@ async fn usage_page(
         tracing::error!("使用量を表示できません: {e}");
         PageError(
             StatusCode::INTERNAL_SERVER_ERROR,
-            "使用量を表示できません".to_owned(),
+            Text::new("usage.errors.render"),
         )
     })
 }
@@ -922,6 +925,19 @@ mod tests {
         assert_eq!(man(0), "0 万");
         assert_eq!(from_man(975_000), "97.5 万〜");
         assert_eq!(longest(0), None);
-        assert_eq!(longest(230_000).as_deref(), Some("23 万"));
+        assert_eq!(
+            longest(230_000).map(|t| t.to_string()).as_deref(),
+            Some("23 万")
+        );
+        // 値は数の部分だけ（英語の形は訳の file）。千の数は同じ桁まで。
+        assert_eq!(
+            man(225_000).values(),
+            serde_json::json!({"man": "22.5", "k": "225"})
+        );
+        assert_eq!(man(1_000_000).values()["k"], "1,000");
+        assert_eq!(
+            from_man(975_000).values()["low"],
+            serde_json::json!({"$t": "common.tokens", "values": {"man": "97.5", "k": "975"}})
+        );
     }
 }

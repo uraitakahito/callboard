@@ -100,13 +100,14 @@ fn lane<'a>(svg: &'a str, id: &str) -> &'a str {
     &svg[start..start + svg[start..].find("</g>").unwrap()]
 }
 
-/// 行の帯（`<rect class="seg …">` の class と title）。
+/// 行の帯（`<rect class="seg …">` の class と title の字）。title の要素には鍵（`timeline.seg.title`）が付く。
 fn segs(lane: &str) -> Vec<(String, String)> {
     lane.split("<rect class=\"")
         .skip(1)
         .map(|s| {
             let class = &s[..s.find('"').unwrap()];
-            let at = s.find("<title>").unwrap() + 7;
+            let open = s.find("<title data-i18n=\"timeline.seg.title\"").unwrap();
+            let at = open + s[open..].find('>').unwrap() + 1;
             (
                 class.to_owned(),
                 s[at..at + s[at..].find("</title>").unwrap()].to_owned(),
@@ -133,7 +134,10 @@ async fn タイムラインは_アクターごとに_1_行で_人を上に初め
         .collect();
     assert!(order.is_sorted(), "{order:?}");
     assert!(lane(svg, PM).starts_with("<g class=\"lane human\">"));
-    assert!(lane(svg, PM).contains("<text class=\"sub\"") && lane(svg, PM).contains(">人</text>"));
+    assert!(
+        lane(svg, PM).contains("<text class=\"sub\"")
+            && lane(svg, PM).contains(" data-i18n=\"common.kind.human\">人</text>")
+    );
     assert!(lane(svg, SE1).starts_with("<g class=\"lane ai\">"));
     assert!(!lane(svg, SE1).contains("class=\"sub\""));
     assert!(lane(svg, SE2).contains(">se.2</text></a>"));
@@ -143,6 +147,7 @@ async fn タイムラインは_アクターごとに_1_行で_人を上に初め
 async fn タイムラインは_model_の替わり目で帯を区切り_推しの幕引きと_稼働中の端と_印と_線を描く() {
     let app = start(answer()).await;
     let body = app.html("/graph/timeline").await;
+    common::check_i18n("timeline.rs:149", &body);
     let svg = svg(&body);
     // se.1: opus（指定）→ sonnet（実際。指定と違う）→ 最後の便り（要約）の後は推しの帯。
     let se1 = segs(lane(svg, SE1));
@@ -168,7 +173,7 @@ async fn タイムラインは_model_の替わり目で帯を区切り_推しの
         lane(svg, SE1).contains("<line class=\"mark compacted\""),
         "{svg}"
     );
-    assert!(lane(svg, SE1).contains("<title>要約 · 2026-11-22 11:00:00</title>"));
+    assert!(lane(svg, SE1).contains(r#"<title data-i18n="common.eventAt" data-i18n-options="{&#34;at&#34;:&#34;2026-11-22 11:00:00&#34;,&#34;name&#34;:{&#34;$t&#34;:&#34;events.compacted&#34;}}">要約 · 2026-11-22 11:00:00</title>"#));
     // se.2 は稼働中: 右端を尖らせる。
     let se2 = lane(svg, SE2);
     assert!(se2.contains("class=\"open-end\""), "{se2}");

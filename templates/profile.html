@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
-{% block title %}{{ me.name }} ・ callboard{% endblock %}
+{% block title_attrs %} data-i18n="profile.title" data-i18n-options="{{ "name"|opts1(me.name) }}"{% endblock %}
+{% block title %}{{ "profile.title"|t1("name", me.name) }}{% endblock %}
 {% block main %}
-<h1>{{ me.name }}{% if !me.kind.is_empty() %} <span class="kind">{{ me.kind }}</span>{% endif %}</h1>
+<h1>{{ me.name }}{% if let Some(k) = me.kind %} <span class="kind"{{ k.attrs()|safe }}>{{ k }}</span>{% endif %}</h1>
 <dl class="facts">
 <dt>id</dt><dd><code>{{ id }}</code></dd>
 <dt data-i18n="profile.issuer">{{ "profile.issuer"|t }}</dt><dd><code>{{ issuer }}</code></dd>
@@ -13,7 +14,7 @@
 <h2 data-i18n="profile.state.heading">{{ "profile.state.heading"|t }}</h2>
 <dl class="facts">
 <dt data-i18n="list.col.state">{{ "list.col.state"|t }}</dt><dd>{% call m::presence(me) %}{% endcall %}{% if me.skewed %} {% call m::skew() %}{% endcall %}{% endif %}</dd>
-<dt>model · effort</dt><dd>{% call m::setting(me) %}{% endcall %}{% if let Some(c) = current %} <span class="muted">（{{ c.source }}・{% call m::time(c.received) %}{% endcall %}）</span>{% endif %}</dd>
+<dt>model · effort</dt><dd>{% call m::setting(me) %}{% endcall %}{% if let Some(c) = current %} <span class="muted">（{% call m::text(c.source) %}{% endcall %}・{% call m::time(c.received) %}{% endcall %}）</span>{% endif %}</dd>
 <dt data-i18n="list.col.firstEntered">{{ "list.col.firstEntered"|t }}</dt><dd>{% call m::maybe_time(me.first_entered) %}{% endcall %}</dd>
 <dt data-i18n="list.col.lastExited">{{ "list.col.lastExited"|t }}</dt><dd>{% call m::maybe_time(me.last_exited) %}{% endcall %}</dd>
 </dl>
@@ -21,12 +22,12 @@
 
 <section id="usage">
 <h2 data-i18n="profile.usage.heading">{{ "profile.usage.heading"|t }}</h2>
-{% if let Some(why) = usage.error %}<p class="error" data-i18n="profile.usage.error" data-i18n-options="{{ "why"|opts1(why) }}">{{ "profile.usage.error"|t1("why", why) }}</p>
+{% if let Some(e) = usage.error %}<p class="error"{{ e.attrs()|safe }}>{{ e }}</p>
 {% else if let Some(u) = usage.view %}
 <dl class="facts">
 <dt data-i18n="list.col.cost">{{ "list.col.cost"|t }}</dt><dd>{{ u.cost }}<span data-i18n="profile.usage.costSplit" data-i18n-options="{{ "main"|opts2(u.main_cost, "helper", u.helper_cost) }}">{{ "profile.usage.costSplit"|t2("main", u.main_cost, "helper", u.helper_cost) }}</span></dd>
 <dt data-i18n="common.turns">{{ "common.turns"|t }}</dt><dd>{{ u.turns }}<span data-i18n="profile.usage.helperTurns" data-i18n-options="{{ "n"|opts1(u.helper_turns) }}">{{ "profile.usage.helperTurns"|t1("n", u.helper_turns) }}</span></dd>
-<dt data-i18n="list.col.context">{{ "list.col.context"|t }}</dt><dd>{% call m::maybe(u.max_context) %}{% endcall %}</dd>
+<dt data-i18n="list.col.context">{{ "list.col.context"|t }}</dt><dd>{% call m::maybe_text(u.max_context) %}{% endcall %}</dd>
 </dl>
 {% if u.truncated %}<p class="error" data-i18n="profile.usage.truncated">{{ "profile.usage.truncated"|t }}</p>{% endif %}
 {% if let Some(c) = u.chart %}
@@ -71,7 +72,7 @@
 <h2 data-i18n="profile.launchedBy.heading">{{ "profile.launchedBy.heading"|t }}</h2>
 {% if chain.is_empty() %}<p class="empty" data-i18n="profile.launchedBy.none">{{ "profile.launchedBy.none"|t }}</p>{% else %}
 <ol class="chain">
-{% for (link, verb) in chain %}<li><a href="{{ link.href }}">{{ link.name }}</a> <span class="muted">{% if !link.kind.is_empty() %}{{ link.kind }}・{% endif %}{{ verb }}</span></li>
+{% for (link, verb) in chain %}<li><a href="{{ link.href }}">{{ link.name }}</a> <span class="muted">{% if let Some(k) = link.kind %}{% call m::text(k) %}{% endcall %}・{% endif %}{% call m::text(verb) %}{% endcall %}</span></li>
 {% endfor %}<li><strong>{{ me.name }}</strong></li>
 </ol>
 {% endif %}
@@ -81,7 +82,7 @@
 <h2 data-i18n="profile.children.heading">{{ "profile.children.heading"|t }}</h2>
 {% if children.is_empty() %}<p class="empty" data-i18n="profile.none">{{ "profile.none"|t }}</p>{% else %}
 <ul class="links">
-{% for link in children %}<li><a href="{{ link.href }}">{{ link.name }}</a>{% if !link.kind.is_empty() %} <span class="muted">{{ link.kind }}</span>{% endif %}</li>
+{% for link in children %}<li><a href="{{ link.href }}">{{ link.name }}</a>{% if let Some(k) = link.kind %} <span class="muted"{{ k.attrs()|safe }}>{{ k }}</span>{% endif %}</li>
 {% endfor %}
 </ul>
 {% endif %}
@@ -107,7 +108,7 @@
 <td>{% call m::time(s.received) %}{% endcall %}</td>
 <td><code>{{ s.model }}</code></td>
 <td><code>{{ s.effort }}</code></td>
-<td>{{ s.source }}</td>
+<td{{ s.source.attrs()|safe }}>{{ s.source }}</td>
 <td>{% if s.mismatch %}<span class="mismatch" title="{{ "profile.settings.mismatchTitle"|t }}" data-i18n="profile.settings.mismatch" data-i18n-attr="title:profile.settings.mismatchTitle">{{ "profile.settings.mismatch"|t }}</span>{% endif %}{% if s.skewed %} {% call m::skew() %}{% endcall %}{% endif %}</td>
 </tr>
 {% endfor %}
@@ -128,7 +129,7 @@
 {% for e in events %}
 <tr>
 <td>{% call m::time(e.received) %}{% endcall %}</td>
-<td><span class="event" title="{{ e.kind }}">{{ e.name }}</span></td>
+<td><span class="event" title="{{ e.kind }}"{{ e.name.attrs()|safe }}>{{ e.name }}</span></td>
 <td>{% if let Some(r) = e.reason %}<code>{{ r }}</code>{% endif %}{% if !e.rest.is_empty() %} <code class="muted">{{ e.rest }}</code>{% endif %}</td>
 <td>{% if let Some(s) = e.source %}<code>{{ s }}</code>{% endif %}</td>
 <td>{% call m::time(e.sent) %}{% endcall %}</td>
