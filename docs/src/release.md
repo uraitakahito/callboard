@@ -30,7 +30,7 @@ image は外に出す物なので、入ってよい物を決めてあり、CI（
 | binary の中の字 | home の path・mail の形・秘密の鍵や token の頭が無い。gitleaks も掛ける（source にも） | `ci/scan-binary.sh`・`ci/strings-deny.txt`・`ci/strings-allow.txt` |
 | 動くか | 空の image の中で起き、外の Host と browser からの書き込みを断り（断る答えは restJson1 の形）、出した版の castlist と pagetray の image に名で届き、画面（相関図も）と CSS と script が CSP の決まりどおりに出て、中継の道が本物の castlist の答えを返し、止める合図で終わって起こし直せる | `ci/smoke-image.sh <image>` |
 
-- binary には、画面の template・CSS・script・tab の印と、取り込んだ cytoscape（MIT。`static/vendor/`）が埋め込まれる。cytoscape は npm の物と同じかを `ci/check-vendor.sh` が見る。
+- binary には、画面の template・CSS・script・tab の印と、取り込んだ cytoscape と i18next（どちらも MIT。`static/vendor/`）が埋め込まれる。どちらも npm の物と同じかを `ci/check-vendor.sh` が見る。
 - build に秘密は要らない。`Containerfile` に `ARG` を書かず、`--build-arg`・`--secret` を使わない。label は、release の workflow が `--label` で付ける 3 つだけ。
 - 出どころの記録（provenance・SBOM）は付けない。付ける時は、中身を見てから。
 - release の workflow は、確かめる job（書き込みの権限が無い）と、置く job（`packages: write`・`contents: write`）に分かれている。置く job は、確かめた image の file を受け取り、checksum を見てから、そのまま置く。

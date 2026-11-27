@@ -38,10 +38,29 @@ jobs:
       - run: ci/check-vendor.sh
       # 見張りが、書き替えた file を本当に当てるか（当てなければ落とす）。
       - name: 見張りが、書き替えた写しを当てるか
+        # 途中の行の `! cmd` は、落ちても step を落とさない（set -e は ! の付いた行を見ない）ので、if で書く。
         run: |
-          cp static/vendor/cytoscape-3.35.0.min.js "$RUNNER_TEMP/bad.js"
-          echo '//' >>"$RUNNER_TEMP/bad.js"
-          ! ci/check-vendor.sh "$RUNNER_TEMP/bad.js"
+          for package in cytoscape i18next; do
+            file=$(ls static/vendor/"$package"-*.min.js)
+            cp "$file" "$RUNNER_TEMP/bad-$package.js"
+            echo '//' >>"$RUNNER_TEMP/bad-$package.js"
+            if ci/check-vendor.sh "$package" "$RUNNER_TEMP/bad-$package.js"; then
+              echo "NG: $package の書き替えた写しを当てなかった" >&2
+              exit 1
+            fi
+          done
+      # 見張りが、2 つ目の節の記録の誤りも当てるか（節ごとに読めているか）。
+      - name: 見張りが、2 つ目の節の壊れた記録を当てるか
+        run: |
+          awk '/^## /{n++} n==2 && /^\| sha256 \|/{$0="| sha256 | `0000` |"} {print}' static/vendor/SOURCES.md >"$RUNNER_TEMP/bad-sources.md"
+          if cmp -s static/vendor/SOURCES.md "$RUNNER_TEMP/bad-sources.md"; then
+            echo "NG: 記録を壊せなかった（2 つ目の節に sha256 の行が無い）" >&2
+            exit 1
+          fi
+          if CHECK_VENDOR_SOURCES="$RUNNER_TEMP/bad-sources.md" ci/check-vendor.sh; then
+            echo "NG: 壊れた記録を当てなかった" >&2
+            exit 1
+          fi
   model:
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
