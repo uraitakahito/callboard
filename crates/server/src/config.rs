@@ -11,6 +11,12 @@
 //! 聞く先と link の頭は別に持つ。callboard は container の中から聞き（`http://castlist.box:8080` など）、link は人が host の
 //! browser で開く（`http://127.0.0.1:8802` など）ので、届く所が違う。どれも `http://<host>:<port>` の形だけを受ける。
 
+/// 待ち受ける所の既定（container の中）。
+pub const DEFAULT_LISTEN: &str = "0.0.0.0:8080";
+/// link の頭の既定。castlist と pagetray を、host の browser から開く所。
+pub const DEFAULT_CASTLIST_LINK: &str = "http://127.0.0.1:8802";
+pub const DEFAULT_PAGETRAY_LINK: &str = "http://127.0.0.1:8801";
+
 /// 呼ぶ先 1 つ（castlist か pagetray）の居場所。どちらも `http://<host>:<port>`（後ろの `/` は無い）。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Base {
@@ -34,10 +40,50 @@ impl Settings {
         Self::read(|name| std::env::var(name).ok())
     }
 
-    /// 名から値を引く関数で読む（試験は環境変数を使わずに呼ぶ）。まだ読まない。
-    pub fn read(_get: impl Fn(&str) -> Option<String>) -> Result<Self, String> {
-        Err("まだ無い".to_owned())
+    /// 名から値を引く関数で読む（試験は環境変数を使わずに呼ぶ）。空の値は、無いのと同じ。
+    pub fn read(get: impl Fn(&str) -> Option<String>) -> Result<Self, String> {
+        let get = |name: &str| get(name).filter(|v| !v.is_empty());
+        let base = |name: &str, default_link: &str| -> Result<Base, String> {
+            let (api_name, link_name) = (
+                format!("CALLBOARD_{name}_URL"),
+                format!("CALLBOARD_{name}_LINK_URL"),
+            );
+            let api = get(&api_name).ok_or_else(|| {
+                format!("{api_name} が無い（聞く先を http://<host>:<port> の形で書く）")
+            })?;
+            let link = get(&link_name).unwrap_or_else(|| default_link.to_owned());
+            Ok(Base {
+                api: parse_base(&api).map_err(|rule| format!("{api_name} は {rule}"))?,
+                link: parse_base(&link).map_err(|rule| format!("{link_name} は {rule}"))?,
+            })
+        };
+        Ok(Self {
+            listen: get("CALLBOARD_LISTEN").unwrap_or_else(|| DEFAULT_LISTEN.to_owned()),
+            castlist: base("CASTLIST", DEFAULT_CASTLIST_LINK)?,
+            pagetray: base("PAGETRAY", DEFAULT_PAGETRAY_LINK)?,
+        })
     }
+}
+
+/// `http://<host>:<port>`（後ろの `/` は無くてよい）を、後ろの `/` の無い形にそろえる。path・利用者の名・`https://` は受けない
+/// （pagetray が castlist の居場所を読む決まりと同じ）。
+fn parse_base(url: &str) -> Result<String, String> {
+    let rule = || format!("http://<host>:<port> の形（{url}）");
+    let addr = url
+        .strip_prefix("http://")
+        .map(|rest| rest.strip_suffix('/').unwrap_or(rest))
+        .ok_or_else(rule)?;
+    let (host, port) = addr.rsplit_once(':').ok_or_else(rule)?;
+    let host_ok = !host.is_empty()
+        && host
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-'));
+    let port_ok =
+        port.bytes().all(|b| b.is_ascii_digit()) && port.parse::<u16>().is_ok_and(|p| p > 0);
+    if !host_ok || !port_ok {
+        return Err(rule());
+    }
+    Ok(format!("http://{addr}"))
 }
 
 #[cfg(test)]

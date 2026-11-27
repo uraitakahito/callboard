@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}入口{% endblock %}
+{% block main %}
+<h1>callboard</h1>
+<p class="legend">アクターの台帳（castlist）と、ページの置き場（pagetray）の画面の入口です。</p>
+{% for s in services %}
+<section id="{{ s.id }}">
+<h2>{{ s.title }} <span class="kind">{{ s.id }}</span></h2>
+<p class="upstream">{% if let Some(version) = s.version %}<span class="state on">つながっています</span> <span class="muted">版 <code>{{ version }}</code></span>{% else %}<span class="state off">届きません</span> <span class="muted">{{ s.reason }}</span>{% endif %}</p>
+<ul class="links">
+{% for (name, href) in s.links %}<li><a href="{{ href }}">{{ name }}</a></li>
+{% endfor %}
+</ul>
+</section>
+{% endfor %}
+{% endblock %}
