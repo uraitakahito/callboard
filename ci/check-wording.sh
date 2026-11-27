@@ -4,14 +4,17 @@
 # 画面の字は、castlist の画面で Product Manager が決めた字にそろえる（castlist の ci/check-wording.sh と同じ決まり）:
 # 鍵と値の組（labels）は「ラベル」（前の呼び方の「札」は書かない）、アクターの状態は「稼働中・停止」、図は「タイムライン・相関図」、
 # 送り手の時計のずれは「時刻ずれ」、絞りの枠は「絞り込み」。
-# 見る形: 語の Mac（macOS は当てない）・/Users/<名>・札・上の前の字
+# 使用量の画面（/usage/）の名は「使用量」（前の「費え」は書かない。Product Manager の答え。t-5dhg）。「費え」は、出した版の記録
+# （CHANGELOG.md の前の節と、替えたことを書く節）に残るので CHANGELOG.md では見ず、画面の字を持つ Rust（crates/server/src）でも見る。
+# 見る形: 語の Mac（macOS は当てない）・/Users/<名>・札・上の前の字・費え
 # 1 つでも当たれば、file と行を出して exit 1。
-# 使い方: ci/check-wording.sh [path…]（既定は README.md・CHANGELOG.md・docs/src・templates）
+# 使い方: ci/check-wording.sh [path…]（既定は README.md・CHANGELOG.md・docs/src・templates。「費え」だけは crates/server/src も）
 set -euo pipefail
 
 if [ "$#" -eq 0 ]; then
   root=$(cd "$(dirname "$0")/.." && pwd)
   set -- "$root/README.md" "$root/CHANGELOG.md" "$root/docs/src" "$root/templates"
+  src="$root/crates/server/src"
 fi
 
 files=$(find "$@" -type f | LC_ALL=C sort)
@@ -30,4 +33,13 @@ if grep -nE '居るか|居た間|>いる<|>いない<|時間の帯|関係の網|
   echo "NG: 公開する字に、前の画面の字がある（上の行）。状態は「稼働中・停止」「稼働した期間」、図は「タイムライン・相関図」（まとめは「図 B・C」）、ずれは「時刻ずれ」、絞りは「絞り込み」「条件に合うアクターはいません」と書く" >&2
   exit 1
 fi
-echo "ok: 公開する字に、1 台の機械やある人の手元を指す言い方と「札」と、前の画面の字は無い"
+rest=$(printf '%s\n' "$files" | grep -vE '(^|/)CHANGELOG\.md$' || true)
+if [ -n "${src-}" ]; then
+  rest=$(printf '%s\n%s\n' "$rest" "$(find "$src" -type f | LC_ALL=C sort)" | grep -v '^$')
+fi
+# shellcheck disable=SC2086
+if [ -n "$rest" ] && grep -Hn '費え' $rest >&2; then
+  echo "NG: 公開する字か画面の字に、前の画面の名「費え」がある（上の行）。画面の名は「使用量」、データの名は「トークンの使用量」、図の縦の軸は「額」と書く" >&2
+  exit 1
+fi
+echo "ok: 公開する字に、1 台の機械やある人の手元を指す言い方と「札」と、前の画面の字（「費え」も）は無い"

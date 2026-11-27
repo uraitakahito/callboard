@@ -1,5 +1,5 @@
 //! 画面: 入口（`/`）・アクターの一覧（`/actors/`）・プロフィール（`/actors/{id}`）・タイムライン（`/graph/timeline`）・
-//! 相関図（`/graph/network`）・費え（`/usage/`）・メッセージの一覧（`/messages`）・ページの一覧（`/pages/`）と、それが読む CSS
+//! 相関図（`/graph/network`）・使用量（`/usage/`）・メッセージの一覧（`/messages`）・ページの一覧（`/pages/`）と、それが読む CSS
 //! （`/static/site.css`）と script（`/static/network.js` と取り込んだ cytoscape、`/static/messages.js`、`/static/pages.js`、取り込んだ i18next）。
 //!
 //! - サーバーが HTML を組んで返す（askama。`templates/`）。字はみな HTML として逃がす。
@@ -159,7 +159,7 @@ impl Nav {
             timeline: "/graph/timeline".to_owned(),
             // 相関図は callboard に移した。
             network: "/graph/network".to_owned(),
-            // 費え（トークンの数と額。castlist 2.1.0 の ListUsage から）。
+            // 使用量（トークンの数と額。castlist 2.1.0 の ListUsage から）。
             usage: usage::PATH.to_owned(),
             // ページの一覧も callboard に移した。
             pages: pages::PATH.to_owned(),
@@ -288,7 +288,7 @@ async fn home(State(app): State<Arc<App>>) -> Response {
                     ("アクターの一覧", &nav.actors),
                     ("タイムライン", &nav.timeline),
                     ("相関図", &nav.network),
-                    ("費え", &nav.usage),
+                    ("使用量", &nav.usage),
                 ],
             ),
             Service::new(

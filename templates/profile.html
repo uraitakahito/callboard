@@ -20,7 +20,7 @@
 </section>
 
 <section id="usage">
-<h2>費え（直近 31 日）</h2>
+<h2>使用量（直近 31 日）</h2>
 {% if let Some(why) = usage.error %}<p class="error">数を読めません（{{ why }}）。</p>
 {% else if let Some(u) = usage.view %}
 <dl class="facts">
@@ -35,7 +35,7 @@
 {% endif %}
 {% else %}<p class="empty">この 31 日に、数の記録はありません。</p>
 {% endif %}
-<p class="muted">集めた期間: {% call m::time(usage.from) %}{% endcall %} から {% call m::time(usage.to) %}{% endcall %} まで（時の境に揃えています）。額は、使った量を API の値段に直した目安で、払う額ではありません。いちばん長い文脈と線は、本体の回だけで出します。<a href="/usage/">費えの画面へ</a></p>
+<p class="muted">集めた期間: {% call m::time(usage.from) %}{% endcall %} から {% call m::time(usage.to) %}{% endcall %} まで（時の境に揃えています）。額は、使った量を API の値段に直した目安で、払う額ではありません。いちばん長い文脈と線は、本体の回だけで出します。<a href="/usage/">使用量の画面へ</a></p>
 </section>
 
 <section id="labels">

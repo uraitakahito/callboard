@@ -132,9 +132,9 @@ section {
 .scroll { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; background: var(--card); }
 .actors, .usage { border: 1px solid var(--line); border-radius: 8px; }
-/* 数の欄（費えの表）: 右に寄せ、桁を揃える。 */
+/* 数の欄（使用量の表）: 右に寄せ、桁を揃える。 */
 th.num, td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-/* 費えの表は列が多いので、名の欄（役割・課題）を折らない（狭い画面では、表ごと横に送る: .scroll）。 */
+/* 使用量の表は列が多いので、名の欄（役割・課題）を折らない（狭い画面では、表ごと横に送る: .scroll）。 */
 .usage th, .usage td:first-child { white-space: nowrap; }
 th, td { padding: 5px 10px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
 th { background: var(--head); color: var(--muted); font-weight: 600; font-size: 0.8rem; white-space: nowrap; }
@@ -222,7 +222,7 @@ svg.timeline { display: block; font-family: system-ui, "Hiragino Sans", "Noto Sa
 .timeline .link.continued { stroke-dasharray: 5 4; }
 .timeline .arrow { fill: var(--muted); }
 
-/* 費えの図（/usage/ の棒と、プロフィールの文脈の長さの線。サーバーが座標を出した SVG）。色はここで決める（明るい色と暗い色）。
+/* 使用量の図（/usage/ の棒と、プロフィールの文脈の長さの線。サーバーが座標を出した SVG）。色はここで決める（明るい色と暗い色）。
    本体と手伝いの色は、タイムラインの model の色を借りる（暗い色の時は、その暗い色の値になる）。 */
 :root { --chart-main: var(--m-opus); --chart-helper: var(--m-sonnet); }
 svg.chart { display: block; max-width: none; font-family: system-ui, "Hiragino Sans", "Noto Sans JP", sans-serif; }

@@ -1,5 +1,5 @@
-//! 費え（`GET /usage/`）: 席（アクター）ごとのトークンの数と額を、全体・役割ごと・課題ごとの表と、2 つの図（文脈の長さの段ごと・
-//! 日ごとか時ごと。座標は [`super::usage_chart`]）で出す。一覧の額の列とアクターの頁の節「費え」も、ここの決め方（期間・数の字）を使う。
+//! 使用量（`GET /usage/`）: 席（アクター）ごとのトークンの数と額を、全体・役割ごと・課題ごとの表と、2 つの図（文脈の長さの段ごと・
+//! 日ごとか時ごと。座標は [`super::usage_chart`]）で出す。一覧の額の列とアクターの頁の節「使用量」も、ここの決め方（期間・数の字）を使う。
 //!
 //! castlist の API の `ListUsage`（castlist 2.1.0 から。アクター 1 人の、時計の 1 時間の内の、同じ種類の回のまとめの行）を、
 //! 期間の内でみな引き、まとめる計算（[`super::usage_summary`]。外に触らない純な計算）で数を出す。script は使わない。
@@ -31,7 +31,7 @@ use crate::App;
 use crate::upstream::Failure;
 use crate::upstream::castlist::{Cut, UsageAnswer, UsageSearch};
 
-/// 費えの道。
+/// 使用量の道。
 pub const PATH: &str = "/usage/";
 
 /// 引数の名。`label` は何度でも。
@@ -97,7 +97,7 @@ pub(super) fn align(
     Ok((from, to))
 }
 
-/// 費えの画面の期間（[`align`]）。送れない期間は 400。
+/// 使用量の画面の期間（[`align`]）。送れない期間は 400。
 fn window(
     from: Option<OffsetDateTime>,
     to: Option<OffsetDateTime>,
@@ -115,7 +115,7 @@ fn window(
     })
 }
 
-/// 直近 [`MAX_DAYS`] 日（今を時の境に切り上げた時刻まで。アクターの頁の節「費え」）。
+/// 直近 [`MAX_DAYS`] 日（今を時の境に切り上げた時刻まで。アクターの頁の節「使用量」）。
 pub(super) fn recent(now: OffsetDateTime) -> (OffsetDateTime, OffsetDateTime) {
     let to = ceil_hour(now);
     (to - time::Duration::days(MAX_DAYS), to)
@@ -455,7 +455,7 @@ fn bucket_range(bucket: i64) -> String {
     format!("{low}〜{}", man((bucket + 1) * BUCKET_WIDTH))
 }
 
-/// 文脈の長さの段ごとの費え（本体の回）。本体の回が無ければ無い。
+/// 文脈の長さの段ごとの額（本体の回）。本体の回が無ければ無い。
 fn context_chart(rows: &[summary::Row]) -> Option<ChartView> {
     let buckets = summary::by_bucket(rows);
     if buckets
@@ -468,7 +468,7 @@ fn context_chart(rows: &[summary::Row]) -> Option<ChartView> {
     let axis = chart::axis(buckets.iter().map(|b| b.1).max().unwrap_or(0), 10_000);
     let mut view = frame(
         format!(
-            "文脈の長さの段ごとの費え（本体の回）。横は文脈の長さ（{}刻みの段）、縦は額。20 万に点線。本体の額の計 {}。",
+            "文脈の長さの段ごとの額（本体の回）。横は文脈の長さ（{}刻みの段）、縦は額。20 万に点線。本体の額の計 {}。",
             man(BUCKET_WIDTH),
             dollars(total)
         ),
@@ -520,7 +520,7 @@ fn context_chart(rows: &[summary::Row]) -> Option<ChartView> {
     Some(view)
 }
 
-/// 日ごと（期間が 1 日より長い時）か、時ごと（1 日まで）の費え。本体と手伝いを積む。図と、区切りの名（日・時）。
+/// 日ごと（期間が 1 日より長い時）か、時ごと（1 日まで）の額。本体と手伝いを積む。図と、区切りの名（日・時）。
 fn slot_chart(
     rows: &[summary::Row],
     from: OffsetDateTime,
@@ -540,7 +540,7 @@ fn slot_chart(
     let axis = chart::axis(sums.iter().map(|(m, h)| m + h).max().unwrap_or(0), 10_000);
     let mut view = frame(
         format!(
-            "{unit}ごとの費え（日本時間）。本体と手伝いを積んだ棒。額の計 {}。",
+            "{unit}ごとの額（日本時間）。本体と手伝いを積んだ棒。額の計 {}。",
             dollars(total)
         ),
         axis,
@@ -685,7 +685,7 @@ pub(super) fn line_chart(rows: &[summary::Row], marks: &[(i64, String)]) -> Opti
     Some(view)
 }
 
-/// 費えの画面の図。
+/// 使用量の画面の図。
 struct Charts {
     by_context: Option<ChartView>,
     by_slot: ChartView,
@@ -750,7 +750,7 @@ fn time_of(t: OffsetDateTime) -> Time {
     }
 }
 
-/// `GET /usage/?label=…&from=…&to=…`: 費え。空の値は付けなかったのと同じ（form は空の欄も送る）。
+/// `GET /usage/?label=…&from=…&to=…`: 使用量。空の値は付けなかったのと同じ（form は空の欄も送る）。
 pub async fn usage(
     State(app): State<Arc<App>>,
     q: Result<Query<Pairs>, QueryRejection>,
@@ -832,10 +832,10 @@ async fn usage_page(
     })
     .await
     .map_err(|e| {
-        tracing::error!("費えを表示できません: {e}");
+        tracing::error!("使用量を表示できません: {e}");
         PageError(
             StatusCode::INTERNAL_SERVER_ERROR,
-            "費えを表示できません".to_owned(),
+            "使用量を表示できません".to_owned(),
         )
     })
 }
