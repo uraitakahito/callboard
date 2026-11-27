@@ -221,3 +221,14 @@ test('続きの link を辿ると、201 件が 200 件と 1 件の 2 頁に出�
   expect(seen.has(last), `${last} が 2 度出た`).toBe(false);
   await expect(page.getByRole('link', { name: '続きを出す' })).toHaveCount(0);
 });
+
+test('同じ名の引数を 2 度書いた物と、値の形が違う引数と読めない続きの印は、400 の画面で訳を書く', async ({ request }) => {
+  const twice = await request.get('/messages?to=a&to=b');
+  expect(twice.status()).toBe(400);
+  expect(await twice.text()).toContain('引数を読めません（to を 2 度書いています）');
+  for (const query of [`?to=${'a'.repeat(201)}`, '?key=a%2Fb', '?at=zz']) {
+    const now = await request.get(`/messages${query}`);
+    expect(now.status(), query).toBe(400);
+    expect(await now.text(), query).toContain('pagetray が引数を断りました');
+  }
+});
