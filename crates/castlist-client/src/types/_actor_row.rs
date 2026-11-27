@@ -38,7 +38,7 @@ pub struct ActorRow {
     pub model: ::std::option::Option<::std::string::String>,
     /// 最新の effort（受けた順で）。
     pub effort: ::std::option::Option<::std::string::String>,
-    /// プロフィールの頁の path（`/actors/{id}`）。
+    /// プロフィールの画面の path（`/actors/{id}`）。画面は callboard が、この path で出す（castlist は 2.0.0 から画面を持たない）。
     pub url: ::std::string::String,
 }
 impl ActorRow {
@@ -116,7 +116,7 @@ impl ActorRow {
     pub fn effort(&self) -> ::std::option::Option<&str> {
         self.effort.as_deref()
     }
-    /// プロフィールの頁の path（`/actors/{id}`）。
+    /// プロフィールの画面の path（`/actors/{id}`）。画面は callboard が、この path で出す（castlist は 2.0.0 から画面を持たない）。
     pub fn url(&self) -> &str {
         use std::ops::Deref;
         self.url.deref()
@@ -441,18 +441,18 @@ impl ActorRowBuilder {
     pub fn get_effort(&self) -> &::std::option::Option<::std::string::String> {
         &self.effort
     }
-    /// プロフィールの頁の path（`/actors/{id}`）。
+    /// プロフィールの画面の path（`/actors/{id}`）。画面は callboard が、この path で出す（castlist は 2.0.0 から画面を持たない）。
     /// This field is required.
     pub fn url(mut self, input: impl ::std::convert::Into<::std::string::String>) -> Self {
         self.url = ::std::option::Option::Some(input.into());
         self
     }
-    /// プロフィールの頁の path（`/actors/{id}`）。
+    /// プロフィールの画面の path（`/actors/{id}`）。画面は callboard が、この path で出す（castlist は 2.0.0 から画面を持たない）。
     pub fn set_url(mut self, input: ::std::option::Option<::std::string::String>) -> Self {
         self.url = input;
         self
     }
-    /// プロフィールの頁の path（`/actors/{id}`）。
+    /// プロフィールの画面の path（`/actors/{id}`）。画面は callboard が、この path で出す（castlist は 2.0.0 から画面を持たない）。
     pub fn get_url(&self) -> &::std::option::Option<::std::string::String> {
         &self.url
     }

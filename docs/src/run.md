@@ -38,7 +38,7 @@ container run -d --name callboard -p 127.0.0.1:8803:8080 -m 200M -c 1 -e CALLBOA
 
 - castlist は、container の名 `castlist.box` で届く（既定の network では、Apple Container の DNS が domain `box` の名を答える）。
 - pagetray の container の名は `pagetray` で、domain の付かない名。Apple Container の DNS は、domain（`box`）の付いた名だけを答えるので、**この名では届かない**（0.1.0 を起こした時に確かめた: `Name does not resolve`）。届くようにするまで、入口の画面は pagetray を「届きません」と出す（callboard は起き、castlist の画面はみな使える。pagetray の画面は、まだ pagetray が出している）。
-- **castlist は 1.1.0 から**（0.2.0 の一覧とタイムラインが、1.1.0 で足した欄と操作を使う）。古い castlist に向けると、タイムラインは「castlist に聞けません（404 が返りました）」の画面になり、一覧とプロフィールの「時刻ずれ」の印と、状態の横の出来事の名が出ない。
+- **castlist は 1.1.0 から**（0.2.0 の一覧とタイムラインが、1.1.0 で足した欄と操作を使う）。古い castlist に向けると、タイムラインは「castlist に聞けません（404 が返りました）」の画面になり、一覧とプロフィールの「時刻ずれ」の印と、状態の横の出来事の名が出ない。castlist 2.0.0（画面を外した版。API は 1.1.0 と同じ）でも、そのまま動く。
 
 > [!WARNING]
 > `-p` には必ず `127.0.0.1:` を書く。`-p 8803:8080` と書くと LAN に開く。
