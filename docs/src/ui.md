@@ -3,15 +3,15 @@
 callboard が HTML を組んで返す画面（askama。`templates/`）。callboard を動かす機械の browser で `http://127.0.0.1:8803/` を開く。
 
 - 字はみな HTML として逃がす（ラベル・名・出来事の `detail` など、送り手が書いた字も）。
-- script を使うのは相関図（`GET /static/network.js` と、取り込んだ cytoscape）とメッセージの一覧（`GET /static/messages.js`）だけで、callboard が配る file だけを読む。inline の script は無い。style は callboard が配る CSS（`GET /static/site.css`）だけで、inline の style も無い。どの file も binary に埋め込む。
-- どの画面にも Content-Security-Policy を付ける: `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`。browser は、castlist と pagetray に直には聞かない（`connect-src 'self'`）。
-- 時刻は、日本時間（UTC+9）で表示する（castlist の画面は castlist が受け取った時刻、メッセージの一覧は送り手が書いた時刻）。ISO 8601 の字（UTC・ミリ秒まで）は `<time datetime>` と `title` に置く（時刻にマウスを重ねると表示される）。
+- script を使うのは相関図（`GET /static/network.js` と、取り込んだ cytoscape）・メッセージの一覧（`GET /static/messages.js`）・ページの一覧（`GET /static/pages.js`）だけで、callboard が配る file だけを読む。inline の script は無い。style は callboard が配る CSS（`GET /static/site.css`）だけで、inline の style も無い。どの file も binary に埋め込む。
+- どの画面にも Content-Security-Policy を付ける: `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`。browser は、castlist と pagetray の API に直には聞かない（`connect-src 'self'`）。ページの一覧だけは、pagetray が持つページの本文と file を browser が直に読むので、`img-src` と `frame-src` に pagetray の link の頭を足した物を付ける（下の「ページの一覧」）。
+- 時刻は、日本時間（UTC+9）で表示する（castlist の画面は castlist が受け取った時刻、メッセージの一覧は送り手が書いた時刻、ページの一覧は pagetray が受け取った時刻）。ISO 8601 の字（UTC・ミリ秒まで）は `<time datetime>` と `title` に置く（時刻にマウスを重ねると表示される）。
 - 明るい色と暗い色の両方を持つ（`prefers-color-scheme`）。
 - どの画面の頭にも、画面の間の link（アクター・タイムライン・相関図・ページ・メッセージ）を出す。
 
 ## 移した画面と、まだ移していない画面
 
-castlist と pagetray の画面を、1 つずつ callboard に移している。castlist の 4 つの画面は、みな移した（0.2.0）。castlist は、2.0.0 で自分の画面を外した（表の「castlist での道」は、前の道。今は 404）。pagetray は、メッセージの一覧を移した（0.3.0。pagetray の画面も、まだ残っている）。まだ移していない pagetray のページの一覧への link は、pagetray の画面を指す（link の頭は設定の `CALLBOARD_PAGETRAY_LINK_URL`。[動かす](run.md)）。
+castlist と pagetray の画面を、1 つずつ callboard に移した。castlist の 4 つの画面（0.2.0 まで）と、pagetray の 2 つの画面（メッセージの一覧は 0.3.0、ページの一覧は 0.4.0）。castlist は、2.0.0 で自分の画面を外した（表の「castlist での道」は、前の道。今は 404）。pagetray の画面は、まだ残っている。ページの本文と file の中身は、画面でなく pagetray が持つ物なので、browser が pagetray から直に読む（URL の頭は設定の `CALLBOARD_PAGETRAY_LINK_URL`。[動かす](run.md)）。
 
 | 画面 | 今ある所 | callboard の道 | castlist・pagetray での道（castlist の物は、2.0.0 で無くなった） |
 |---|---|---|---|
@@ -20,7 +20,7 @@ castlist と pagetray の画面を、1 つずつ callboard に移している。
 | プロフィール | callboard（0.1.0 から） | `/actors/{id}` | castlist の `/actors/{id}` |
 | タイムライン | callboard（0.2.0 から） | `/graph/timeline` | castlist の `/graph/timeline` |
 | 相関図 | callboard（0.1.0 から） | `/graph/network` | castlist の `/graph/network` |
-| ページの一覧 | pagetray | これから（`/pages/`） | pagetray の `/` |
+| ページの一覧 | callboard（0.4.0 から） | `/pages/` | pagetray の `/`・`/<project>/`・`/<project>/<key>/` |
 | メッセージ | callboard（0.3.0 から） | `/messages` | pagetray の `/messages` |
 
 castlist にあった画面との違い（画面の中身。頭の帯の下）は 2 つだけ: 送り手の時刻の ISO の字をミリ秒までにそろえることと、誤りの画面の戻りの link（「一覧へ」でなく「入口へ」）。castlist が画面を外す前（1.1.0）に、同じ castlist を相手に、castlist の画面と callboard の画面の中身を比べて確かめた（CI の browser の試験と、動いている台帳の写し（アクター 114 人。2026-11-27）。比べる相手が無くなったので、その試験は外した）。
@@ -197,7 +197,7 @@ id は英語のまま（castlist の API）。日本語の名は画面だけで�
 
 AI の担当どうしのメッセージ（roster が配る）の記録を、送った時刻の新しい順に表示する。pagetray の `/messages` を移した物で、記録は pagetray の API（`ListMessages` と、絞り込みの候補と件数の `GetMessageFacets`。pagetray 1.2.0 から）で読む。callboard は見せるだけ（状態は、pagetray が残した字を、画面の字にして出す）。
 
-- **操作の帯**: 「メッセージの記録」（条件の無い一覧へ）・「ページ」（pagetray のページの一覧へ）・「まだ届いていない n 件」（押すと、ほかの絞り込みを外して、まだ届いていない物だけに絞る。0 件なら出さない。tab の題にも出す）・「絞り込みを外す」（絞っている時だけ）・新着の印。
+- **操作の帯**: 「メッセージの記録」（条件の無い一覧へ）・「ページ」（ページの一覧へ）・「まだ届いていない n 件」（押すと、ほかの絞り込みを外して、まだ届いていない物だけに絞る。0 件なら出さない。tab の題にも出す）・「絞り込みを外す」（絞っている時だけ）・新着の印。
 - **絞り込みの列**: 状態・受け手・送り手・Key・project の候補と件数。件数は、絞りに関わらず置き場の全部。押すと今の条件に重ね、選んである候補をもう 1 度押すと外す。条件は URL に出る（`project`・`key`・`to`・`from`・`state`）。受け手・送り手・Key の候補は 100 件まで（今絞っている値は、その外でも出す）。
 - **行**: 送った時刻・Key・見出し・状態（まだ届いていない・届いた・渡せない・期限切れ・ほかの道具で運んだ）・「送り手 → 受け手」・届いた時刻・渡した時（`gate` は「検査が止めた後」、`wake` は「起こした」、`prompt` は「人の入力の時」、`max-deliveries` は「渡し直しの上限を超えた」、`ttl` は「期限で消えた」、`closed` は「席を閉じた」。ほかの名は書かれた字のまま）・渡し直しの数・本文。本文は HTML として出さない。200 字か 5 行を超える本文は、頭の 120 字だけを見せ、開くと全部。
 - **続き**: 1 度に 200 件。続きがあれば「続きを出す」の link（`at` に、pagetray の続きの印を付ける）。
@@ -215,3 +215,38 @@ script（`/static/messages.js`）が、`GET /api/pagetray/events` を `EventSour
 - script が動かなくても、一覧は開き、絞り込みも続きも link で動く（新着は、読み直すと出る）。
 
 pagetray の画面との違いは 3 つ: 時刻を callboard が日本時間で組むこと（pagetray の画面は、UTC の字を出して、script がその機械の時刻に書き替える）・値の形が違う引数と読めない続きの印を 400 の画面にすること（pagetray の画面は、条件が無い物として出す）・頭の帯。CI の browser の試験（`e2e/tests/messages.spec.ts`）が、同じ pagetray を相手に、題・まだ届いていない数・絞り込みの列・一覧の列を、絞り込みごと・続きの頁ごとに比べる。
+
+## `GET /pages/` ページの一覧
+
+担当が置いたページ（依頼書・提案・計画・成果・確認・レビュー）を、置いた時刻の新しい順に表示する。pagetray の `/` を移した物で、記録は pagetray の API（`ListPages`・`GetPageFacets`・`ListReviews`。Key の画面では `ListFiles`・`GetFileRules` も。`GetPageFacets`・`ListReviews`・`GetFileRules` は pagetray 1.3.0 から）で読む。`/pages`（後ろに `/` の無い道）は、`/pages/` へ送る。
+
+- **3 つの列**: 絞り込みの列・一覧の列・本文の枠。幅が狭い時（900px 以下）は、縦に並ぶ。
+- **操作の帯**: 「ページの置き場」（条件の無い一覧へ）・「メッセージ」（メッセージの一覧へ）・探す form（題と本文。今の絞り込みを保つ）・並び（新しい順・古い順）・待ちの数の釦（返事待ち・レビュー待ち・上げた。押すと、その待ちだけに絞る。0 件なら出さない。返事待ちの数は tab の題にも出す）・「絞り込みを外す」・新着の印。
+- **絞り込みの列**: 返事（返事待ち・答えた・レビュー待ち・上げた）・判定・送り手・担当者（役割）・workspace（その ID で置かれた Key を添える）・種類・Key・project の候補と件数。件数は、絞りに関わらず置き場の全部。条件は URL に出る（`project`・`key`・`kind`・`role`・`workspace`・`q`・`reply`・`on`・`verdict`・`actor`・`sort=created_at`）。
+- **行**: 置いた時刻・Key・種類と番号・レビューの判定・返事の印（返事待ち・答えた・レビュー待ち・レビュー済み・上げた・決まった）・題・役割と workspace。行の下に、見た物（レビューのページ）・見る物（ほかのページ）の link、このページを見たレビューの link と判定、送り手（castlist の名。押すと callboard のプロフィール。castlist の答えの無い送り手は「未確認」）と付随する id。
+- **本文の枠**: 行を押すと、そのページが本文の枠（`<iframe sandbox="allow-scripts">`）に 1 枚だけ出る（URL に `open=<ページの path>`）。枠の中身は、browser が pagetray から直に読む（`<pagetray の link の頭>/<project>/<key>/<kind>-<n>.html`）。ページの path の形でない `open` は、書かないのと同じ。
+- **続き**: 1 度に 200 枚。続きがあれば「続きを出す」の link（`at` に、pagetray の続きの印を付ける）。
+- **引数**: 空の値（workspace だけは、空も条件）・知らない返事の状態と判定と並び・知らない引数は、書かないのと同じ。同じ名を 2 度書いた物は 400 の画面。値の形が違う物（project・Key・種類の形・アクターの id・読めない続きの印）は、pagetray が断り、その訳を書いた 400 の画面。
+- pagetray に聞けない時は 503 の画面で、訳を書く。pagetray が 1.3.0 より古いと、「pagetray に聞けません（404 が返りました）」になる。
+- **この画面の CSP**: `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: <pagetray の link の頭>; connect-src 'self'; frame-src <pagetray の link の頭>; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`。足したのは、本文の枠（`frame-src`）・file の枠の図（`img-src`）・上げる前の図の見本（`blob:`）だけ。
+
+### 新着・返事の状態・未読
+
+script（`/static/pages.js`）が、メッセージの一覧と同じ道（`GET /api/pagetray/events`）を聞く。
+
+- ページが置かれると（名の無い知らせ）、一覧の列と絞り込みの列を押さずに差し替える（本文の枠は読み込み直さない）。今の絞り込みで一覧に入ったページの数を、tab の題の頭（`(n)`）に出す。下へ送って見ている時は、見ている行を同じ所に置き、新着の印（「● 新着 n 件（上へ）」）を出す。
+- 返事の状態・レビューの印が書かれると（`reply`・`review`）、行の印と待ちの数を新しくする（新着には数えない）。
+- **未読の印**（題の頭の ●）: この browser で初めて開いた時より後に置かれ、まだ本文の枠に出していないページ。browser が覚える（`localStorage` の `callboard.pages.since`・`callboard.pages.seen`。5,000 枚まで）。pagetray の画面で覚えた印は、origin が違うので引き継がない。
+- つなぎ直しは、メッセージの一覧と同じ（つながるたびに読み直し、つなげなかった時は 3 秒ごとに試す）。
+
+### Key の画面（file の枠と、上げる枠）
+
+project と Key を 1 つずつ選んだ時（`?project=…&key=…`）だけ、一覧の列の下に 2 つの枠を出す（project が `api` の時と、形の違う名には出さない）。
+
+- **file の枠**: その Key の file（新しい順に 200 まで）。名（押すと、pagetray の file を別の tab で開く）・図なら小さな見本・大きさ・役割・置いた時刻・ページから参照する時の相対の path（`files/<語>-<番号>.<拡張子>`）・送り手。
+- **上げる枠**: file を選ぶ（か、落とす）と、拡張子と大きさを見て（受ける種類と上限は、pagetray の `GetFileRules` の答え）、見本を出す。「秘密が写っていないか見た」に印を付けると、送れる。script が要る。
+- 送る先は、callboard の `POST /api/pagetray/projects/{project}/keys/{key}/files?name=<語>.<拡張子>`（本文は file の中身。`Content-Type` は、その拡張子の種類）。callboard が、pagetray の `CreateFile` に、**役割 `product-manager`** で渡す。browser からは、名・中身の種類・中身だけを受ける（役割・workspace・番号・時刻・付随する id を書いても、渡さない）。答えは、pagetray の答え（置いた記録の 201 か、断った訳。種類が合わなければ 415）を、そのまま返す。pagetray に聞けなければ 503（pagetray の答えを 4 秒まで待つ。時間切れの時は、置かれたかもしれないので、画面は file の枠を読み直し、確かめてから送り直すように書く）。
+- **この道の守り**: callboard の、ただ 1 つの書く道。この callboard の画面の form からの要求（`Origin` が `http://<Host>` とそのまま同じで、`Sec-Fetch-Site` が無いか `same-origin`）だけを通す。ほかの site・本文の枠の中のページ（pagetray の origin か、sandbox の `null`）・`Origin` の無い要求は 403。本文は 16 MiB まで（pagetray が file 1 つに受ける大きさ。ほかの道は 2 MiB）。project と Key の形が違う・名が無い要求は 400。
+- ほかの所（`roster file put` など）から、この Key に file が置かれると（`file` の知らせ）、file の枠を押さずに読み直す。
+
+pagetray の画面との違いは 5 つ: 一覧の道が `/pages/` の 1 つなこと（pagetray の `/<project>/`・`/<project>/<key>/` の道は無い）・時刻を callboard が日本時間で組むこと・値の形が違う引数と読めない続きの印を 400 の画面にすること・送り手の名の link が callboard のプロフィールなこと・未読の印を callboard の origin で覚え直すこと。CI の browser の試験（`e2e/tests/pages.spec.ts`）が、同じ pagetray を相手に、題・探す form・待ちの数の釦・絞り込みの列・一覧の列・本文の枠・file の枠と上げる枠を、絞り込みごと・続きの頁ごとに比べる。

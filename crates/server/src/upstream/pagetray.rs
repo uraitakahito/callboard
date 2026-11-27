@@ -9,9 +9,12 @@ use pagetray_client::Client;
 use pagetray_client::config::retry::RetryConfig;
 use pagetray_client::config::timeout::TimeoutConfig;
 use pagetray_client::config::{BehaviorVersion, Config};
+pub use pagetray_client::operation::get_file_rules::GetFileRulesOutput;
 pub use pagetray_client::operation::get_message_facets::GetMessageFacetsOutput;
+pub use pagetray_client::operation::get_page_facets::GetPageFacetsOutput;
 pub use pagetray_client::operation::list_messages::ListMessagesOutput;
-pub use pagetray_client::types::{FacetCount, Message};
+pub use pagetray_client::operation::list_pages::ListPagesOutput;
+pub use pagetray_client::types::{FacetCount, File, Message, Page, ReviewOf, Sender};
 
 use super::{Failure, Health, Raw, TIMEOUT, http_client, raw_client, reason, unreadable, within};
 use crate::Closing;
@@ -212,6 +215,229 @@ impl Pagetray {
         );
         response
     }
+}
+
+/// ページを探す条件（ListPages の引数。画面が、確かめた値だけを入れる）。
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PageSearch {
+    pub project: Option<String>,
+    pub key: Option<String>,
+    pub kind: Option<String>,
+    pub role: Option<String>,
+    /// workspace の ID。空の字も条件（書かずに置いたページ）。
+    pub workspace: Option<String>,
+    pub q: Option<String>,
+    /// 返事の状態（`waiting`・`answered`）と、待ちの相手（`review`・`tpm`。Product Manager は書かない）。
+    pub reply: Option<String>,
+    pub on: Option<String>,
+    pub verdict: Option<String>,
+    /// 送り手（castlist のアクターの id）。
+    pub actor: Option<String>,
+    /// 古い順に並べるか。
+    pub oldest: bool,
+    /// 前の頁の答えの `nextToken`。
+    pub after: Option<String>,
+    /// 1 頁の数。
+    pub limit: i32,
+}
+
+/// 呼べなかった訳にする: pagetray が引数を断った物は [`Failure::Rejected`]、ほかは [`Failure::Unavailable`]。
+macro_rules! failed {
+    ($self:ident) => {
+        |e| match e.as_service_error() {
+            Some(e) if e.is_validation_error() => {
+                Failure::Rejected(e.meta().message().unwrap_or_default().to_owned())
+            }
+            _ => Failure::Unavailable(reason(NAME, &$self.api, &e)),
+        }
+    };
+}
+
+impl Pagetray {
+    /// ページを探す（ListPages。置いた時刻の新しい順が既定）。
+    pub async fn pages(&self, search: &PageSearch) -> Result<ListPagesOutput, Failure> {
+        self.client
+            .list_pages()
+            .set_project(search.project.clone())
+            .set_key(search.key.clone())
+            .set_kind(search.kind.clone())
+            .set_role(search.role.clone())
+            .set_workspace(search.workspace.clone())
+            .set_q(search.q.clone())
+            .set_reply(search.reply.clone())
+            .set_on(search.on.clone())
+            .set_verdict(search.verdict.clone())
+            .set_actor(search.actor.clone())
+            .set_sort(search.oldest.then(|| "createdAt".to_owned()))
+            .set_next_token(search.after.clone())
+            .max_results(search.limit)
+            .customize()
+            .mutate_request(|request| {
+                request.headers_mut().insert("host", "127.0.0.1");
+            })
+            .send()
+            .await
+            .map_err(failed!(self))
+    }
+
+    /// ページの、絞り込みの候補と件数・待ちの数（GetPageFacets。pagetray 1.3.0 から）。数は置き場の全部。
+    pub async fn page_facets(&self) -> Result<GetPageFacetsOutput, Failure> {
+        self.client
+            .get_page_facets()
+            .customize()
+            .mutate_request(|request| {
+                request.headers_mut().insert("host", "127.0.0.1");
+            })
+            .send()
+            .await
+            .map_err(|e| Failure::Unavailable(reason(NAME, &self.api, &e)))
+    }
+
+    /// 名指したページ（path）を見たレビューのページ（ListReviews。pagetray 1.3.0 から）。名指す物が無ければ、聞かずに空。
+    pub async fn reviews(&self, targets: Vec<String>) -> Result<Vec<ReviewOf>, Failure> {
+        if targets.is_empty() {
+            return Ok(Vec::new());
+        }
+        self.client
+            .list_reviews()
+            .set_target(Some(targets))
+            .customize()
+            .mutate_request(|request| {
+                request.headers_mut().insert("host", "127.0.0.1");
+            })
+            .send()
+            .await
+            .map(|output| output.reviews)
+            .map_err(failed!(self))
+    }
+
+    /// Key の file（ListFiles。新しい順に `limit` まで）。
+    pub async fn files(&self, project: &str, key: &str, limit: i32) -> Result<Vec<File>, Failure> {
+        self.client
+            .list_files()
+            .project(project)
+            .key(key)
+            .max_results(limit)
+            .customize()
+            .mutate_request(|request| {
+                request.headers_mut().insert("host", "127.0.0.1");
+            })
+            .send()
+            .await
+            .map(|output| output.files)
+            .map_err(failed!(self))
+    }
+
+    /// 受ける file の種類と、大きさの上限（GetFileRules。pagetray 1.3.0 から）。
+    pub async fn file_rules(&self) -> Result<GetFileRulesOutput, Failure> {
+        self.client
+            .get_file_rules()
+            .customize()
+            .mutate_request(|request| {
+                request.headers_mut().insert("host", "127.0.0.1");
+            })
+            .send()
+            .await
+            .map_err(|e| Failure::Unavailable(reason(NAME, &self.api, &e)))
+    }
+
+    /// 画面の form が上げた file を、pagetray に置く（CreateFile。`POST /api/projects/{project}/keys/{key}/files`）。
+    /// - 役割は [`UPLOAD_ROLE`] に決める。browser からは名（`name`）・中身の種類・中身だけを渡し、workspace・番号・時刻・
+    ///   付随する id は渡さない（browser から担当を名乗らせない・取り込ませない。pagetray の画面の form と同じ決まり）。
+    /// - `project`・`key` は、呼ぶ側が形（URL の 1 段になる字）を見てある。
+    /// - 返すのは、pagetray の答えの状態・本文の型・誤りの型の名・本文（置いた記録か、断った訳）。pagetray が要求の `Host` から
+    ///   組んだ URL の header（`Location`）は返さない。聞けなければ（つながらない・答えを読み終えるまで [`TIMEOUT`]）503。
+    ///   時間切れの時は、pagetray が置き終えているかもしれないので、訳にそう書く（画面は、file の枠を読み直す）。
+    pub async fn upload(
+        &self,
+        project: &str,
+        key: &str,
+        name: &str,
+        content_type: Option<header::HeaderValue>,
+        body: Body,
+    ) -> Response {
+        let unavailable = |why: &str| {
+            reply(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "Unavailable",
+                &format!("pagetray に聞けません（{why}）"),
+            )
+        };
+        let uri = format!(
+            "{}/api/projects/{project}/keys/{key}/files?name={}&role={UPLOAD_ROLE}",
+            self.api,
+            escape(name)
+        );
+        let mut request = Request::post(&uri).header(header::HOST, "127.0.0.1");
+        if let Some(content_type) = content_type {
+            request = request.header(header::CONTENT_TYPE, content_type);
+        }
+        let Ok(request) = request.body(body) else {
+            return reply(
+                StatusCode::BAD_REQUEST,
+                "ValidationException",
+                "引数を読めません",
+            );
+        };
+        let answer = tokio::time::timeout(TIMEOUT, async {
+            let (parts, body) = self
+                .raw
+                .request(request)
+                .await
+                .map_err(|e| e.to_string())?
+                .into_parts();
+            let body = http_body_util::BodyExt::collect(body)
+                .await
+                .map_err(|e| e.to_string())?;
+            Ok::<_, String>((parts, body.to_bytes()))
+        })
+        .await;
+        match answer {
+            Err(_) => {
+                tracing::warn!(
+                    upstream = NAME,
+                    api = self.api,
+                    error = "timeout",
+                    "呼ぶ先に聞けない"
+                );
+                // 本文は渡し終えているかもしれない（pagetray が置き終えた後に、答えだけが間に合わなかった時）。
+                unavailable("時間内に答えがありません。file は置かれたかもしれません")
+            }
+            Ok(Err(error)) => {
+                tracing::warn!(upstream = NAME, api = self.api, error, "呼ぶ先に聞けない");
+                unavailable("つながりません")
+            }
+            Ok(Ok((parts, body))) => {
+                let mut response = Response::new(Body::from(body));
+                *response.status_mut() = parts.status;
+                for name in [header::CONTENT_TYPE.as_str(), "x-amzn-errortype"] {
+                    if let Some(value) = parts.headers.get(name) {
+                        response.headers_mut().insert(
+                            header::HeaderName::from_bytes(name.as_bytes()).expect("header の名"),
+                            value.clone(),
+                        );
+                    }
+                }
+                response
+            }
+        }
+    }
+}
+
+/// 画面の form から上げた file の役割（pagetray の画面の form と同じ）。
+pub const UPLOAD_ROLE: &str = "product-manager";
+
+/// URL の引数の値を % で包む（英数字と `-._~` の外）。
+fn escape(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for byte in value.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
+            out.push(byte as char);
+        } else {
+            out.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    out
 }
 
 /// 新着の知らせの答えの型。

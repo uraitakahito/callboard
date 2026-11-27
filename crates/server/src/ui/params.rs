@@ -335,6 +335,19 @@ pub fn query(pairs: &[(String, String)]) -> String {
     query.join("&")
 }
 
+/// URL の引数の値を % で包む（英数字と `-._~` の外。`:` も包む。pagetray の画面の link と同じ字にする）。
+pub fn strict(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for byte in value.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
+            out.push(byte as char);
+        } else {
+            out.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    out
+}
+
 /// URL の引数の値を % で包む（英数字と `-._~:` の外）。
 fn encode(s: &str) -> String {
     s.bytes()

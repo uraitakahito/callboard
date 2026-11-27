@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # image が、空の image の中で起き、/healthz に答え、外の Host と browser からの書き込みを断り、
 # 入口の画面と CSS が CSP の決まりどおりに出て、castlist と pagetray に名で届き、一覧・タイムライン・相関図・プロフィールが castlist の API を、
-# メッセージの一覧と新着の知らせの中継が pagetray の API を通して出て、止める合図で（流れを開いたままでも）自分から終わり、
+# メッセージの一覧・新着の知らせの中継・ページの一覧・file を上げる道が pagetray の API を通して動き、止める合図で（流れを開いたままでも）自分から終わり、
 # 起こし直しても答えるかを見る。
 # 呼ぶ先は、出した版の castlist と pagetray の image（ghcr.io の物を digest で取る）を、同じ network に起こす。
 # 使い方: ci/smoke-image.sh <image>
@@ -174,6 +174,43 @@ cmp -s "$tmp/got.js" "$here/../static/messages.js" || {
 # pagetray が断る引数は、pagetray の訳を書いた 400 の画面。
 test "$(curl -s -o "$tmp/messages.html" -w '%{http_code}' "$url/messages?at=zz")" = 400
 grep -qF 'pagetray が引数を断りました' "$tmp/messages.html"
+# ページの一覧: この画面だけの CSP（本文の枠と図に、pagetray の link の頭を足した物。設定を書いていないので、既定の
+# http://127.0.0.1:8801）が付き、inline の style が無く、script は callboard が配る 1 つ。本物の pagetray（空の置き場）の
+# API（ListPages と、1.3.0 からの GetPageFacets）に聞いた答えを出す。
+pages_csp="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: http://127.0.0.1:8801; connect-src 'self'; frame-src http://127.0.0.1:8801; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+curl -fsS -D "$tmp/pages-head.txt" -o "$tmp/pages.html" "$url/pages/"
+tr -d '\r' <"$tmp/pages-head.txt" | grep -qixF "content-security-policy: $pages_csp"
+if grep -qiE '<style|style=' "$tmp/pages.html"; then
+  echo "NG: ページの一覧に inline の style がある" >&2
+  exit 1
+fi
+scripts=$(grep -oiE '<script[^>]*>' "$tmp/pages.html" | sed -E 's/\?v=[0-9a-f]+"/"/')
+if [ "$scripts" != '<script src="/static/pages.js">' ]; then
+  echo "NG: ページの一覧の script が、callboard の配る 1 つでない: $scripts" >&2
+  exit 1
+fi
+grep -qF '合うページは無い' "$tmp/pages.html"
+curl -fsS -o "$tmp/got.js" "$url/static/pages.js"
+cmp -s "$tmp/got.js" "$here/../static/pages.js" || {
+  echo "NG: 配る static/pages.js が repo の物と違う" >&2
+  exit 1
+}
+test "$(code "$url/pages/?kind=a&kind=b")" = 400
+# file を上げる道: この callboard の画面の form からの要求（Origin が自分）だけを通し、本物の pagetray に、役割 product-manager で置く
+# （browser が書いた役割は読まない）。ほかの site・Origin の無い要求は 403 で、何も置かない。
+printf 'hello' >"$tmp/upload.txt"
+up_path='api/pagetray/projects/smoke/keys/K-1/files?name=a.txt&role=tpm'
+test "$(code -X POST -H 'Origin: https://evil.example' -H 'Content-Type: text/plain' --data-binary "@$tmp/upload.txt" "$url/$up_path")" = 403
+test "$(code -X POST -H 'Content-Type: text/plain' --data-binary "@$tmp/upload.txt" "$url/$up_path")" = 403
+test "$(curl -s -o "$tmp/uploaded.json" -w '%{http_code}' -X POST -H "Origin: $url" -H 'Content-Type: text/plain' --data-binary "@$tmp/upload.txt" "$url/$up_path")" = 201
+jq -e '.role == "product-manager" and .workspace == "" and .name == "a" and .n == "1" and .size == 5' "$tmp/uploaded.json" >/dev/null
+# 種類の合わない中身は、pagetray が断った訳（415）が、そのまま返る。
+test "$(code -X POST -H "Origin: $url" -H 'Content-Type: image/png' --data-binary "@$tmp/upload.txt" "$url/api/pagetray/projects/smoke/keys/K-1/files?name=b.png")" = 415
+# Key の画面に、上げた file が 1 つだけ出る。
+curl -fsS -o "$tmp/key.html" "$url/pages/?project=smoke&key=K-1"
+test "$(grep -c 'data-file=' "$tmp/key.html")" = 1
+grep -qF 'data-file="/smoke/K-1/files/a-1.txt"' "$tmp/key.html"
+grep -qF 'data-upload="/api/pagetray/projects/smoke/keys/K-1/files"' "$tmp/key.html"
 # 新着の知らせの中継: 本物の pagetray の流れ（SSE）につながる。流れは終わらないので、頭を見たら切る（curl は時間切れの 28 で終わる）。
 curl -s -N -D "$tmp/events-head.txt" -o /dev/null --max-time 2 "$url/api/pagetray/events" || test $? = 28
 tr -d '\r' <"$tmp/events-head.txt" | grep -qi '^HTTP/1.1 200'
@@ -202,9 +239,12 @@ curl -fsS "$url/healthz" >/dev/null
 curl -fsS -o "$tmp/index.html" "$url/"
 test "$(grep -cF 'つながっています' "$tmp/index.html")" = 1
 test "$(grep -cF '届きません' "$tmp/index.html")" = 1
-# メッセージの一覧と、新着の知らせの中継は 503（中継は、restJson1 の形の Unavailable）。
+# メッセージの一覧・新着の知らせの中継・ページの一覧・file を上げる道は 503（中継は、restJson1 の形の Unavailable）。
 test "$(curl -s -o "$tmp/messages.html" -w '%{http_code}' "$url/messages")" = 503
 grep -qF 'pagetray に聞けません' "$tmp/messages.html"
+test "$(curl -s -o "$tmp/pages.html" -w '%{http_code}' "$url/pages/")" = 503
+grep -qF 'pagetray に聞けません' "$tmp/pages.html"
+test "$(code -X POST -H "Origin: $url" -H 'Content-Type: text/plain' --data-binary "@$tmp/upload.txt" "$url/$up_path")" = 503
 test "$(curl -s -D "$tmp/events-head.txt" -o "$tmp/events.json" -w '%{http_code}' --max-time 10 "$url/api/pagetray/events")" = 503
 tr -d '\r' <"$tmp/events-head.txt" | grep -qix 'x-amzn-errortype: unavailable'
 echo "image は動く: ${image}"

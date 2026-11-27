@@ -17,7 +17,7 @@ use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::Response;
 
-use super::params::{self, PageError, Pairs, bad_request};
+use super::params::{self, PageError, Pairs, bad_request, strict};
 use super::time::{Time, short};
 use super::{CSS_HREF, MESSAGES_JS_HREF, Nav, error_page, render};
 use crate::App;
@@ -119,7 +119,7 @@ impl View {
         } else {
             let query: Vec<String> = pairs
                 .iter()
-                .map(|(name, value)| format!("{name}={}", encode(value)))
+                .map(|(name, value)| format!("{name}={}", strict(value)))
                 .collect();
             format!("{PATH}?{}", query.join("&"))
         }
@@ -132,19 +132,6 @@ impl View {
         change(&mut next);
         next.href()
     }
-}
-
-/// URL の引数の値を % で包む（英数字と `-._~` の外。pagetray の画面の link と同じ字にする）。
-fn encode(value: &str) -> String {
-    let mut out = String::with_capacity(value.len());
-    for byte in value.bytes() {
-        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
-            out.push(byte as char);
-        } else {
-            out.push_str(&format!("%{byte:02X}"));
-        }
-    }
-    out
 }
 
 /// 絞り込みの列の、候補 1 つ。

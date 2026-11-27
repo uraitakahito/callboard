@@ -237,16 +237,17 @@ svg.timeline { display: block; font-family: system-ui, "Hiragino Sans", "Noto Sa
 .legend .node-key.human { width: 16px; border-radius: 3px; border: 2px solid var(--on); }
 .noscript { margin: 0 0 12px; }
 
-/* メッセージの一覧（/messages）。pagetray の画面の作りを移した物: 操作の帯の下に、絞り込みの列と一覧の列を横に並べ、
-   それぞれを自分の枠の中で送る（幅が狭い時は縦に並べ、画面全体を送る）。新着の差し替えは static/messages.js。 */
+/* pagetray から移した 2 つの画面（メッセージの一覧 /messages・ページの一覧 /pages/）の、共通の作り（.tray）:
+   操作の帯の下に、絞り込みの列と一覧の列（ページの一覧は、本文の枠も）を横に並べ、それぞれを自分の枠の中で送る
+   （幅が狭い時は縦に並べ、画面全体を送る）。新着の差し替えは static/messages.js と static/pages.js。 */
 [hidden] { display: none !important; }
 body.fill { height: 100vh; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow-anchor: none; }
 body.fill main { padding: 0; max-width: none; min-height: 0; }
 body.fill footer { padding: 4px 16px; border-top: 1px solid var(--line); }
-.messages { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); }
-.messages a { color: inherit; }
-.messages a:hover { text-decoration: none; }
-.messages .toolbar {
+.tray { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.tray a { color: inherit; }
+.tray a:hover { text-decoration: none; }
+.tray .toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: 8px 12px;
@@ -255,8 +256,8 @@ body.fill footer { padding: 4px 16px; border-top: 1px solid var(--line); }
   border-bottom: 1px solid var(--line);
   background: var(--card);
 }
-.messages .toolbar h1 { font-size: 1rem; margin: 0; }
-.messages .btn {
+.tray .toolbar h1 { font-size: 1rem; margin: 0; }
+.tray .btn {
   padding: 4px 10px;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -264,44 +265,138 @@ body.fill footer { padding: 4px 16px; border-top: 1px solid var(--line); }
   color: var(--fg);
   white-space: nowrap;
 }
-.messages #fresh { color: var(--on); font-weight: 700; border-color: var(--on); }
-.messages #undelivered { color: var(--warn); font-weight: 700; border-color: var(--warn); }
-.messages #undelivered.on { background: var(--chip); }
-.messages .columns { display: grid; grid-template-columns: 15rem minmax(0, 1fr); min-height: 0; }
-.messages .columns > * { min-height: 0; overflow: auto; overflow-anchor: none; border-right: 1px solid var(--line); }
-.messages nav { padding: 8px 12px; }
-.messages nav h2 { font-size: 0.8rem; color: var(--muted); margin: 12px 0 2px; }
-.messages nav ul, .messages .rows { list-style: none; margin: 0; padding: 0; }
-.messages nav li a { display: flex; gap: 6px; justify-content: space-between; padding: 2px 6px; border-radius: 4px; }
-.messages nav li a span:first-child { min-width: 0; overflow-wrap: anywhere; }
-.messages .n { color: var(--muted); font-variant-numeric: tabular-nums; }
-.messages nav li a.on, .messages nav li a:hover { background: var(--chip); }
-.messages .rows li { border-bottom: 1px solid var(--line); padding: 6px 12px; background: var(--card); }
-.messages .rows li[data-state="waiting"] { box-shadow: inset 3px 0 var(--warn); }
-.messages .rows li[data-state="undeliverable"] { box-shadow: inset 3px 0 var(--bad); }
-.messages .rows .top { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; font-size: 0.8rem; color: var(--muted); }
-.messages .rows .name { color: var(--accent); }
-.messages .rows .route { display: block; overflow-wrap: anywhere; font-weight: 700; }
-.messages .rows .who { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 0.75rem; color: var(--muted); }
-.messages .state { margin-left: auto; padding: 0 8px; border: 1px solid; border-radius: 999px; font-size: 0.72rem; white-space: nowrap; }
-.messages .state.waiting { color: var(--warn); }
-.messages .state.delivered { color: var(--on); }
-.messages .state.undeliverable { color: var(--bad); }
-.messages .state.expired { color: var(--muted); }
-.messages .state.carried { color: var(--accent); }
-.messages pre { margin: 4px 0 0; font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
-.messages details { margin-top: 4px; }
-.messages summary { cursor: pointer; overflow-wrap: anywhere; }
-.messages details[open] summary { color: var(--muted); }
-.messages details pre { padding-left: 1rem; }
-.messages .more, .messages .empty { display: block; margin: 0; padding: 10px 12px; color: var(--muted); }
-.messages .more { color: var(--accent); }
+.tray #fresh { color: var(--on); font-weight: 700; border-color: var(--on); }
+.tray #undelivered { color: var(--warn); font-weight: 700; border-color: var(--warn); }
+.tray #undelivered.on { background: var(--chip); }
+.tray .columns { display: grid; grid-template-columns: 15rem minmax(0, 1fr); min-height: 0; }
+.tray .columns > * { min-height: 0; overflow: auto; overflow-anchor: none; border-right: 1px solid var(--line); }
+.tray nav { padding: 8px 12px; }
+.tray nav h2 { font-size: 0.8rem; color: var(--muted); margin: 12px 0 2px; }
+.tray nav ul, .tray .rows { list-style: none; margin: 0; padding: 0; }
+.tray nav li a { display: flex; gap: 6px; justify-content: space-between; padding: 2px 6px; border-radius: 4px; }
+.tray nav li a span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.tray .n { color: var(--muted); font-variant-numeric: tabular-nums; }
+.tray nav li a.on, .tray nav li a:hover { background: var(--chip); }
+.tray .rows li { border-bottom: 1px solid var(--line); padding: 6px 12px; background: var(--card); }
+.tray .rows li[data-state="waiting"] { box-shadow: inset 3px 0 var(--warn); }
+.tray .rows li[data-state="undeliverable"] { box-shadow: inset 3px 0 var(--bad); }
+.tray .rows .top { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; font-size: 0.8rem; color: var(--muted); }
+.tray .rows .name { color: var(--accent); }
+.tray .rows .route { display: block; overflow-wrap: anywhere; font-weight: 700; }
+.tray .rows .who { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 0.75rem; color: var(--muted); }
+.tray .state { margin-left: auto; padding: 0 8px; border: 1px solid; border-radius: 999px; font-size: 0.72rem; white-space: nowrap; }
+.tray .state.waiting { color: var(--warn); }
+.tray .state.delivered { color: var(--on); }
+.tray .state.undeliverable { color: var(--bad); }
+.tray .state.expired { color: var(--muted); }
+.tray .state.carried { color: var(--accent); }
+.tray pre { margin: 4px 0 0; font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tray details { margin-top: 4px; }
+.tray summary { cursor: pointer; overflow-wrap: anywhere; }
+.tray details[open] summary { color: var(--muted); }
+.tray details pre { padding-left: 1rem; }
+.tray .more, .tray .empty { display: block; margin: 0; padding: 10px 12px; color: var(--muted); }
+.tray .more { color: var(--accent); }
 @media (max-width: 900px) {
   body.fill { height: auto; display: block; }
-  .messages { display: block; height: auto; }
-  .messages .columns { display: block; }
-  .messages .columns > * { border-right: 0; border-bottom: 1px solid var(--line); }
-  .messages nav { max-height: 14rem; }
+  .tray { display: block; height: auto; }
+  .tray .columns { display: block; }
+  .tray .columns > * { border-right: 0; border-bottom: 1px solid var(--line); }
+  .tray nav { max-height: 14rem; }
+}
+
+/* ページの一覧（/pages/）だけの物: 3 つ目の列（本文の枠）・行の印（返事・判定）・見た物とレビューの link・送り手・
+   Key の画面の file の枠と上げる枠。 */
+.pages .columns { grid-template-columns: 15rem 23rem minmax(0, 1fr); }
+.pages .toolbar form { display: flex; gap: 6px; flex: 1 1 12rem; min-width: 0; max-width: 32rem; }
+.pages input[type="search"] {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
+.pages button {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pages button:disabled { opacity: 0.5; cursor: not-allowed; }
+.pages #waiting, .pages #review-waiting { color: var(--warn); font-weight: 700; border-color: var(--warn); }
+.pages #escalated { color: var(--bad); font-weight: 700; border-color: var(--bad); }
+.pages #waiting.on, .pages #review-waiting.on, .pages #escalated.on { background: var(--chip); }
+.pages nav small { display: block; color: var(--muted); font-size: 0.75rem; }
+.pages .rows li { padding: 0; }
+.pages .rows li > a { display: block; padding: 6px 12px; }
+.pages .rows li > a.on, .pages .rows li > a:hover { background: var(--chip); }
+.pages .rows .top { flex-wrap: nowrap; }
+.pages .rows .name { font-weight: 700; }
+.pages .rows .title { display: block; overflow-wrap: anywhere; }
+.pages .rows .who { display: block; }
+.pages .unread .title::before { content: "● "; color: var(--on); }
+.pages .reply, .pages .verdict { padding: 0 8px; border: 1px solid; border-radius: 999px; font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
+.pages .reply { margin-left: auto; }
+.pages .reply.waiting { color: var(--warn); }
+.pages li[data-reply="waiting"] > a { box-shadow: inset 3px 0 var(--warn); }
+.pages li[data-reply="waiting"][data-on="tpm"] > a { box-shadow: inset 3px 0 var(--bad); }
+.pages .reply.waiting.tpm { color: var(--bad); }
+.pages .verdict.approve { color: var(--on); }
+.pages .verdict.concerns { color: var(--warn); }
+.pages .verdict.reject { color: var(--bad); }
+.pages .verdict.not-assessed { color: var(--muted); }
+.pages .links { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; padding: 0 12px 6px; font-size: 0.75rem; color: var(--muted); }
+.pages .links a { color: var(--accent); overflow-wrap: anywhere; }
+.pages .links a:hover { text-decoration: underline; }
+.pages .sender { display: block; font-size: 0.75rem; color: var(--muted); overflow-wrap: anywhere; }
+.pages .rows .sender { padding: 0 12px 6px; }
+.pages .sender a { color: var(--accent); }
+.pages .sender a:hover { text-decoration: underline; }
+.pages .sender small { display: block; font-size: 0.7rem; }
+.pages #viewer { display: grid; grid-template-rows: auto minmax(0, 1fr); margin: 0; padding: 0; border: 0; border-radius: 0; background: var(--card); }
+.pages #viewer p { margin: 0; padding: 6px 12px; font-size: 0.8rem; color: var(--muted); border-bottom: 1px solid var(--line); display: flex; gap: 12px; justify-content: space-between; }
+.pages #viewer p a { color: var(--accent); }
+.pages iframe { width: 100%; height: 100%; border: 0; background: #fff; }
+.pages .box { border-top: 1px solid var(--line); padding: 8px 12px; background: var(--card); }
+.pages .box h2 { font-size: 0.8rem; color: var(--muted); margin: 0 0 6px; }
+.pages .files { list-style: none; margin: 0; padding: 0; }
+.pages .files li { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.pages .files .thumb {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg);
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+.pages .files .thumb img { max-width: 100%; max-height: 100%; }
+.pages .files .meta { min-width: 0; display: flex; flex-direction: column; }
+.pages .files .name { color: var(--accent); font-weight: 700; overflow-wrap: anywhere; }
+.pages .files .who { font-size: 0.75rem; color: var(--muted); }
+.pages code { font: 0.75rem/1.4 ui-monospace, Menlo, monospace; user-select: all; overflow-wrap: anywhere; }
+.pages #upload form { display: flex; flex-direction: column; gap: 6px; }
+.pages #upload .drop { display: block; padding: 12px; border: 2px dashed var(--line); border-radius: 6px; text-align: center; color: var(--muted); }
+.pages #upload .drop.over { border-color: var(--accent); background: var(--chip); }
+.pages #upload .drop input { display: block; margin: 6px auto 0; max-width: 100%; }
+.pages #upload .preview img { max-width: 100%; max-height: 12rem; display: block; }
+.pages #upload pre { margin: 0; max-height: 12rem; overflow: auto; font-size: 0.75rem; background: var(--bg); border: 1px solid var(--line); padding: 4px; }
+.pages #upload .say { margin: 0; font-size: 0.8rem; }
+.pages #upload .bad { color: var(--bad); }
+@media (max-width: 900px) {
+  .pages iframe { height: 80vh; }
 }
 
 @media (max-width: 700px) {

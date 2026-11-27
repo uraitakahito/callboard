@@ -26,6 +26,7 @@ use crate::upstream::castlist::Castlist;
 use crate::upstream::pagetray::Pagetray;
 
 /// 画面の応答に付ける Content-Security-Policy。script と style は、callboard 自身が配る file だけを許す。
+/// ページの一覧だけは、これに pagetray の link の頭を足した物を付ける（本文の枠と、file の図。`ui::pages`）。
 /// form は callboard 自身へだけ送れる（castlist の画面の CSP と同じ字）。
 pub const CSP: &str = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 
@@ -34,6 +35,9 @@ pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// 本文の上限（axum の既定と同じ 2 MiB）。超えれば 413 `PayloadTooLarge` で返す。
 pub const BODY_LIMIT: usize = 2 * 1024 * 1024;
+
+/// file を上げる道だけの、本文の上限（pagetray が file 1 つに受ける大きさと同じ 16 MiB）。
+pub const UPLOAD_LIMIT: usize = 16 * 1024 * 1024;
 
 /// 守りの層の設定。
 #[derive(Clone)]
@@ -61,6 +65,8 @@ struct App {
     castlist: Castlist,
     pagetray: Pagetray,
     nav: ui::Nav,
+    /// ページの一覧の答えに付ける Content-Security-Policy（[`CSP`] に、pagetray の link の頭を足した物）。
+    pages_csp: axum::http::HeaderValue,
     /// 新着の知らせの中継で、pagetray の答えの頭を待つ長さ。
     events_wait: Duration,
     /// 止める合図を受けた印。
@@ -76,11 +82,13 @@ pub fn app(settings: &Settings) -> Router {
 pub fn app_with(settings: &Settings, config: Config) -> Router {
     let castlist = Castlist::new(&settings.castlist);
     let pagetray = Pagetray::new(&settings.pagetray);
-    let nav = ui::Nav::new(pagetray.link());
+    let nav = ui::Nav::new();
+    let pages_csp = ui::pages_csp(pagetray.link());
     let app = Arc::new(App {
         castlist,
         pagetray,
         nav,
+        pages_csp,
         events_wait: config.events_wait,
         closing: config.closing,
     });

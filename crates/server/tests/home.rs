@@ -55,7 +55,7 @@ async fn 呼ぶ先には_host_127_0_0_1_で聞き_browser_の_header_を渡さ�
 }
 
 #[tokio::test]
-async fn 入口と頭の_link_は_まだ移していない画面を_link_の頭で_移した画面を_callboard_の道で指す() {
+async fn 入口と頭の_link_は_どの画面も_callboard_の道で指す() {
     let app = App::start().await;
     let body = app.html("/").await;
     // castlist の 4 つの画面は callboard に移したので、callboard の中の道を指す。
@@ -70,25 +70,26 @@ async fn 入口と頭の_link_は_まだ移していない画面を_link_の頭�
     }
     assert!(!body.contains(":8802"), "{body}");
     let pagetray = section(&body, "pagetray");
-    // pagetray の画面は、メッセージの一覧だけを移した。ページの一覧は、まだ pagetray の画面（link の頭）を指す。
+    // pagetray の 2 つの画面も、callboard に移した。
     for link in [
-        format!("<a href=\"{PAGETRAY_LINK}/\">ページの一覧</a>"),
-        "<a href=\"/messages\">メッセージ</a>".to_owned(),
+        "<a href=\"/pages/\">ページの一覧</a>",
+        "<a href=\"/messages\">メッセージ</a>",
     ] {
-        assert!(pagetray.contains(&link), "{link}: {pagetray}");
+        assert!(pagetray.contains(link), "{link}: {pagetray}");
     }
+    assert!(!body.contains(PAGETRAY_LINK), "{body}");
     // 頭の link（どの画面にも出す）。無い道の画面にも出る。
     let (_, _, missing) = app.send(get("/no/such")).await;
     for page in [&body, &missing] {
         let nav = &page[page.find("<nav").unwrap()..page.find("</nav>").unwrap()];
         for link in [
-            "<a href=\"/actors/\">アクター</a>".to_owned(),
-            "<a href=\"/graph/timeline\">タイムライン</a>".to_owned(),
-            "<a href=\"/graph/network\">相関図</a>".to_owned(),
-            format!("<a href=\"{PAGETRAY_LINK}/\">ページ</a>"),
-            "<a href=\"/messages\">メッセージ</a>".to_owned(),
+            "<a href=\"/actors/\">アクター</a>",
+            "<a href=\"/graph/timeline\">タイムライン</a>",
+            "<a href=\"/graph/network\">相関図</a>",
+            "<a href=\"/pages/\">ページ</a>",
+            "<a href=\"/messages\">メッセージ</a>",
         ] {
-            assert!(nav.contains(&link), "{link}: {nav}");
+            assert!(nav.contains(link), "{link}: {nav}");
         }
         assert!(page.contains("<a class=\"home\" href=\"/\">callboard</a>"));
     }

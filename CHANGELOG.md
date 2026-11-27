@@ -2,6 +2,23 @@
 
 版ごとに、画面と、呼ぶ先（castlist・pagetray）の要る版と、動かし方（設定・image）が変わったかを書く。release の workflow は、tag の版の節（`## <版>`）が無いと何も出さない（`ci/check-release-version.sh`）。
 
+## 0.4.0
+
+pagetray のページの一覧を移した版。castlist と pagetray の画面が、みな callboard で開く（pagetray の画面も、まだ残っている）。
+
+- **呼ぶ先の要る版: pagetray 1.3.0 から**（0.3.0 は 1.2.0 から）。ページの一覧が、1.3.0 で足した操作（`GetPageFacets`・`ListReviews`・`GetFileRules`）を使う。pagetray を先に 1.3.0 に上げてから、callboard を上げる。古い pagetray に向けると、ページの一覧は「pagetray に聞けません（404 が返りました）」になる（ほかの画面は動く）。castlist は 1.1.0 からのまま。
+- 画面: ページの一覧（`/pages/`。pagetray の `/` を移した物）。絞り込みの列・待ちの数の釦・探す form・並び・続きの link・返事と判定の印・見た物とレビューの link・送り手・本文の枠・Key の画面の file の枠と上げる枠は、pagetray の画面と同じ（同じ pagetray を相手に比べる試験が通る）。違いは 5 つ:
+  - 一覧の道は `/pages/` の 1 つ（pagetray の `/<project>/`・`/<project>/<key>/` の道は無い。`?project=…&key=…` で開く）。
+  - 時刻を、callboard が日本時間（UTC+9）で組む。
+  - 値の形が違う引数と読めない続きの印は、400 の画面で pagetray の訳を書く（pagetray の画面は、条件が無い物・合う物が無い物として出す）。
+  - 送り手の名の link は、callboard のプロフィール（`/actors/<id>`）。
+  - 未読の印は、callboard の origin で覚え直す（pagetray の画面で覚えた印は引き継がない）。
+- **ページの本文と file の中身は、browser が pagetray から直に読む**（本文の枠の `<iframe>`・file の link と図）。URL の頭は `CALLBOARD_PAGETRAY_LINK_URL`。ページの一覧の答えだけ、CSP に pagetray の link の頭を足す（`frame-src`・`img-src`。`img-src` に、上げる前の図の見本の `blob:`）。ほかの画面の CSP は前のまま。
+- **file を上げる道**: `POST /api/pagetray/projects/{project}/keys/{key}/files?name=…`。callboard の初めての書く道。Key の画面の form が送り、callboard が pagetray の `CreateFile` に、役割 `product-manager` で渡す（browser からは名・中身の種類・中身だけを受け、役割・workspace・番号・時刻・送り手は渡さない）。この道だけ、守りを替えた: この callboard の画面の form からの要求（`Origin` が `http://<Host>` と同じで、`Sec-Fetch-Site` が無いか `same-origin`）だけを通し、ほかは `Origin` が無くても 403。本文は 16 MiB まで（ほかの道は 2 MiB のまま）。
+- 画面の間の link: 頭の帯と入口の「ページ」・メッセージの一覧の「ページ」が、callboard の `/pages/` を指す。pagetray の画面を指す link は、無くなった。
+- メッセージの一覧と、新着の知らせの中継は変わらない（ページの一覧も、同じ中継の道を聞く）。
+- 設定は変わらない（4 つ）。`CALLBOARD_PAGETRAY_LINK_URL` は、browser が pagetray のページと file を開く URL の頭として、引き続き使う。
+
 ## 0.3.0
 
 pagetray のメッセージの一覧を移した版。pagetray の 2 つの画面のうち 1 つが、callboard で開く。

@@ -2,7 +2,7 @@
 {% block title %}{% if waiting > 0 %}まだ届いていない {{ waiting }} 件 ・ {% endif %}メッセージの記録{% endblock %}
 {% block body %} class="fill"{% endblock %}
 {% block main %}
-<div class="messages" data-events="{{ events }}">
+<div class="tray messages" data-events="{{ events }}">
 <div class="toolbar" id="toolbar" role="group" aria-label="操作の帯">
 <h1><a href="/messages">メッセージの記録</a></h1>
 <a class="btn" href="{{ nav.pages }}">ページ</a>

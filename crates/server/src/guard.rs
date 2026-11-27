@@ -18,11 +18,13 @@ use axum::response::Response;
 use http_body_util::{BodyExt, LengthLimitError, Limited};
 
 use crate::errors::reply;
-use crate::{BODY_LIMIT, CSP};
+use crate::{BODY_LIMIT, CSP, UPLOAD_LIMIT};
 
 /// host（callboard を動かす機械）の中からの要求だけを受ける。
 /// - `Host` が 127.0.0.1・localhost でなければ断る（外の site が名前を付け替えて届ける要求を防ぐ）。
 /// - `GET`・`HEAD` のほかの要求に `Origin` が付いていれば断る（browser の中のページからは書かせない）。
+///   例外は 1 つだけ: ページの一覧の form が file を上げる道（[`is_upload`]）。この道は、この callboard の画面の form からの
+///   要求（[`from_form`]）だけを通し、ほかは `Origin` が無くても断る。
 ///
 /// `HEAD` は `GET` にして通し、答えの本文を捨てる（状態と header は `GET` と同じ）。
 pub async fn guard(mut request: Request, next: Next) -> Response {
@@ -39,16 +41,25 @@ pub async fn guard(mut request: Request, next: Next) -> Response {
             "Host は 127.0.0.1 か localhost だけを受ける",
         );
     }
-    if request.method() != Method::GET
-        && request.method() != Method::HEAD
-        && request.headers().contains_key(header::ORIGIN)
-    {
-        refused("origin", &request);
-        return reply(
-            StatusCode::FORBIDDEN,
-            "Forbidden",
-            "browser の中のページからは書けない",
-        );
+    if request.method() != Method::GET && request.method() != Method::HEAD {
+        // 書く道は 1 つだけ: ページの一覧の form が file を上げる道。この callboard の画面の form からの要求だけを通す。
+        if request.method() == Method::POST && is_upload(request.uri().path()) {
+            if !from_form(&request) {
+                refused("form", &request);
+                return reply(
+                    StatusCode::FORBIDDEN,
+                    "Forbidden",
+                    "file は、ページの一覧の画面の form からだけ上げられる",
+                );
+            }
+        } else if request.headers().contains_key(header::ORIGIN) {
+            refused("origin", &request);
+            return reply(
+                StatusCode::FORBIDDEN,
+                "Forbidden",
+                "browser の中のページからは書けない",
+            );
+        }
     }
     let head = request.method() == Method::HEAD;
     if head {
@@ -70,6 +81,27 @@ pub async fn guard(mut request: Request, next: Next) -> Response {
     } else {
         response
     }
+}
+
+/// file を上げる道（`/api/pagetray/projects/{project}/keys/{key}/files`。後ろに何も付かない物）か。
+pub fn is_upload(path: &str) -> bool {
+    let Some(rest) = path.strip_prefix("/api/pagetray/projects/") else {
+        return false;
+    };
+    let parts: Vec<&str> = rest.split('/').collect();
+    matches!(parts[..], [project, "keys", key, "files"] if !project.is_empty() && !key.is_empty())
+}
+
+/// この callboard の画面の form からの要求か（pagetray の画面の form を見る決まりと同じ）: `Origin` が `http://<Host（port も）>`
+/// とそのまま同じで、`Sec-Fetch-Site` が無いか `same-origin`。ほかの site・本文の枠の中のページ（pagetray の origin か、
+/// sandbox の `null`）・browser でない要求（`Origin` が無い）は当たらない。
+fn from_form(request: &Request) -> bool {
+    let text = |name: &str| request.headers().get(name).and_then(|v| v.to_str().ok());
+    let same_origin = match (text("origin"), text("host")) {
+        (Some(origin), Some(host)) => origin.strip_prefix("http://") == Some(host),
+        _ => false,
+    };
+    same_origin && matches!(text("sec-fetch-site"), None | Some("same-origin"))
 }
 
 /// 断った要求を、記録に 1 行残す（訳・method・道・`Host`・`Origin`）。問い合わせごとの行は出さないので、
@@ -116,10 +148,16 @@ fn length(d: Duration) -> String {
     }
 }
 
-/// 本文を [`BODY_LIMIT`] まで読んでから通す。超えれば 413 で断る（`Content-Length` の有る無しを問わない）。
+/// 本文を [`BODY_LIMIT`]（file を上げる道だけは [`UPLOAD_LIMIT`]）まで読んでから通す。超えれば 413 で断る
+/// （`Content-Length` の有る無しを問わない）。
 pub async fn limit(request: Request, next: Next) -> Response {
     let (parts, body) = request.into_parts();
-    match Limited::new(body, BODY_LIMIT).collect().await {
+    let max = if parts.method == Method::POST && is_upload(parts.uri.path()) {
+        UPLOAD_LIMIT
+    } else {
+        BODY_LIMIT
+    };
+    match Limited::new(body, max).collect().await {
         Ok(body) => {
             next.run(Request::from_parts(parts, Body::from(body.to_bytes())))
                 .await
@@ -127,7 +165,7 @@ pub async fn limit(request: Request, next: Next) -> Response {
         Err(e) if e.is::<LengthLimitError>() => reply(
             StatusCode::PAYLOAD_TOO_LARGE,
             "PayloadTooLarge",
-            &format!("本文は {} MiB まで", BODY_LIMIT / (1024 * 1024)),
+            &format!("本文は {} MiB まで", max / (1024 * 1024)),
         ),
         // 送り手が途中で切った、など。castlist・pagetray が読めない本文に返すのと同じ型にする。
         Err(e) => {
@@ -157,7 +195,8 @@ pub async fn stamp(request: Request, next: Next) -> Response {
         .get(header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
         .is_some_and(|v| v.starts_with("text/html"));
-    if html {
+    // 自分の CSP を付けた画面（ページの一覧）は、そのまま。
+    if html && !headers.contains_key(header::CONTENT_SECURITY_POLICY) {
         headers.insert(
             header::CONTENT_SECURITY_POLICY,
             HeaderValue::from_static(CSP),
