@@ -19,8 +19,11 @@
 </fieldset>
 </form>
 <p class="note" id="window">集めた期間: {% call m::time(from) %}{% endcall %} から {% call m::time(to) %}{% endcall %} まで（日本時間。記録が 1 時間ごとなので、期間を時の境に揃えています{% if defaulted %}。期間が無いので、直近 {{ days }} 日を表示しています{% endif %}）。</p>
-{% if truncated %}
+{% if too_many %}
 <p class="error">記録が多すぎて、全部を読めませんでした（{{ read }} 行まで読みました）。下の数は、読めた分だけの数です。期間を狭めてください。</p>
+{% endif %}
+{% if too_slow %}
+<p class="error">時間内に、全部を読めませんでした（{{ read }} 行まで読みました）。下の数は、読めた分だけの数です。期間を狭めてください。</p>
 {% endif %}
 {% if let Some(t) = tables %}
 <section id="total">
@@ -36,7 +39,7 @@
 <h2>役割ごと</h2>
 <div class="scroll">
 <table class="usage">
-<thead><tr><th>役割</th><th class="num">席</th><th class="num">回（本体）</th><th class="num">額（本体）</th><th class="num">全体の額に対する比</th><th class="num">文脈の長さの中央</th><th class="num">上から 1 割</th><th class="num">いちばん長い文脈</th><th class="num">20 万を越えた回</th><th class="num">20 万を越えた回の額</th><th class="num">手伝いの額</th></tr></thead>
+<thead><tr><th>役割</th><th class="num">席</th><th class="num">回（本体）</th><th class="num">額（本体）</th><th class="num">全体の額に対する比</th><th class="num">文脈の長さの中央</th><th class="num">上から 1 割</th><th class="num">いちばん長い文脈</th><th class="num">20 万以上の回</th><th class="num">20 万以上の回の額</th><th class="num">手伝いの額</th></tr></thead>
 <tbody>
 {% for r in t.roles %}
 <tr><td>{% if let Some(name) = r.name %}<span class="chip role">{{ name }}</span>{% else %}<span class="none">（無し）</span>{% endif %}</td><td class="num">{{ r.seats }}</td><td class="num">{{ r.turns }}</td><td class="num">{{ r.cost }}</td><td class="num">{% call m::maybe(r.share) %}{% endcall %}</td><td class="num">{% call m::maybe(r.median) %}{% endcall %}</td><td class="num">{% call m::maybe(r.p90) %}{% endcall %}</td><td class="num">{% call m::maybe(r.max_context) %}{% endcall %}</td><td class="num">{% call m::maybe(r.over_turns) %}{% endcall %}</td><td class="num">{% call m::maybe(r.over_cost) %}{% endcall %}</td><td class="num">{{ r.helper_cost }}</td></tr>
@@ -61,7 +64,7 @@
 <ul class="legend">
 <li>額は、使った量を API の値段に直した目安で、払う額ではありません。</li>
 <li>役割はラベル <code>tpm.role</code>、課題はラベル <code>tpm.subject</code>（無ければ <code>tpm.key</code>）で分けます。</li>
-<li>文脈の長さ（中央・上から 1 割・いちばん長い文脈・20 万を越えた回）は、本体の回だけで出します（手伝い（subagent）の回は、自分の短い文脈で動くので混ぜません）。</li>
+<li>文脈の長さ（中央・上から 1 割・いちばん長い文脈・20 万以上の回）は、本体の回だけで出します（手伝い（subagent）の回は、自分の短い文脈で動くので混ぜません）。</li>
 <li>中央と上から 1 割は、{{ width }}刻みの段から出した近い値です（その回が入る段の下の端。「22.5 万〜」は、22.5 万以上 25 万未満）。</li>
 <li>稼働中の席の数は、長くて 1 時間ほど遅れて出ます。</li>
 </ul>

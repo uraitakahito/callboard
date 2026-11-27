@@ -24,7 +24,7 @@ use super::usage_summary::{self as summary, BUCKET_WIDTH, Summary};
 use super::{CSS_HREF, Nav, error_page, render};
 use crate::App;
 use crate::upstream::Failure;
-use crate::upstream::castlist::{UsageAnswer, UsageSearch};
+use crate::upstream::castlist::{Cut, UsageAnswer, UsageSearch};
 
 /// 費えの道。
 pub const PATH: &str = "/usage/";
@@ -64,6 +64,10 @@ fn window(
     now: OffsetDateTime,
 ) -> Result<(OffsetDateTime, OffsetDateTime), PageError> {
     let end = to.unwrap_or(now);
+    // 終わりを打たずに、始めだけを先の時刻にした時は、打っていない「期間（まで）」の名を出さない。
+    if to.is_none() && from.is_some_and(|from| from >= now) {
+        return Err(bad_request("「期間（から）」が、先の時刻です。"));
+    }
     let to = ceil_hour(end);
     // 始めが無ければ、揃えた終わりから、ちょうど DEFAULT_DAYS 日前。
     let start = from.unwrap_or(to - time::Duration::days(DEFAULT_DAYS));
@@ -291,8 +295,9 @@ struct UsagePage<'a> {
     /// 期間が無かったので、直近の日数で出したか。
     defaulted: bool,
     days: i64,
-    /// 行が多すぎて、途中で止めたか。その時に読んだ行の数。
-    truncated: bool,
+    /// 途中で止めたか（行が多すぎた・時間内に読み切れなかった）。その時に読んだ行の数。
+    too_many: bool,
+    too_slow: bool,
     read: String,
     /// 行が 1 つも無ければ無い。
     tables: Option<Tables>,
@@ -360,7 +365,8 @@ async fn usage_page(
     })?;
     tokio::task::spawn_blocking(move || {
         let as_of = time(&answer.as_of);
-        let truncated = answer.truncated;
+        let too_many = answer.truncated == Some(Cut::Pages);
+        let too_slow = answer.truncated == Some(Cut::Time);
         let read = count(i64::try_from(answer.rows.len()).unwrap_or(i64::MAX));
         let tables = (!answer.rows.is_empty()).then(|| tables(summarize(answer)));
         let page = UsagePage {
@@ -372,7 +378,8 @@ async fn usage_page(
             to: time_of(to),
             defaulted,
             days: DEFAULT_DAYS,
-            truncated,
+            too_many,
+            too_slow,
             read,
             tables,
             width: man(BUCKET_WIDTH),

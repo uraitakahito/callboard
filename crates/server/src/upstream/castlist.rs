@@ -65,8 +65,17 @@ pub struct UsageAnswer {
     pub rows: Vec<Usage>,
     /// 行に出てきたアクター（頁をまたいで、id で 1 つにした物）。
     pub actors: Vec<UsageActor>,
-    /// 頁が [`USAGE_MAX_PAGES`] を越えたので、途中で止めた（`rows` は、そこまでの分）。
-    pub truncated: bool,
+    /// 途中で止めた（`rows` は、そこまでの分）。訳は [`Cut`]。
+    pub truncated: Option<Cut>,
+}
+
+/// 頁を引くのを、途中で止めた訳。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Cut {
+    /// 頁が [`USAGE_MAX_PAGES`] を越えた。
+    Pages,
+    /// 全部の頁を待つ時間（[`TIMEOUT`]）を過ぎた。
+    Time,
 }
 
 /// ListUsage の 1 頁の数（castlist の上限）と、引く頁の上限。越えたら、そこで止める（[`UsageAnswer::truncated`]）。
@@ -232,28 +241,29 @@ impl Castlist {
     /// 窓の内の、トークンの数と費えの行（ListUsage。castlist 2.1.0 から）。次の頁の印で、行をみな引く（[`USAGE_MAX_PAGES`] 頁まで）。
     /// 待つのは、全部の頁で [`TIMEOUT`]（頁ごとではない。callboard 自身の時間切れより先に、訳を書いた画面を返すため）。
     /// castlist が引数を断れば [`Failure::Rejected`]。
+    /// 初めの頁が時間内に読めなければ 503 `Unavailable`。2 頁目より後で時間を過ぎたら、そこまでに読めた行を返す
+    /// （[`Cut::Time`]。頁の上限で止めた時と同じ扱い）。2 頁目より後で castlist が頁の印を断った時は、人には直せないので 503。
     pub async fn usage(&self, search: &UsageSearch) -> Result<UsageAnswer, Failure> {
-        match tokio::time::timeout(TIMEOUT, self.usage_pages(search)).await {
-            Ok(answer) => answer,
-            Err(_) => {
-                tracing::warn!(
-                    upstream = NAME,
-                    api = self.api,
-                    error = "usage timeout",
-                    "呼ぶ先に聞けない"
-                );
-                Err(Failure::Unavailable(SLOW.to_owned()))
-            }
-        }
-    }
-
-    async fn usage_pages(&self, search: &UsageSearch) -> Result<UsageAnswer, Failure> {
-        let mut page = self.usage_page(search, None).await?;
+        let deadline = tokio::time::Instant::now() + TIMEOUT;
+        let slow = || {
+            tracing::warn!(
+                upstream = NAME,
+                api = self.api,
+                error = "usage timeout",
+                "呼ぶ先に聞けない"
+            );
+        };
+        let Ok(first) = tokio::time::timeout_at(deadline, self.usage_page(search, None)).await
+        else {
+            slow();
+            return Err(Failure::Unavailable(SLOW.to_owned()));
+        };
+        let mut page = first?;
         let mut answer = UsageAnswer {
             as_of: page.as_of,
             rows: Vec::new(),
             actors: Vec::new(),
-            truncated: false,
+            truncated: None,
         };
         let mut seen = HashSet::new();
         for asked in 1.. {
@@ -265,10 +275,24 @@ impl Castlist {
             );
             let Some(token) = page.next_token else { break };
             if asked == USAGE_MAX_PAGES {
-                answer.truncated = true;
+                answer.truncated = Some(Cut::Pages);
                 break;
             }
-            page = self.usage_page(search, Some(token)).await?;
+            page = match tokio::time::timeout_at(deadline, self.usage_page(search, Some(token)))
+                .await
+            {
+                Ok(Ok(next)) => next,
+                // 次の頁の印を断られた: 人の打った問いの誤りでないので、503 の側に寄せる。
+                Ok(Err(Failure::Rejected(why))) => {
+                    return Err(Failure::Unavailable(format!("次の頁を断られました: {why}")));
+                }
+                Ok(Err(e)) => return Err(e),
+                Err(_) => {
+                    slow();
+                    answer.truncated = Some(Cut::Time);
+                    break;
+                }
+            };
         }
         Ok(answer)
     }
