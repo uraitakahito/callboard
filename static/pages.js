@@ -308,7 +308,14 @@
       const json = await response.json().catch(() => ({}));
       if (!response.ok) {
         // 断った訳は message に入る。
-        tell(`上げられなかった（${response.status}）: ${json.message || json.error || response.statusText}`, true);
+        const why = `上げられなかった（${response.status}）: ${json.message || json.error || response.statusText}`;
+        if (response.status === 503) {
+          // 聞けなかった時（時間切れなど）は、置かれたかもしれない。file の枠を読み直して、送り直す前に確かめられるようにする。
+          await refresh().catch(() => {});
+          tell(`${why}。上の file の枠に出ていないかを確かめてから、送り直す`, true);
+        } else {
+          tell(why, true);
+        }
         send.disabled = false;
         return;
       }

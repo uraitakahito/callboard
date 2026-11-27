@@ -347,6 +347,7 @@ impl Pagetray {
     /// - `project`・`key` は、呼ぶ側が形（URL の 1 段になる字）を見てある。
     /// - 返すのは、pagetray の答えの状態・本文の型・誤りの型の名・本文（置いた記録か、断った訳）。pagetray が要求の `Host` から
     ///   組んだ URL の header（`Location`）は返さない。聞けなければ（つながらない・答えを読み終えるまで [`TIMEOUT`]）503。
+    ///   時間切れの時は、pagetray が置き終えているかもしれないので、訳にそう書く（画面は、file の枠を読み直す）。
     pub async fn upload(
         &self,
         project: &str,
@@ -399,7 +400,8 @@ impl Pagetray {
                     error = "timeout",
                     "呼ぶ先に聞けない"
                 );
-                unavailable("時間内に答えがありません")
+                // 本文は渡し終えているかもしれない（pagetray が置き終えた後に、答えだけが間に合わなかった時）。
+                unavailable("時間内に答えがありません。file は置かれたかもしれません")
             }
             Ok(Err(error)) => {
                 tracing::warn!(upstream = NAME, api = self.api, error, "呼ぶ先に聞けない");

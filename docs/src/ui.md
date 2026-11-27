@@ -245,7 +245,7 @@ project と Key を 1 つずつ選んだ時（`?project=…&key=…`）だけ、
 
 - **file の枠**: その Key の file（新しい順に 200 まで）。名（押すと、pagetray の file を別の tab で開く）・図なら小さな見本・大きさ・役割・置いた時刻・ページから参照する時の相対の path（`files/<語>-<番号>.<拡張子>`）・送り手。
 - **上げる枠**: file を選ぶ（か、落とす）と、拡張子と大きさを見て（受ける種類と上限は、pagetray の `GetFileRules` の答え）、見本を出す。「秘密が写っていないか見た」に印を付けると、送れる。script が要る。
-- 送る先は、callboard の `POST /api/pagetray/projects/{project}/keys/{key}/files?name=<語>.<拡張子>`（本文は file の中身。`Content-Type` は、その拡張子の種類）。callboard が、pagetray の `CreateFile` に、**役割 `product-manager`** で渡す。browser からは、名・中身の種類・中身だけを受ける（役割・workspace・番号・時刻・付随する id を書いても、渡さない）。答えは、pagetray の答え（置いた記録の 201 か、断った訳。種類が合わなければ 415）を、そのまま返す。pagetray に聞けなければ 503。
+- 送る先は、callboard の `POST /api/pagetray/projects/{project}/keys/{key}/files?name=<語>.<拡張子>`（本文は file の中身。`Content-Type` は、その拡張子の種類）。callboard が、pagetray の `CreateFile` に、**役割 `product-manager`** で渡す。browser からは、名・中身の種類・中身だけを受ける（役割・workspace・番号・時刻・付随する id を書いても、渡さない）。答えは、pagetray の答え（置いた記録の 201 か、断った訳。種類が合わなければ 415）を、そのまま返す。pagetray に聞けなければ 503（pagetray の答えを 4 秒まで待つ。時間切れの時は、置かれたかもしれないので、画面は file の枠を読み直し、確かめてから送り直すように書く）。
 - **この道の守り**: callboard の、ただ 1 つの書く道。この callboard の画面の form からの要求（`Origin` が `http://<Host>` とそのまま同じで、`Sec-Fetch-Site` が無いか `same-origin`）だけを通す。ほかの site・本文の枠の中のページ（pagetray の origin か、sandbox の `null`）・`Origin` の無い要求は 403。本文は 16 MiB まで（pagetray が file 1 つに受ける大きさ。ほかの道は 2 MiB）。project と Key の形が違う・名が無い要求は 400。
 - ほかの所（`roster file put` など）から、この Key に file が置かれると（`file` の知らせ）、file の枠を押さずに読み直す。
 

@@ -140,6 +140,11 @@ test('Key の画面: file の枠に file が出て、form から上げると、�
   await expect(fileRows(page)).toHaveCount(1);
   await expect(fileRows(page).first().locator('.name')).toHaveText('before-1.png');
   await expect(fileRows(page).first().locator('.ref')).toHaveText('files/before-1.png');
+  // file の link と図の URL は、pagetray の link の頭で組む（新旧の比べは、この頭をそろえてから比べるので、ここで見る）。
+  const shot = `${PAGETRAY}/pg-files/K-1/files/before-1.png`;
+  await expect(fileRows(page).first().locator('a.thumb')).toHaveAttribute('href', shot);
+  await expect(fileRows(page).first().locator('a.name')).toHaveAttribute('href', shot);
+  await expect(fileRows(page).first().locator('img')).toHaveAttribute('src', shot);
   // 図は、pagetray から直に読めている（CSP の img-src）。
   await expect.poll(() => fileRows(page).first().locator('img').evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(1);
 
@@ -221,9 +226,12 @@ async function parts(request: APIRequestContext, base: string, path: string): Pr
     part
       .replace(/<time datetime="([^"]+)"(?: title="[^"]+")?>[^<]*<\/time>/g, (_, iso: string) => `<time ${instant(iso)}>`)
       .replace(/ data-at="([^"]+)"/g, (_, iso: string) => ` data-at=${instant(iso)}`)
-      .replaceAll(`"${PAGETRAY}/`, '"/')
-      .replaceAll('"/pages/', '"/')
-      .replaceAll('"/api/pagetray/projects/', '"/api/projects/');
+      // 置き替えは、属性の名を付けた形に絞る（値の中の同じ字を巻き込まない）。
+      .replaceAll(`href="${PAGETRAY}/`, 'href="/')
+      .replaceAll(`src="${PAGETRAY}/`, 'src="/')
+      .replaceAll('href="/pages/', 'href="/')
+      .replaceAll('action="/pages/', 'action="/')
+      .replaceAll('data-upload="/api/pagetray/projects/', 'data-upload="/api/projects/');
   return {
     title: /<title>([^<]*)<\/title>/.exec(raw)![1].replace(/ ・ callboard$/, ''),
     search: tidy(cut(/<form action=/, '</form>')),

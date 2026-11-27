@@ -731,6 +731,37 @@ async fn pagetray_が断った上げは_そのまま返す() {
     assert!(!body.contains(&nowhere), "{body}");
 }
 
+/// pagetray の答えが時間内（4 秒）に来なければ 503 で、置かれたかもしれないと書く（本文は渡し終えているかもしれない）。
+#[tokio::test]
+async fn 上げの答えが来なければ_置かれたかもしれないと書く() {
+    let routes = common::pagetray_routes().route(
+        "/api/projects/{project}/keys/{key}/files",
+        route_post(|| async {
+            tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
+            StatusCode::CREATED
+        }),
+    );
+    let app = App::start_with(
+        common::castlist_routes(),
+        routes,
+        callboard::Config {
+            // 守りの層の時間切れより先に、上げの道が自分の訳で答えることを見る。
+            timeout: std::time::Duration::from_secs(60),
+            ..callboard::Config::default()
+        },
+    )
+    .await;
+    let (status, headers, body) = app
+        .send(upload(&format!("{UPLOAD}?name=a.png"), "image/png", "x"))
+        .await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{body}");
+    assert_eq!(error_type(&headers), "Unavailable");
+    assert!(
+        body.contains("時間内に答えがありません。file は置かれたかもしれません"),
+        "{body}"
+    );
+}
+
 /// 上げられるのは、この callboard の画面の form からだけ（`Origin` が `http://<Host>` と同じで、`Sec-Fetch-Site` が無いか
 /// `same-origin`）。ほかの site・本文の枠の中のページ（`Origin: null`）・`Origin` の無い要求は 403 で、pagetray に渡さない。
 /// 上げる道のほかは、`Origin` の付いた書く要求を、前のとおり断る。
