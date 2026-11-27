@@ -269,6 +269,30 @@ test('英語のブラウザーでは、file を上げられなかった訳も、
   await context.close();
 });
 
+test('英語のブラウザーでは、上げる道が 503 の時も、code の無い誤りの時も、訳を英語で組む', async ({ browser, request }) => {
+  await placePage(request, 'i18n-up', 'U-2', 'plan', '<!doctype html><title>plan</title>');
+  const { context, page } = await open(browser, 'en-US');
+  await page.goto('/pages/?project=i18n-up&key=U-2');
+  const box = page.locator('#upload');
+  const say = box.locator('form > .say');
+  const send = async (body: object, status: number) => {
+    await page.route(/\/api\/pagetray\/projects\/i18n-up\/keys\/U-2\/files/, (route) =>
+      route.request().method() === 'POST' ? route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) }) : route.fallback(),
+    );
+    await box.locator('input[type=file]').setInputFiles({ name: 'a.txt', mimeType: 'text/plain', buffer: Buffer.from('text') });
+    await box.getByRole('checkbox').check();
+    await box.locator('button[type=submit]').click();
+  };
+  // 503（聞けなかった。置かれたかもしれない）: 訳の後に、確かめてから送り直す文も英語で付く。
+  await send({ message: '1 秒で答えが無い', code: 'errors.kind.unavailable', values: { detail: 'timeout' } }, 503);
+  await expect(say).toHaveText('Upload failed (503): The service is unavailable. Try again later (timeout). Check whether it appears in the file list above before sending again');
+  await page.unrouteAll();
+  // code の無い誤り（呼ぶ先の古い形）: 字は呼ぶ先の訳のまま、外の文は英語。
+  await send({ error: 'bad' }, 400);
+  await expect(say).toHaveText('Upload failed (400): bad');
+  await context.close();
+});
+
 /** callboardT に鍵と値を直に渡した字。 */
 const t = (page: Page, key: string, values?: unknown) =>
   page.evaluate(([k, v]) => (window as unknown as { callboardT: (k: string, o?: unknown) => string }).callboardT(k as string, v), [key, values] as const);

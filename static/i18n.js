@@ -72,7 +72,9 @@
   const japanese = (key, options) => {
     let text = lookup(locales.ja, key) ?? lookup(locales.ja, `${key}_other`);
     if (text === undefined) return key;
-    for (const [name, value] of Object.entries(resolve(options, japanese) || {})) text = text.split(`{{${name}}}`).join(String(value));
+    // 元の字を 1 度だけ走って {{名}} を引く（入れた値の中の {{…}} は置き換えない。サーバーの fill と同じ）。
+    const values = resolve(options, japanese) || {};
+    text = text.replace(/\{\{([^}]*)\}\}/g, (whole, name) => (Object.hasOwn(values, name) ? String(values[name]) : whole));
     return text;
   };
   window.callboardT = japanese;

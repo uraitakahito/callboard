@@ -147,7 +147,7 @@ pub(super) fn unreadable(failure: Failure) -> Text {
             .with("service", "castlist")
             .with("detail", message),
         // この操作に名指す物は無いので、古い castlist の 404 と同じ。
-        Failure::NotFound => Text::new("upstream.returned").with("status", 404),
+        Failure::NotFound => Text::new("upstream.returned").with_num("status", 404),
         Failure::Unavailable(why) => why,
     }
 }
