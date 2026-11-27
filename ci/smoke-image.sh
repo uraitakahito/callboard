@@ -186,8 +186,8 @@ sleep 1
 kill -0 "$stream"
 docker stop "$name"
 test "$(docker inspect -f '{{.State.ExitCode}}' "$name")" = 0
-# 開いていた流れは、callboard が閉じる（curl が自分から終わる）。
-wait "$stream" || true
+# 開いていた流れは、callboard が閉じる（流れを途中で壊さずに閉じれば、curl は 0 で終わる）。
+wait "$stream"
 docker start "$name"
 up
 # 起きた時の行に、版と聞く先が出る（grep -q に pipe でつながない: grep が先に終わると、書く側が SIGPIPE で落ちる）。

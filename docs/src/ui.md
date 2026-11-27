@@ -210,7 +210,7 @@ script（`/static/messages.js`）が、`GET /api/pagetray/events` を `EventSour
 
 - メッセージの記録が置かれる・書き足されるたびに（`event: message-record`）、script が今の URL を callboard から読み直し、一覧の列と絞り込みの列・まだ届いていない数・tab の題を、押さずに差し替える。開いていた本文は開いたまま。下へ送って見ている時は、見ている行を同じ所に置き、頭に入った数を新着の印（「● 新着 n 件（上へ）」）に出す。続き（`at` のある URL）を見ている時は、行は替えず、「● 新しい記録（読み直す）」を出す。ほかの知らせ（ページを置いた知らせなど）では読み直さない。
 - 流れには時間切れを付けない（つなぎっぱなし。pagetray が 15 秒ごとに送る注釈の行も、そのまま流す）。browser 1 つにつき、pagetray へのつなぎが 1 本。browser が閉じれば、pagetray へのつなぎも切れる。
-- pagetray を起こし直すと流れが終わり、browser がつなぎ直す。つなぎ直した時に pagetray が止まっていれば（callboard が 503 を返す）、script が 3 秒ごとに試し、つながった時に、切れていた間の記録を読み直す。callboard を起こし直した時も同じ。
+- pagetray を起こし直すと流れが終わり、browser がつなぎ直す。つなぎ直した時に pagetray が止まっていれば（callboard が 503 を返す）、script が 3 秒ごとに試す。つながるたびに（初めての時も）、今の URL を読み直す（つながる前・切れていた間の記録を入れる）。callboard を起こし直した時も同じ。
 - pagetray の答えの頭は 4 秒まで待つ。届かない・知らせの流れでない答え（200 でない・型が `text/event-stream` でない）は 503 `Unavailable`。
 - script が動かなくても、一覧は開き、絞り込みも続きも link で動く（新着は、読み直すと出る）。
 

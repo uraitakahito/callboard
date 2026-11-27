@@ -38,11 +38,16 @@ export async function placePage(request: APIRequestContext, project: string, key
   expect(response.ok(), await response.text()).toBeTruthy();
 }
 
-/** メッセージの一覧を開き、新着の知らせ（callboard が流す道）につながるまで待つ。つながる前に置いた記録の知らせは届かない。 */
+/**
+ * メッセージの一覧を開き、新着の知らせ（callboard が流す道）につながり、つながった時の読み直しが済むまで待つ。
+ * つながる前に置いた記録の知らせは届かない。
+ */
 export async function openLive(page: Page, url: string): Promise<void> {
   const live = page.waitForResponse((r) => r.url().endsWith('/api/pagetray/events') && r.status() === 200);
+  const pulled = page.waitForResponse((r) => new URL(r.url()).pathname === '/messages' && r.request().resourceType() === 'fetch');
   await page.goto(url);
   await live;
+  await (await pulled).finished();
 }
 
 /** console の誤り・script の例外・CSP の違反を集める。 */

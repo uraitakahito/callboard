@@ -116,19 +116,13 @@
   // 知らせにつなぐ。pagetray か callboard を起こし直すと、つなぎ直す。切れていた間に書かれた物も入れる。
   // 流れが切れただけなら、EventSource が自分でつなぎ直す。つなぎ直した先が流れでない答え（pagetray が止まっている間の 503）だと、
   // EventSource はそこでやめる（readyState が CLOSED）ので、少し待って、新しくつなぐ。
+  // つながるたびに読み直す。初めての時も（画面を組んでから流れが開くまでの間に置かれた記録を入れる。中身が同じなら、一覧の列は替えない）。
   const RETRY_MS = 3000;
-  let opened = false;
   const connect = () => {
     const events = new EventSource(root.dataset.events);
-    events.onopen = () => {
-      if (opened) pull();
-      opened = true;
-    };
+    events.onopen = () => pull();
     events.onerror = () => {
-      if (events.readyState !== EventSource.CLOSED) return;
-      // 1 度もつながらなかった時も、つながった時に読み直す（開いた後に書かれた物があり得る）。
-      opened = true;
-      setTimeout(connect, RETRY_MS);
+      if (events.readyState === EventSource.CLOSED) setTimeout(connect, RETRY_MS);
     };
     events.addEventListener('message-record', () => pull());
   };
