@@ -220,6 +220,41 @@ pub fn usage_page(rows: Vec<Value>, actors: Vec<Value>, next: Option<&str>) -> V
     page
 }
 
+/// [`usage_routes`] と同じだが、`nextToken=p<slow>` の問いにだけ、答える前に `delay` 待つ（途中の頁で時間切れになる castlist）。
+pub fn usage_routes_slow(pages: Vec<Value>, slow: usize, delay: std::time::Duration) -> Router {
+    super::castlist_routes().route(
+        "/api/usage",
+        get(
+            move |axum::extract::RawQuery(query): axum::extract::RawQuery| {
+                let token = query.as_deref().and_then(|q| {
+                    q.split('&')
+                        .find_map(|p| p.strip_prefix("nextToken=").map(str::to_owned))
+                });
+                let n = match token {
+                    None => Some(0),
+                    Some(token) => token
+                        .strip_prefix('p')
+                        .and_then(|n| n.parse::<usize>().ok()),
+                };
+                let page = n.and_then(|n| pages.get(n).cloned());
+                async move {
+                    if n == Some(slow) {
+                        tokio::time::sleep(delay).await;
+                    }
+                    match page {
+                        Some(page) => answer(StatusCode::OK, &page.to_string()),
+                        None => error(
+                            StatusCode::BAD_REQUEST,
+                            "ValidationException",
+                            "nextToken が読めない",
+                        ),
+                    }
+                }
+            },
+        ),
+    )
+}
+
 /// ListUsage（`GET /api/usage`）を返す偽の castlist の道。`pages[0]` は `nextToken` の無い問いへの答え、
 /// `pages[n]` は `nextToken=p<n>` の問いへの答え（ほかの印は 400）。
 pub fn usage_routes(pages: Vec<Value>) -> Router {

@@ -5,7 +5,8 @@ mod common;
 
 use axum::http::{StatusCode, header};
 use common::castlist::{
-    PM, SE1, SE2, TPM, usage_actor, usage_buckets, usage_page, usage_routes, usage_row,
+    PM, SE1, SE2, TPM, usage_actor, usage_buckets, usage_page, usage_routes, usage_routes_slow,
+    usage_row,
 };
 use common::{App, get};
 use serde_json::{Value, json};
@@ -267,6 +268,13 @@ async fn 役割ごとの表は_本体の回の数と額と_段から出した文
     );
     assert!(
         roles.contains("<span class=\"none\">（無し）</span>"),
+        "{roles}"
+    );
+    // 20 万の段（8 段目）から数えるので、見出しは「以上」（review-9 の #4）。
+    assert!(
+        roles.contains(
+            "<th class=\"num\">20 万以上の回</th><th class=\"num\">20 万以上の回の額</th>"
+        ),
         "{roles}"
     );
 }
@@ -534,6 +542,11 @@ async fn 費えの引数の誤りは_訳を書いた_400_の画面で_castlist_�
             "/usage/?from=2026-10-01T00:30&to=2026-11-01T00:10",
             "期間は 31 日までです",
         ),
+        // 始めだけを、先の時刻にした（終わりは今）。打っていない「期間（まで）」の名を出さない（review-9 の #3）。
+        (
+            "/usage/?from=2099-01-01T00:00",
+            "「期間（から）」が、先の時刻です。",
+        ),
         // 終わりが始めより前。
         (
             "/usage/?from=2026-11-22T12:00&to=2026-11-22T10:00",
@@ -629,13 +642,36 @@ async fn castlist_に聞けなければ_503_の画面で_訳を書き_聞く先�
         "{body}"
     );
 
-    // castlist が引数を断った時は、400 の画面で castlist の訳を書く（偽の castlist は、知らない次の頁の印を断る）。
+    // 2 頁目より後で castlist が頁の印を断った時は、人の打った問いの誤りでなく、人には直せないので、503 の画面にする（review-9 の #2）。
     let app = start(vec![usage_page(rows(), actors(), Some("zz"))]).await;
     let (status, _, body) = app.send(get(WINDOW)).await;
-    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{body}");
     assert!(
-        body.contains("castlist が引数を断りました: nextToken が読めない"),
+        body.contains("castlist に聞けません（次の頁を断られました: nextToken が読めない）"),
         "{body}"
     );
-    assert!(!body.contains("開き直して"), "{body}");
+}
+
+#[tokio::test]
+async fn 途中の頁で時間切れになっても_読めた分を出し_時間内に読めた分だと書く() {
+    // 初めの頁はすぐ答え、2 頁目（p1）は、callboard の待つ時間（4 秒）より長く待たせる castlist。
+    let pages = vec![
+        usage_page(rows(), actors(), Some("p1")),
+        usage_page(rows(), actors(), None),
+    ];
+    let app = App::start_with(
+        usage_routes_slow(pages, 1, std::time::Duration::from_secs(8)),
+        common::pagetray_routes(),
+        callboard::Config::default(),
+    )
+    .await;
+    let (status, _, body) = app.send(get(WINDOW)).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(
+        body.contains("<p class=\"error\">時間内に、全部を読めませんでした"),
+        "{body}"
+    );
+    assert!(body.contains("期間を狭めてください"), "{body}");
+    // 読めた分（初めの頁）だけを数える（見本の 1 頁は 16 回）。
+    assert_eq!(fact(&body, "回"), "16");
 }
