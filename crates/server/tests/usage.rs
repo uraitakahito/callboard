@@ -675,3 +675,213 @@ async fn 途中の頁で時間切れになっても_読めた分を出し_時間
     // 読めた分（初めの頁）だけを数える（見本の 1 頁は 16 回）。
     assert_eq!(fact(&body, "回"), "16");
 }
+
+// --- 図（文脈の長さの段ごとの費え・日ごとか時ごとの費え） ---
+
+/// 図の SVG（`<svg …>` から `</svg>` まで）。
+fn svg(section: &str) -> &str {
+    let start = section
+        .find("<svg class=\"chart\"")
+        .unwrap_or_else(|| panic!("図が無い: {section}"));
+    &section[start..start + section[start..].find("</svg>").unwrap()]
+}
+
+#[tokio::test]
+async fn 文脈の長さの段ごとの費えは_本体の回の段を棒にし_20_万に点線を引く() {
+    let app = sample().await;
+    let body = app.html(WINDOW).await;
+    let chart = section(&body, "by-context");
+    assert!(
+        chart.contains("<h2>文脈の長さの段ごとの費え（本体の回）</h2>"),
+        "{chart}"
+    );
+    let svg = svg(chart);
+    assert!(svg.contains("role=\"img\""), "{svg}");
+    assert!(
+        svg.contains("aria-label=\"文脈の長さの段ごとの費え（本体の回）。"),
+        "{svg}"
+    );
+    // 本体の回の段は 0・1・2・4・9・39 の 6 つ（手伝いの段 1 の $0.25 は混ぜない）。0 の段の棒は描かない。
+    assert_eq!(svg.matches("<rect class=\"bar main\"").count(), 6, "{svg}");
+    assert!(!svg.contains("bar helper"), "{svg}");
+    // 棒にマウスを重ねると、段と額と回の数（段 0 は、pm.1 と se.2 の計）。
+    for title in [
+        "<title>0〜2.5 万: $0.11（2 回）</title>",
+        "<title>2.5 万〜5 万: $0.50（1 回）</title>",
+        "<title>22.5 万〜25 万: $0.50（2 回）</title>",
+        "<title>97.5 万〜100 万: $3.00（1 回）</title>",
+    ] {
+        assert!(svg.contains(title), "{title}: {svg}");
+    }
+    // 縦の目盛りは $0 から $3（$1 の刻み）。横の目盛りは 10 万ごと。
+    for tick in [">$0</text>", ">$1</text>", ">$3</text>"] {
+        assert!(svg.contains(tick), "{tick}: {svg}");
+    }
+    assert!(!svg.contains(">$4</text>"), "{svg}");
+    for tick in [
+        ">0</text>",
+        ">10 万</text>",
+        ">20 万</text>",
+        ">90 万</text>",
+        ">100 万〜</text>",
+    ] {
+        assert!(svg.contains(tick), "{tick}: {svg}");
+    }
+    assert!(!svg.contains(">2.5 万</text>"), "{svg}");
+    // 20 万の点線と字。
+    assert_eq!(svg.matches("<line class=\"limit\"").count(), 1, "{svg}");
+    assert!(svg.contains("class=\"limit-label\""), "{svg}");
+}
+
+#[tokio::test]
+async fn 期間が_1_日までなら_時ごとの費えを_本体と手伝いを積んだ棒で出す() {
+    let app = sample().await;
+    let body = app.html(WINDOW).await;
+    let chart = section(&body, "by-day");
+    assert!(
+        chart.contains("<h2>時ごとの費え（日本時間）</h2>"),
+        "{chart}"
+    );
+    let svg = svg(chart);
+    assert!(
+        svg.contains("role=\"img\"") && svg.contains("aria-label=\"時ごとの費え"),
+        "{svg}"
+    );
+    // 集めた期間は 10:00〜13:00 の 3 時間。行の時は、区間の終わりの時刻（toAt）で決める:
+    // 10 時は本体 $5.01（se.1 の 2 行・tpm.1・pm.1）と手伝い $0.25、11 時は本体 $2.00（se.2）、12 時は無し。
+    assert_eq!(svg.matches("<rect class=\"bar main\"").count(), 2, "{svg}");
+    assert_eq!(
+        svg.matches("<rect class=\"bar helper\"").count(),
+        1,
+        "{svg}"
+    );
+    for title in [
+        "<title>11-22 10:00: 本体 $5.01（本体と手伝いの計 $5.26）</title>",
+        "<title>11-22 10:00: 手伝い $0.25（本体と手伝いの計 $5.26）</title>",
+        "<title>11-22 11:00: 本体 $2.00（本体と手伝いの計 $2.00）</title>",
+    ] {
+        assert!(svg.contains(title), "{title}: {svg}");
+    }
+    for tick in [">10:00</text>", ">11:00</text>", ">12:00</text>"] {
+        assert!(svg.contains(tick), "{tick}: {svg}");
+    }
+    // 手伝いの棒は、同じ時の本体の棒の上に積む（手伝いの棒の下の端が、本体の棒の上の端）。
+    let attr = |rect: &str, name: &str| -> u32 {
+        let at = rect.find(&format!(" {name}=\"")).unwrap() + name.len() + 3;
+        rect[at..at + rect[at..].find('"').unwrap()]
+            .parse()
+            .unwrap()
+    };
+    let rect = |class: &str| {
+        let at = svg.find(&format!("<rect class=\"{class}\"")).unwrap();
+        &svg[at..at + svg[at..].find('>').unwrap()]
+    };
+    let (main, helper) = (rect("bar main"), rect("bar helper"));
+    assert_eq!(attr(helper, "y") + attr(helper, "height"), attr(main, "y"));
+    assert_eq!(attr(helper, "x"), attr(main, "x"));
+    // 凡例。
+    assert!(
+        chart.contains("swatch main") && chart.contains("swatch helper"),
+        "{chart}"
+    );
+}
+
+#[tokio::test]
+async fn 期間が_1_日を越えれば_日本時間の日ごとの費え() {
+    let app = sample().await;
+    let body = app
+        .html("/usage/?from=2026-11-20T00:00&to=2026-11-23T00:00")
+        .await;
+    let chart = section(&body, "by-day");
+    assert!(
+        chart.contains("<h2>日ごとの費え（日本時間）</h2>"),
+        "{chart}"
+    );
+    let svg = svg(chart);
+    for tick in [">11-20</text>", ">11-21</text>", ">11-22</text>"] {
+        assert!(svg.contains(tick), "{tick}: {svg}");
+    }
+    // 行はみな 11-22（日本時間）の物: 本体 $7.01・手伝い $0.25。
+    assert_eq!(svg.matches("<rect class=\"bar main\"").count(), 1, "{svg}");
+    assert_eq!(
+        svg.matches("<rect class=\"bar helper\"").count(),
+        1,
+        "{svg}"
+    );
+    assert!(
+        svg.contains("<title>11-22: 本体 $7.01（本体と手伝いの計 $7.26）</title>"),
+        "{svg}"
+    );
+}
+
+#[tokio::test]
+async fn 図は_script_を使わず_行が無ければ出さない() {
+    let app = sample().await;
+    let body = app.html(WINDOW).await;
+    assert_eq!(body.matches("<svg class=\"chart\"").count(), 2, "{body}");
+    assert!(!body.contains("<script"), "{body}");
+    assert!(!body.contains("style="), "{body}");
+
+    let app = start(vec![usage_page(vec![], vec![], None)]).await;
+    let body = app.html(WINDOW).await;
+    assert!(!body.contains("<svg"), "{body}");
+    assert!(
+        !body.contains("by-context") && !body.contains("by-day"),
+        "{body}"
+    );
+
+    // 手伝いの回だけなら、段の図は出さずにそう書く（日ごとの図は出す）。
+    let app = start(vec![usage_page(
+        vec![usage_row(
+            "u-1",
+            SE1,
+            Some("Explore"),
+            "2026-11-22T01:40:00Z",
+            counts(4, 250_000, 30_000, &[(1, 4, 250_000)]),
+        )],
+        actors(),
+        None,
+    )])
+    .await;
+    let body = app.html(WINDOW).await;
+    let chart = section(&body, "by-context");
+    assert!(!chart.contains("<svg"), "{chart}");
+    assert!(
+        chart.contains("<p class=\"empty\">この期間に、本体の回の記録はありません。</p>"),
+        "{chart}"
+    );
+    assert_eq!(
+        svg(section(&body, "by-day"))
+            .matches("<rect class=\"bar helper\"")
+            .count(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn 日ごとの額は_図の下に畳んだ字の表でも読める() {
+    let app = sample().await;
+    let body = app.html(WINDOW).await;
+    let day = section(&body, "by-day");
+    assert!(
+        day.contains("<details class=\"slots\"><summary>時ごとの額を、表で見る</summary>"),
+        "{day}"
+    );
+    // 額の在る区切りだけを出す。表の計の欄の和は、全体の額（$7.26）と同じ。
+    let table = day.split("<details").nth(1).unwrap();
+    let totals: Vec<f64> = table
+        .split("<tr><td>")
+        .skip(1)
+        .map(|tr| {
+            let last = tr.split("<td class=\"num\">").last().unwrap();
+            last[1..last.find("</td>").unwrap()]
+                .replace(',', "")
+                .parse::<f64>()
+                .unwrap()
+        })
+        .collect();
+    assert!(!totals.is_empty(), "{table}");
+    assert!(totals.iter().all(|t| *t > 0.0), "{table}");
+    let sum: f64 = totals.iter().sum();
+    assert!((sum - 7.26).abs() < 0.015, "{sum}: {table}");
+}

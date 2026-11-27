@@ -368,7 +368,7 @@ async fn プロフィールは_inline_の_script_と_style_が無く_頭の_link
 }
 
 #[tokio::test]
-async fn castlist_には_host_127_0_0_1_で_2_つを聞き_browser_の_header_を渡さない() {
+async fn castlist_には_host_127_0_0_1_で_3_つを聞き_browser_の_header_を渡さない() {
     let app = start().await;
     let request = Request::get(format!("/actors/{SE1}"))
         .header(header::HOST, "localhost:8803")
@@ -380,11 +380,14 @@ async fn castlist_には_host_127_0_0_1_で_2_つを聞き_browser_の_header_�
     let seen = app.castlist.seen();
     let mut uris: Vec<&str> = seen.iter().map(|s| s.uri.as_str()).collect();
     uris.sort_unstable();
+    // 3 つ目は、費えの節の数（ListUsage）。
+    let uris: Vec<&str> = uris.iter().map(|u| u.split('?').next().unwrap()).collect();
     assert_eq!(
         uris,
         [
             format!("/api/actors/{SE1}"),
-            format!("/api/actors/{SE1}/lineage")
+            format!("/api/actors/{SE1}/lineage"),
+            "/api/usage".to_owned(),
         ]
     );
     for s in &seen {
@@ -406,7 +409,8 @@ async fn 知らない_id_のプロフィールは_404_の画面() {
         body.contains("<h1>404</h1>") && body.contains("そのアクターは無い"),
         "{body}"
     );
-    assert_eq!(app.castlist.seen().len(), 2);
+    // アクター 1 つ・辿った先・数の 3 つを、一緒に聞く。
+    assert_eq!(app.castlist.seen().len(), 3);
 
     // id の形でない物は、castlist に聞かずに 404。
     let app = start().await;
@@ -472,4 +476,238 @@ async fn castlist_に聞けなければ_503_の画面で_訳を書き_聞く先�
         "{body}"
     );
     assert!(!body.contains("秘密の訳"), "{body}");
+}
+
+// --- 節「費え」（castlist の ListUsage。直近 31 日の、そのアクターの行） ---
+
+use common::castlist::{usage_actor, usage_buckets, usage_page, usage_row, with_usage};
+
+/// se.1 の数の行: 01 時（UTC）に本体が 2 行（$1.50 と $0.50。文脈は 6.1 万と 23 万）と手伝い（$0.25。文脈 90 万は数えない）、
+/// 02 時は無し、03 時に本体（$1.00。文脈 12 万）。
+fn usage() -> serde_json::Value {
+    let counts = |turns: i64, cost: i64, max_context: i64| json!({"turns": turns, "costMicroUsd": cost, "maxContext": max_context, "buckets": usage_buckets(&[(0, turns, cost)])});
+    usage_page(
+        vec![
+            usage_row(
+                "u-1",
+                SE1,
+                None,
+                "2026-11-22T01:40:00Z",
+                counts(3, 1_500_000, 61_000),
+            ),
+            usage_row(
+                "u-2",
+                SE1,
+                None,
+                "2026-11-22T01:50:00Z",
+                counts(2, 500_000, 230_000),
+            ),
+            usage_row(
+                "u-3",
+                SE1,
+                Some("Explore"),
+                "2026-11-22T01:40:00Z",
+                counts(4, 250_000, 900_000),
+            ),
+            usage_row(
+                "u-4",
+                SE1,
+                None,
+                "2026-11-22T03:20:00Z",
+                counts(1, 1_000_000, 120_000),
+            ),
+        ],
+        vec![usage_actor(SE1, "se.1", json!({}))],
+        None,
+    )
+}
+
+/// 要約の出来事（03:00）の detail に、前と後の文脈の長さを足した se.1。
+fn compacted_actor() -> serde_json::Value {
+    let mut actor = se1_actor();
+    actor["events"][1]["detail"]["preTokens"] = json!(180_000);
+    actor["events"][1]["detail"]["postTokens"] = json!(30_000);
+    actor
+}
+
+async fn start_with_usage(actor: serde_json::Value, usage: serde_json::Value) -> App {
+    App::start_with(
+        with_usage(common::castlist::routes(actor, se1_lineage()), vec![usage]),
+        common::pagetray_routes(),
+        callboard::Config::default(),
+    )
+    .await
+}
+
+/// `<dt>名</dt><dd>値</dd>` の値。
+fn fact<'a>(section: &'a str, name: &str) -> &'a str {
+    let open = format!("<dt>{name}</dt><dd>");
+    let start = section
+        .find(&open)
+        .unwrap_or_else(|| panic!("{name} が無い: {section}"))
+        + open.len();
+    &section[start..start + section[start..].find("</dd>").unwrap()]
+}
+
+#[tokio::test]
+async fn 費えの節は_直近_31_日の_そのアクターの額と回と_いちばん長い文脈を出す() {
+    let app = start_with_usage(compacted_actor(), usage()).await;
+    let body = app.html(&format!("/actors/{SE1}")).await;
+    let usage = section(&body, "usage");
+    assert!(usage.contains("<h2>費え（直近 31 日）</h2>"), "{usage}");
+    assert_eq!(fact(usage, "額"), "$3.25（本体 $3.00・手伝い $0.25）");
+    assert_eq!(fact(usage, "回"), "10（手伝い 4）");
+    assert_eq!(fact(usage, "いちばん長い文脈"), "23 万");
+    // castlist には、そのアクターの行を、今を時の境に切り上げた時刻までの 31 日で聞く。
+    let seen = app.castlist.seen();
+    let usage_uri = seen
+        .iter()
+        .find(|s| s.uri.starts_with("/api/usage?"))
+        .map(|s| s.uri.clone())
+        .expect("数を聞いていない");
+    let query: Vec<(String, String)> = usage_uri
+        .split_once('?')
+        .unwrap()
+        .1
+        .split('&')
+        .map(|p| {
+            let (n, v) = p.split_once('=').unwrap();
+            (n.to_owned(), v.replace("%3A", ":"))
+        })
+        .collect();
+    let one = |name: &str| {
+        query
+            .iter()
+            .find(|(n, _)| n == name)
+            .map(|(_, v)| v.as_str())
+    };
+    assert_eq!(one("actorId"), Some(SE1));
+    assert_eq!(one("label"), None);
+    let at = |name: &str| {
+        time::OffsetDateTime::parse(
+            one(name).unwrap(),
+            &time::format_description::well_known::Rfc3339,
+        )
+        .unwrap()
+    };
+    let (from, to) = (at("from"), at("to"));
+    let now = time::OffsetDateTime::now_utc();
+    assert_eq!((to.minute(), to.second()), (0, 0));
+    assert!(
+        to >= now - time::Duration::seconds(5) && to - now <= time::Duration::HOUR,
+        "{to}"
+    );
+    assert_eq!(to - from, time::Duration::days(31));
+}
+
+#[tokio::test]
+async fn 費えの節の線は_時ごとの本体のいちばん長い文脈の段々で_圧縮の印を立てる() {
+    let app = start_with_usage(compacted_actor(), usage()).await;
+    let body = app.html(&format!("/actors/{SE1}")).await;
+    let usage = section(&body, "usage");
+    let start = usage.find("<svg class=\"chart\"").expect("図が無い");
+    let svg = &usage[start..start + usage[start..].find("</svg>").unwrap()];
+    assert!(svg.contains("role=\"img\""), "{svg}");
+    assert!(
+        svg.contains(
+            "aria-label=\"文脈の長さの段々の線（1 時間ごとの、本体の回のいちばん長い文脈）。"
+        ),
+        "{svg}"
+    );
+    // 01 時（23 万）と 03 時（12 万）。02 時は記録が無いので、線を切る（M が 2 つ）。
+    let at = svg.find("<path class=\"context\" d=\"").expect("線が無い") + 25;
+    let d = &svg[at..at + svg[at..].find('"').unwrap()];
+    assert_eq!(d.matches('M').count(), 2, "{d}");
+    // 時にマウスを重ねると、時と値。
+    assert!(
+        svg.contains("<title>2026-11-22 10:00〜11:00: 23 万</title>"),
+        "{svg}"
+    );
+    assert!(
+        svg.contains("<title>2026-11-22 12:00〜13:00: 12 万</title>"),
+        "{svg}"
+    );
+    // 20 万の点線（横）。
+    assert_eq!(svg.matches("<line class=\"limit\"").count(), 1, "{svg}");
+    // 圧縮（要約）の印は 1 つ。detail の前と後の文脈の長さを出す。
+    assert_eq!(svg.matches("<line class=\"compact\"").count(), 1, "{svg}");
+    assert!(
+        svg.contains("<title>要約 · 2026-11-22 12:00:00（18 万 → 3 万）</title>"),
+        "{svg}"
+    );
+    assert!(!body.contains("<script"), "{body}");
+
+    // detail に前と後の長さが無ければ、時刻だけ。
+    let app = start_with_usage(se1_actor(), usage_answer_only_main()).await;
+    let body = app.html(&format!("/actors/{SE1}")).await;
+    assert!(
+        section(&body, "usage").contains("<title>要約 · 2026-11-22 12:00:00</title>"),
+        "{body}"
+    );
+}
+
+/// 03 時の本体の行だけ（要約の出来事の時刻を含む）。
+fn usage_answer_only_main() -> serde_json::Value {
+    usage_page(
+        vec![usage_row(
+            "u-4",
+            SE1,
+            None,
+            "2026-11-22T03:20:00Z",
+            json!({"turns": 1, "costMicroUsd": 1_000_000, "maxContext": 120_000, "buckets": usage_buckets(&[(4, 1, 1_000_000)])}),
+        )],
+        vec![usage_actor(SE1, "se.1", json!({}))],
+        None,
+    )
+}
+
+#[tokio::test]
+async fn 費えの節は_行が無ければ_そう書く() {
+    let app = start_with_usage(se1_actor(), usage_page(vec![], vec![], None)).await;
+    let body = app.html(&format!("/actors/{SE1}")).await;
+    let usage = section(&body, "usage");
+    assert!(
+        usage.contains("<p class=\"empty\">この 31 日に、数の記録はありません。</p>"),
+        "{usage}"
+    );
+    assert!(!usage.contains("<svg"), "{usage}");
+}
+
+#[tokio::test]
+async fn 数を聞けなくても_頁は_200_で出し_費えの節だけに訳を書く() {
+    // castlist が古い（ListUsage を持たない。404）。
+    let app = start().await;
+    let body = app.html(&format!("/actors/{SE1}")).await;
+    let usage = section(&body, "usage");
+    assert!(
+        usage.contains("<p class=\"error\">数を読めません（404 が返りました）。</p>"),
+        "{usage}"
+    );
+    // ほかの節は、今までどおり。
+    assert_eq!(section(&body, "events").matches("<tr>").count(), 4);
+
+    // 数の口だけが 503。
+    let app = App::start_with(
+        common::castlist::routes(se1_actor(), se1_lineage()).route(
+            "/api/usage",
+            route_get(|| async {
+                common::castlist::error(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "ServiceUnavailable",
+                    "秘密の訳",
+                )
+            }),
+        ),
+        common::pagetray_routes(),
+        callboard::Config::default(),
+    )
+    .await;
+    let (status, _, body) = app.send(get(&format!("/actors/{SE1}"))).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(
+        section(&body, "usage").contains("数を読めません（503 が返りました）"),
+        "{body}"
+    );
+    assert!(!body.contains("秘密の訳"), "{body}");
+    assert!(body.contains("<h1>se.1</h1>"), "{body}");
 }

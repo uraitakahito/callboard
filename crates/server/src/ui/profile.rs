@@ -15,11 +15,15 @@ use castlist_client::operation::get_actor::GetActorOutput;
 use castlist_client::operation::get_lineage::GetLineageOutput;
 use castlist_client::types::{ActorRow, Link};
 use serde_json::Value;
+use time::OffsetDateTime;
 
-use super::time::{Time, time};
+use super::time::{Time, local, stamp, time};
+use super::usage::{self, ChartView};
+use super::usage_summary as summary;
 use super::{CSS_HREF, Nav, error_page, kind_name, render};
 use crate::App;
 use crate::upstream::Failure;
+use crate::upstream::castlist::UsageAnswer;
 
 /// 線を上る段の上限（castlist の GetLineage の上限と同じ）。
 const MAX_DEPTH: usize = 20;
@@ -99,7 +103,104 @@ struct ProfilePage<'a> {
     after: Vec<ActorLink>,
     settings: Vec<SettingRow>,
     events: Vec<EventRow>,
+    usage: UsageSection,
     as_of: Time,
+}
+
+/// 節「費え」（直近 31 日の、このアクターの数）。数を読めなければ `error`、行が無ければ `view` が無い。
+struct UsageSection {
+    from: Time,
+    to: Time,
+    error: Option<String>,
+    view: Option<UsageView>,
+}
+
+struct UsageView {
+    cost: String,
+    main_cost: String,
+    helper_cost: String,
+    turns: String,
+    helper_turns: String,
+    max_context: Option<String>,
+    /// 行が多すぎて、途中で止めた。
+    truncated: bool,
+    /// 本体の回が無ければ無い。
+    chart: Option<ChartView>,
+}
+
+fn time_of(t: OffsetDateTime) -> Time {
+    Time {
+        iso: stamp(t),
+        local: local(t),
+    }
+}
+
+/// 節「費え」を組む。圧縮の印は、出来事のうち、期間の内の要約（`compacted`）。
+fn usage_section(
+    window: (OffsetDateTime, OffsetDateTime),
+    found: Result<UsageAnswer, Failure>,
+    actor: &GetActorOutput,
+) -> UsageSection {
+    let mut section = UsageSection {
+        from: time_of(window.0),
+        to: time_of(window.1),
+        error: None,
+        view: None,
+    };
+    let answer = match found {
+        Ok(answer) => answer,
+        Err(e) => {
+            section.error = Some(usage::unreadable(e));
+            return section;
+        }
+    };
+    if answer.rows.is_empty() {
+        return section;
+    }
+    let truncated = usage::cut(&answer);
+    let rows = usage::rows_of(answer.rows);
+    let total = summary::summarize(&rows, &[]).total;
+    let max_context = summary::by_seat(&rows)
+        .values()
+        .map(|s| s.max_context)
+        .max()
+        .unwrap_or(0);
+    let (from, to) = (window.0.unix_timestamp(), window.1.unix_timestamp());
+    let marks: Vec<(i64, String)> = actor
+        .events
+        .iter()
+        .filter(|e| e.r#type == "compacted")
+        .filter_map(|e| {
+            let at = e.received_at.secs();
+            (from..to).contains(&at).then(|| (at, compaction_title(e)))
+        })
+        .collect();
+    section.view = Some(UsageView {
+        cost: usage::dollars(total.cost),
+        main_cost: usage::dollars(total.cost - total.helper_cost),
+        helper_cost: usage::dollars(total.helper_cost),
+        turns: usage::count(total.turns),
+        helper_turns: usage::count(total.helper_turns),
+        max_context: usage::longest(max_context),
+        truncated,
+        chart: usage::line_chart(&rows, &marks),
+    });
+    section
+}
+
+/// 圧縮の印の字: 出来事の名と時刻と、detail に前と後の文脈の長さ（`preTokens`・`postTokens`）が在れば、それも。
+fn compaction_title(event: &castlist_client::types::Event) -> String {
+    let detail = json(&event.detail);
+    let tokens = |key: &str| detail.get(key).and_then(Value::as_i64);
+    let base = format!(
+        "{} · {}",
+        event_name(&event.r#type),
+        time(&event.received_at).local
+    );
+    match (tokens("preTokens"), tokens("postTokens")) {
+        (Some(pre), Some(post)) => format!("{base}（{} → {}）", usage::man(pre), usage::man(post)),
+        _ => base,
+    }
 }
 
 struct CurrentSetting {
@@ -162,9 +263,22 @@ pub async fn profile(State(app): State<Arc<App>>, Path(id): Path<String>) -> Res
     if !is_actor_id(&id) {
         return not_found();
     }
-    let (actor, lineage) = tokio::join!(app.castlist.actor(&id), app.castlist.lineage(&id));
+    // 節「費え」の数は 3 つ目の問い。これが落ちても、頁は出す（節にだけ訳を書く）。
+    let window = usage::recent(OffsetDateTime::now_utc());
+    let search = usage::search(window, Vec::new(), Some(id.clone()));
+    let (actor, lineage, found) = tokio::join!(
+        app.castlist.actor(&id),
+        app.castlist.lineage(&id),
+        app.castlist.usage(&search)
+    );
     match (actor, lineage) {
-        (Ok(actor), Ok(lineage)) => match profile_page(nav, &id, &actor, &lineage) {
+        (Ok(actor), Ok(lineage)) => match profile_page(
+            nav,
+            &id,
+            &actor,
+            &lineage,
+            usage_section(window, found, &actor),
+        ) {
             Some(page) => render(StatusCode::OK, &page),
             None => not_found(),
         },
@@ -184,6 +298,7 @@ fn profile_page<'a>(
     id: &str,
     actor: &GetActorOutput,
     lineage: &GetLineageOutput,
+    usage: UsageSection,
 ) -> Option<ProfilePage<'a>> {
     let nodes: BTreeMap<&str, &ActorRow> =
         lineage.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
@@ -314,6 +429,7 @@ fn profile_page<'a>(
         chain: chain(id, &lineage.edges, &nodes),
         settings,
         events,
+        usage,
         as_of: time(&actor.as_of),
     })
 }

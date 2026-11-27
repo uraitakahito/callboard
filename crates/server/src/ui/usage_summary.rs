@@ -33,6 +33,8 @@ pub struct Bucket {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Row {
     pub actor_id: String,
+    /// 区間の終わりの時刻（castlist の `toAt`。UNIX の時からの秒）。行の日と時は、これで決める。
+    pub to_at: i64,
     /// 手伝い（subagent）の回か（castlist の行に `agent` が在る）。
     pub helper: bool,
     pub turns: i64,
@@ -254,6 +256,69 @@ pub fn summarize(rows: &[Row], actors: &[Actor]) -> Summary {
     }
 }
 
+/// 段ごとの、本体の回の数と額（添字が段の番号。0 から [`LAST_BUCKET`] までの 41 個）。手伝いの回は混ぜない（文脈の長さの数は本体だけ）。
+pub fn by_bucket(rows: &[Row]) -> Vec<(i64, i64)> {
+    let mut out = vec![(0i64, 0i64); usize::try_from(LAST_BUCKET).unwrap_or(0) + 1];
+    for b in rows.iter().filter(|r| !r.helper).flat_map(|r| &r.buckets) {
+        if let Some(sum) = usize::try_from(b.bucket).ok().and_then(|i| out.get_mut(i)) {
+            sum.0 = sum.0.saturating_add(b.turns);
+            sum.1 = sum.1.saturating_add(b.cost);
+        }
+    }
+    out
+}
+
+/// 区切り（日・時）ごとの、本体の額と手伝いの額。`starts` は区切りの初めの時刻（秒。昇順）、`end` は最後の区切りの終わり。
+/// 行は、区間の終わりの時刻（`to_at`）が入る区切りに入れる。区切りの外の行は数えない。
+pub fn by_slot(rows: &[Row], starts: &[i64], end: i64) -> Vec<(i64, i64)> {
+    let mut out = vec![(0i64, 0i64); starts.len()];
+    for row in rows.iter().filter(|r| r.to_at < end) {
+        let Some(i) = starts.partition_point(|s| *s <= row.to_at).checked_sub(1) else {
+            continue;
+        };
+        let sum = &mut out[i];
+        if row.helper {
+            sum.1 = sum.1.saturating_add(row.cost);
+        } else {
+            sum.0 = sum.0.saturating_add(row.cost);
+        }
+    }
+    out
+}
+
+/// 席（アクター）1 つの数。
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Seat {
+    /// 額（本体と手伝いの計）。
+    pub cost: i64,
+    /// 本体の回の、いちばん長い文脈（本体の回が無ければ 0）。
+    pub max_context: i64,
+}
+
+/// 席ごとの、額（本体と手伝いの計）といちばん長い文脈（本体の回だけ）。
+pub fn by_seat(rows: &[Row]) -> BTreeMap<String, Seat> {
+    let mut out: BTreeMap<String, Seat> = BTreeMap::new();
+    for row in rows {
+        let seat = out.entry(row.actor_id.clone()).or_default();
+        seat.cost = seat.cost.saturating_add(row.cost);
+        if !row.helper {
+            seat.max_context = seat.max_context.max(row.max_context);
+        }
+    }
+    out
+}
+
+/// 時（`to_at` を時の初めに切り下げた時刻。秒）ごとの、本体の回のいちばん長い文脈（時の順）。本体の回の無い時は入れない。
+pub fn context_by_hour(rows: &[Row]) -> Vec<(i64, i64)> {
+    let mut hours: BTreeMap<i64, i64> = BTreeMap::new();
+    for row in rows.iter().filter(|r| !r.helper) {
+        let hour = row.to_at - row.to_at.rem_euclid(3600);
+        let max = hours.entry(hour).or_default();
+        *max = (*max).max(row.max_context);
+    }
+    hours.into_iter().collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -272,6 +337,7 @@ mod tests {
     fn main(actor_id: &str, max_context: i64, buckets: &[(i32, i64, i64)]) -> Row {
         Row {
             actor_id: actor_id.to_owned(),
+            to_at: 0,
             helper: false,
             turns: buckets.iter().map(|b| b.1).sum(),
             cost: buckets.iter().map(|b| b.2).sum(),
@@ -475,5 +541,92 @@ mod tests {
         let subjects: Vec<Option<&str>> =
             summary.subjects.iter().map(|s| s.name.as_deref()).collect();
         assert_eq!(subjects, [Some("k-a"), Some("k-b"), None]);
+    }
+
+    fn at(row: Row, to_at: i64) -> Row {
+        Row { to_at, ..row }
+    }
+
+    #[test]
+    fn 段ごとの額は_本体の回の段を番号ごとに足し_手伝いは混ぜない() {
+        let rows = [
+            main("a", 61_000, &[(1, 1, 500), (2, 2, 1_000)]),
+            main("b", 230_000, &[(2, 1, 300), (9, 2, 700)]),
+            helper("a", 900_000, &[(1, 8, 800), (36, 1, 200)]),
+            // 0〜40 の外の段は数えない。
+            main("a", 10, &[(41, 3, 30), (-1, 1, 10), (40, 1, 5)]),
+        ];
+        let buckets = by_bucket(&rows);
+        assert_eq!(buckets.len(), 41);
+        assert_eq!(buckets[1], (1, 500));
+        assert_eq!(buckets[2], (3, 1_300));
+        assert_eq!(buckets[9], (2, 700));
+        assert_eq!(buckets[36], (0, 0));
+        assert_eq!(buckets[40], (1, 5));
+        assert_eq!(buckets.iter().map(|b| b.1).sum::<i64>(), 2_505);
+        // 行が無くても、41 の段。
+        assert_eq!(by_bucket(&[]), vec![(0, 0); 41]);
+    }
+
+    #[test]
+    fn 区切りごとの額は_区間の終わりの時刻で入れ_本体と手伝いを分ける() {
+        let rows = [
+            at(main("a", 10, &[(0, 1, 10)]), 50),
+            at(helper("a", 10, &[(0, 1, 5)]), 150),
+            at(main("b", 10, &[(0, 1, 3)]), 100),
+            at(main("b", 10, &[(0, 1, 1)]), 299),
+            // 窓の外（終わりちょうどと、初めより前）は数えない。
+            at(main("b", 10, &[(0, 1, 99)]), 300),
+            at(main("b", 10, &[(0, 1, 77)]), -1),
+        ];
+        assert_eq!(
+            by_slot(&rows, &[0, 100, 200], 300),
+            [(10, 0), (3, 5), (1, 0)]
+        );
+        // 行が無ければ、どの区切りも 0。
+        assert_eq!(by_slot(&[], &[0, 100], 200), [(0, 0), (0, 0)]);
+    }
+
+    #[test]
+    fn 席ごとの数は_額が本体と手伝いの計_いちばん長い文脈は本体だけ() {
+        let rows = [
+            main("a", 120_000, &[(4, 2, 10)]),
+            main("a", 230_000, &[(9, 1, 20)]),
+            helper("a", 900_000, &[(36, 1, 5)]),
+            helper("b", 30_000, &[(1, 4, 7)]),
+        ];
+        let seats = by_seat(&rows);
+        assert_eq!(seats.len(), 2);
+        assert_eq!(
+            seats["a"],
+            Seat {
+                cost: 35,
+                max_context: 230_000
+            }
+        );
+        // 手伝いの回だけの席は、いちばん長い文脈が無い（0）。
+        assert_eq!(
+            seats["b"],
+            Seat {
+                cost: 7,
+                max_context: 0
+            }
+        );
+        assert!(by_seat(&[]).is_empty());
+    }
+
+    #[test]
+    fn 時ごとのいちばん長い文脈は_本体の回の大きい方を時の順に() {
+        const H: i64 = 3600;
+        let rows = [
+            at(main("a", 120_000, &[(4, 1, 1)]), 3 * H + 1),
+            at(main("a", 61_000, &[(2, 1, 1)]), H + 10),
+            at(main("a", 230_000, &[(9, 1, 1)]), H + 2_000),
+            // 手伝いの回は数えない（その時に本体の回が無ければ、その時は入れない）。
+            at(helper("a", 900_000, &[(36, 1, 1)]), H + 5),
+            at(helper("a", 900_000, &[(36, 1, 1)]), 2 * H + 5),
+        ];
+        assert_eq!(context_by_hour(&rows), [(H, 230_000), (3 * H, 120_000)]);
+        assert!(context_by_hour(&[]).is_empty());
     }
 }

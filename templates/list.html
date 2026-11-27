@@ -41,7 +41,7 @@
 {% else %}
 <div class="scroll">
 <table class="actors">
-<thead><tr><th>名前</th><th>種類</th><th>状態</th><th>課題の Key・役割</th><th>model · effort</th><th>最初の登場</th><th>最後の退場</th><th></th></tr></thead>
+<thead><tr><th>名前</th><th>種類</th><th>状態</th><th>課題の Key・役割</th><th>model · effort</th><th>最初の登場</th><th>最後の退場</th><th class="num">額</th><th class="num">いちばん長い文脈</th><th></th></tr></thead>
 <tbody>
 {% for row in rows %}
 <tr>
@@ -52,12 +52,15 @@
 <td>{% call m::setting(row) %}{% endcall %}</td>
 <td>{% call m::maybe_time(row.first_entered) %}{% endcall %}</td>
 <td>{% call m::maybe_time(row.last_exited) %}{% endcall %}</td>
+<td class="num">{% call m::maybe(row.cost) %}{% endcall %}</td><td class="num">{% call m::maybe(row.context) %}{% endcall %}</td>
 <td>{% if row.skewed %}{% call m::skew() %}{% endcall %}{% endif %}</td>
 </tr>
 {% endfor %}
 </tbody>
 </table>
 </div>
+{% if let Some((from, to)) = cost_window %}<p class="muted" id="costs">額は、額を数えた期間（時の境に揃えた {% call m::time(from) %}{% endcall %} から {% call m::time(to) %}{% endcall %} まで）の、席の額（本体と手伝い（subagent）の計。使った量を API の値段に直した目安で、払う額ではありません）。いちばん長い文脈は、本体の回だけで出します。</p>{% endif %}
+{% if let Some(note) = cost_note %}<p class="note">{{ note }}</p>{% endif %}
 {% endif %}
 {% if let Some(next) = next %}
 <p class="more"><a rel="next" href="{{ next }}">次のページ</a></p>

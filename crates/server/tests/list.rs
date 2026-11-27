@@ -47,22 +47,38 @@ async fn start(answer: Value) -> App {
     .await
 }
 
-/// castlist に送った問い（`/api/actors?…` の引数。名と値の並び。% の包みは戻す）。
+/// castlist に送った、一覧の問い（`/api/actors?…` の引数。名と値の並び。% の包みは戻す）。数の問い（`/api/usage`）は [`usage_asked`]。
 fn asked(app: &App) -> Vec<(String, String)> {
-    let seen = app.castlist.seen();
-    assert_eq!(seen.len(), 1, "{seen:?}");
-    assert_eq!(seen[0].method, "GET");
-    assert_eq!(seen[0].header("host"), Some("127.0.0.1"));
-    let (path, query) = seen[0].uri.split_once('?').unwrap_or((&seen[0].uri, ""));
-    assert_eq!(path, "/api/actors");
-    query
+    asked_at(app, "/api/actors").expect("一覧の問いが無い")
+}
+
+/// castlist に送った、数の問い（`/api/usage?…`）。聞かなければ無い。
+fn usage_asked(app: &App) -> Option<Vec<(String, String)>> {
+    asked_at(app, "/api/usage")
+}
+
+/// castlist に送った、`path` への問い（1 度だけのはず）の引数。
+fn asked_at(app: &App, path: &str) -> Option<Vec<(String, String)>> {
+    let seen: Vec<common::Seen> = app
+        .castlist
+        .seen()
+        .into_iter()
+        .filter(|s| s.uri.split('?').next() == Some(path))
+        .collect();
+    assert!(seen.len() <= 1, "{seen:?}");
+    let seen = seen.first()?;
+    assert_eq!(seen.method, "GET");
+    assert_eq!(seen.header("host"), Some("127.0.0.1"));
+    let (_, query) = seen.uri.split_once('?').unwrap_or((&seen.uri, ""));
+    let pairs = query
         .split('&')
         .filter(|p| !p.is_empty())
         .map(|p| {
             let (name, value) = p.split_once('=').unwrap();
             (name.to_owned(), unescape(value))
         })
-        .collect()
+        .collect();
+    Some(pairs)
 }
 
 fn unescape(s: &str) -> String {
@@ -473,4 +489,225 @@ async fn castlist_に聞けなければ_503_の画面で_訳を書き_聞く先�
         "{body}"
     );
     assert!(!body.contains("開き直して"), "{body}");
+}
+
+// --- 行の額と、いちばん長い文脈（castlist の ListUsage） ---
+
+use common::castlist::{SE2, usage_actor, usage_buckets, usage_page, usage_row, with_usage};
+
+/// se.1 の数の行: 本体が同じ時に 2 行（$1.00 と $0.50。文脈は 6.1 万と 23 万）と、手伝い（$0.25。文脈 90 万は数えない）。
+/// 一覧に居ない se.2 の行も在る（一覧には出ない）。pm.1 には行が無い。
+fn usage() -> Value {
+    let counts = |turns: i64, cost: i64, max_context: i64| json!({"turns": turns, "costMicroUsd": cost, "maxContext": max_context, "buckets": usage_buckets(&[(0, turns, cost)])});
+    usage_page(
+        vec![
+            usage_row(
+                "u-1",
+                SE1,
+                None,
+                "2026-11-22T01:40:00Z",
+                counts(3, 1_000_000, 61_000),
+            ),
+            usage_row(
+                "u-2",
+                SE1,
+                None,
+                "2026-11-22T01:50:00Z",
+                counts(2, 500_000, 230_000),
+            ),
+            usage_row(
+                "u-3",
+                SE1,
+                Some("Explore"),
+                "2026-11-22T01:40:00Z",
+                counts(4, 250_000, 900_000),
+            ),
+            usage_row(
+                "u-4",
+                SE2,
+                None,
+                "2026-11-22T02:10:00Z",
+                counts(1, 9_000_000, 500_000),
+            ),
+        ],
+        vec![
+            usage_actor(SE1, "se.1", json!({})),
+            usage_actor(SE2, "se.2", json!({})),
+        ],
+        None,
+    )
+}
+
+/// 一覧の答えと、数の答えを返す偽の castlist。
+async fn start_with_usage(answer: Value, usage: Value) -> App {
+    App::start_with(
+        with_usage(castlist(answer), vec![usage]),
+        common::pagetray_routes(),
+        callboard::Config::default(),
+    )
+    .await
+}
+
+/// 行の、数の欄（`<td class="num">` の中身を、左から）。
+fn nums(tr: &str) -> Vec<&str> {
+    tr.split("<td class=\"num\">")
+        .skip(1)
+        .map(|cell| &cell[..cell.find("</td>").unwrap()])
+        .collect()
+}
+
+const NONE: &str = "<span class=\"none\">—</span>";
+
+#[tokio::test]
+async fn 一覧の行に_一覧の期間の_席の額と_いちばん長い文脈を出す() {
+    let app = start_with_usage(rows(), usage()).await;
+    let body = app
+        .html("/actors/?label=project:x&active_from=2026-11-22T10:30&active_to=2026-11-22T12:10")
+        .await;
+    assert!(
+        body.contains("<th class=\"num\">額</th><th class=\"num\">いちばん長い文脈</th>"),
+        "{body}"
+    );
+    // se.1: 額は本体と手伝いの計（$1.75）、いちばん長い文脈は本体の回の大きい方（23 万。手伝いの 90 万は数えない）。
+    assert_eq!(nums(tr(&body, SE1)), ["$1.75", "23 万"]);
+    // 数の無い席は「—」。
+    assert_eq!(nums(tr(&body, PM)), [NONE, NONE]);
+    // 一覧に居ない se.2 の行は出さない。
+    assert!(!body.contains("$9.00"), "{body}");
+    // 期間は、一覧の期間を時の境に揃えた物（日本時間の 10:30〜12:10 → UTC の 01:00〜04:00）。ラベルも同じ物で絞る。
+    let usage = usage_asked(&app).expect("数を聞いていない");
+    assert_eq!(one(&usage, "from"), Some("2026-11-22T01:00:00Z"));
+    assert_eq!(one(&usage, "to"), Some("2026-11-22T04:00:00Z"));
+    assert_eq!(one(&usage, "label"), Some("project:x"));
+    assert_eq!(one(&usage, "actorId"), None);
+    // 表の下に、列の訳。
+    assert!(
+        body.contains("額は、額を数えた期間（時の境に揃えた"),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn 一覧に期間が無ければ_数は直近_7_日を時の境に揃えて聞く() {
+    let app = start_with_usage(rows(), usage()).await;
+    let body = app.html("/actors/").await;
+    assert_eq!(nums(tr(&body, SE1)), ["$1.75", "23 万"]);
+    let usage = usage_asked(&app).expect("数を聞いていない");
+    let at = |name: &str| {
+        time::OffsetDateTime::parse(
+            one(&usage, name).unwrap(),
+            &time::format_description::well_known::Rfc3339,
+        )
+        .unwrap()
+    };
+    let (from, to) = (at("from"), at("to"));
+    let now = time::OffsetDateTime::now_utc();
+    assert_eq!((from.minute(), from.second()), (0, 0));
+    assert_eq!((to.minute(), to.second()), (0, 0));
+    assert!(
+        to >= now - time::Duration::seconds(5) && to - now <= time::Duration::HOUR,
+        "{to}"
+    );
+    // 一覧の既定の窓（今から 7 日前から）を、時の初めに切り下げた所から。
+    let span = to - from;
+    assert!(
+        span > time::Duration::days(7) && span <= time::Duration::days(7) + time::Duration::HOUR,
+        "{span}"
+    );
+    assert_eq!(one(&usage, "label"), None);
+}
+
+#[tokio::test]
+async fn 一覧の期間が_31_日を越えれば_数を聞かずに_列を空けて注を書く() {
+    let app = start_with_usage(rows(), usage()).await;
+    let body = app
+        .html("/actors/?active_from=2026-10-01T00:00&active_to=2026-11-22T00:00")
+        .await;
+    assert!(usage_asked(&app).is_none());
+    assert_eq!(nums(tr(&body, SE1)), [NONE, NONE]);
+    assert!(
+        body.contains("一覧の期間が 31 日を越えるので、額といちばん長い文脈は出しません"),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn 数を聞けなくても_一覧は_200_で出し_列を空けて訳を書く() {
+    // castlist が古い（ListUsage を持たない。404）。
+    let app = start(rows()).await;
+    let (status, _, body) = app.send(get("/actors/?label=project:x")).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(nums(tr(&body, SE1)), [NONE, NONE]);
+    assert_eq!(nums(tr(&body, PM)), [NONE, NONE]);
+    assert!(
+        body.contains("額といちばん長い文脈を読めません（404 が返りました）"),
+        "{body}"
+    );
+    assert!(usage_asked(&app).is_some());
+
+    // 数の口が 503。
+    let app = App::start_with(
+        castlist(rows()).route(
+            "/api/usage",
+            route_get(|| async {
+                common::castlist::error(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "ServiceUnavailable",
+                    "秘密の訳",
+                )
+            }),
+        ),
+        common::pagetray_routes(),
+        callboard::Config::default(),
+    )
+    .await;
+    let (status, _, body) = app.send(get("/actors/?label=project:x")).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(
+        body.contains("額といちばん長い文脈を読めません（503 が返りました）"),
+        "{body}"
+    );
+    assert!(!body.contains("秘密の訳"), "{body}");
+}
+
+#[tokio::test]
+async fn 数の口が遅くても_一覧は_長く待たずに出し_列を空けて訳を書く() {
+    // 数の口だけが 3 秒待たせる castlist（一覧の側の期限は 1 秒。review-13 の #1）。
+    let app = App::start_with(
+        castlist(rows()).route(
+            "/api/usage",
+            route_get(|| async {
+                tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                common::json(StatusCode::OK, &usage().to_string())
+            }),
+        ),
+        common::pagetray_routes(),
+        callboard::Config::default(),
+    )
+    .await;
+    let started = std::time::Instant::now();
+    let (status, _, body) = app.send(get("/actors/?label=project:x")).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(2),
+        "{:?}",
+        started.elapsed()
+    );
+    assert_eq!(nums(tr(&body, SE1)), [NONE, NONE]);
+    assert!(
+        body.contains(
+            "額といちばん長い文脈を、時間内に読めませんでした。一覧は、そのまま出しています。"
+        ),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn 額の注は_額を数えた期間と書く() {
+    let app = start_with_usage(rows(), usage()).await;
+    let body = app.html("/actors/?label=project:x").await;
+    assert!(
+        body.contains("額は、額を数えた期間（時の境に揃えた "),
+        "{body}"
+    );
 }

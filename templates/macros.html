@@ -13,3 +13,9 @@
 {% macro setting(row) %}{% if let Some(s) = row.setting %}<code>{{ s.0 }}</code> · <code>{{ s.1 }}</code>{% else %}<span class="none">—</span>{% endif %}{% endmacro %}
 
 {% macro foot() %}時刻は日本時間（UTC+9）で、castlist が受け取った時刻です。時刻にマウスを重ねると ISO 8601 の形で表示します。{% endmacro %}
+
+{% macro chart(c) %}<svg class="chart" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {{ c.width }} {{ c.height }}" width="{{ c.width }}" height="{{ c.height }}" role="img" aria-label="{{ c.label }}">
+<g class="axis">{% for tick in c.y_ticks %}<line class="grid" x1="{{ c.left }}" y1="{{ tick.at }}" x2="{{ c.right }}" y2="{{ tick.at }}"/><text class="tick" x="{{ c.tick_x }}" y="{{ tick.at + 4 }}" text-anchor="end">{{ tick.label }}</text>{% endfor %}{% for tick in c.x_ticks %}<text class="tick" x="{{ tick.at }}" y="{{ c.label_y }}" text-anchor="middle">{{ tick.label }}</text>{% endfor %}<line class="base" x1="{{ c.left }}" y1="{{ c.base }}" x2="{{ c.right }}" y2="{{ c.base }}"/></g>
+{% for bar in c.bars %}<rect class="{{ bar.class }}" x="{{ bar.x }}" y="{{ bar.y }}" width="{{ bar.w }}" height="{{ bar.h }}"><title>{{ bar.title }}</title></rect>{% endfor %}
+{% if let Some(path) = c.line %}<path class="context" d="{{ path }}"/>{% endif %}{% for mark in c.marks %}<line class="compact" x1="{{ mark.x }}" y1="{{ c.top }}" x2="{{ mark.x }}" y2="{{ c.base }}"><title>{{ mark.title }}</title></line>{% endfor %}{% if let Some(limit) = c.limit %}<line class="limit" x1="{{ limit.x1 }}" y1="{{ limit.y1 }}" x2="{{ limit.x2 }}" y2="{{ limit.y2 }}"/><text class="limit-label" x="{{ limit.text_x }}" y="{{ limit.text_y }}" text-anchor="{{ limit.anchor }}">20 万</text>{% endif %}
+</svg>{% endmacro %}
