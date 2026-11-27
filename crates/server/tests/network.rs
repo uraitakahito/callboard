@@ -50,6 +50,8 @@ fn link_to(body: &str, name: &str) -> String {
         .find(&format!("\">{name}</a>"))
         .unwrap_or_else(|| panic!("{name} の link が無い: {body}"));
     let start = body[..end].rfind("href=\"").unwrap() + 6;
+    // 字の鍵（data-i18n）が href の後に付くので、href の値は次の `"` まで。
+    let end = start + body[start..end].find('"').unwrap_or(end - start);
     unescape(&body[start..end])
 }
 
@@ -70,7 +72,7 @@ async fn 相関図は_callboard_が配る_script_だけを読み_inline_の_scri
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(headers.get(header::CONTENT_SECURITY_POLICY).is_some());
     assert!(
-        body.contains("<title>相関図 ・ callboard</title>"),
+        body.contains("<title data-i18n=\"network.title\">相関図 ・ callboard</title>"),
         "{body}"
     );
     for inline in ["<style", "style="] {
@@ -258,12 +260,12 @@ async fn 相関図は_見出しと行き来と説明と凡例を決めた字で�
     let app = start().await;
     let body = app.html("/graph/network").await;
     for word in [
-        "<legend>絞り込み</legend>",
-        "ラベル <input",
+        "<legend data-i18n=\"filters.legend\">絞り込み</legend>",
+        "<span data-i18n=\"filters.label\">ラベル</span> <input",
         "登録した期間（から）",
         "期間（今の条件のまま、期間だけを替えます）",
-        "<button type=\"submit\">絞り込む</button>",
-        "<legend>表示する点を選ぶ</legend>",
+        "<button type=\"submit\" data-i18n=\"filters.submit\">絞り込む</button>",
+        "<legend data-i18n=\"network.controls.legend\">表示する点を選ぶ</legend>",
         "薄い点は停止したアクターです",
         "角のある形: 人",
         "実線の矢印: 起動した",

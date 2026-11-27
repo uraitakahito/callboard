@@ -1,47 +1,48 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
-{% block title %}アクターの一覧{% endblock %}
+{% block title_attrs %} data-i18n="list.title"{% endblock %}
+{% block title %}{{ "list.title"|t }}{% endblock %}
 {% block main %}
-<h1>アクター <span class="kind"><a href="{{ nav.timeline }}">タイムライン</a> ・ <a href="{{ nav.network }}">相関図</a></span></h1>
+<h1><span data-i18n="list.heading">{{ "list.heading"|t }}</span> <span class="kind"><a href="{{ nav.timeline }}" data-i18n="nav.timeline">{{ "nav.timeline"|t }}</a> ・ <a href="{{ nav.network }}" data-i18n="nav.network">{{ "nav.network"|t }}</a></span></h1>
 <form class="filters" method="get" action="/actors/">
 <fieldset>
-<legend>絞り込み</legend>
+<legend data-i18n="filters.legend">{{ "filters.legend"|t }}</legend>
 <div class="fields">
 {% for label in form.labels %}
-<label>ラベル <input name="label" value="{{ label }}" placeholder="tpm.key:t-23zs"></label>
+<label><span data-i18n="filters.label">{{ "filters.label"|t }}</span> <input name="label" value="{{ label }}" placeholder="tpm.key:t-23zs"></label>
 {% endfor %}
-<label>ラベル <input name="label" value="" placeholder="tpm.key:t-23zs"></label>
-<label>状態 <select name="active">
-<option value="">すべて</option>
-<option value="true"{% if form.active == "true" %} selected{% endif %}>稼働中</option>
-<option value="false"{% if form.active == "false" %} selected{% endif %}>停止</option>
+<label><span data-i18n="filters.label">{{ "filters.label"|t }}</span> <input name="label" value="" placeholder="tpm.key:t-23zs"></label>
+<label><span data-i18n="filters.state">{{ "filters.state"|t }}</span> <select name="active">
+<option value="" data-i18n="filters.all">{{ "filters.all"|t }}</option>
+<option value="true"{% if form.active == "true" %} selected{% endif %} data-i18n="common.state.running">{{ "common.state.running"|t }}</option>
+<option value="false"{% if form.active == "false" %} selected{% endif %} data-i18n="common.state.stopped">{{ "common.state.stopped"|t }}</option>
 </select></label>
-<label>種類 <select name="kind">
-<option value="">すべて</option>
-<option value="human"{% if form.kind == "human" %} selected{% endif %}>人</option>
+<label><span data-i18n="filters.kind">{{ "filters.kind"|t }}</span> <select name="kind">
+<option value="" data-i18n="filters.all">{{ "filters.all"|t }}</option>
+<option value="human"{% if form.kind == "human" %} selected{% endif %} data-i18n="common.kind.human">{{ "common.kind.human"|t }}</option>
 </select></label>
 <label>model <input name="model" value="{{ form.model }}" placeholder="claude-opus-5-5"></label>
 <label>effort <input name="effort" value="{{ form.effort }}" placeholder="high"></label>
-<label>稼働した期間（から） <input type="datetime-local" step="any" name="active_from" value="{{ form.active_from }}"></label>
-<label>（まで） <input type="datetime-local" step="any" name="active_to" value="{{ form.active_to }}"></label>
-<label class="check"><input type="checkbox" name="skewed" value="true"{% if form.skewed %} checked{% endif %}> 時刻ずれあり</label>
+<label><span data-i18n="list.filters.activeFrom">{{ "list.filters.activeFrom"|t }}</span> <input type="datetime-local" step="any" name="active_from" value="{{ form.active_from }}"></label>
+<label><span data-i18n="filters.to">{{ "filters.to"|t }}</span> <input type="datetime-local" step="any" name="active_to" value="{{ form.active_to }}"></label>
+<label class="check"><input type="checkbox" name="skewed" value="true"{% if form.skewed %} checked{% endif %}> <span data-i18n="list.filters.skewed">{{ "list.filters.skewed"|t }}</span></label>
 {% for (name, value) in form.hidden %}
 <input type="hidden" name="{{ name }}" value="{{ value }}">
 {% endfor %}
 </div>
 {% call m::quick(quick) %}{% endcall %}
-<div class="actions"><button type="submit">絞り込む</button> <a href="/actors/">条件を消す</a></div>
+<div class="actions"><button type="submit" data-i18n="filters.submit">{{ "filters.submit"|t }}</button> <a href="/actors/" data-i18n="filters.clear">{{ "filters.clear"|t }}</a></div>
 </fieldset>
 </form>
 {% if defaulted %}
-<p class="note">条件が無いので、この {{ days }} 日に稼働したアクター（登場の記録があるアクター）を新しい順に表示しています。登場の記録が無いアクターは、ラベルなどで絞り込むと表示されます。</p>
+<p class="note" data-i18n="list.defaulted" data-i18n-options="{{ "days"|opts1(days) }}">{{ "list.defaulted"|t1("days", days) }}</p>
 {% endif %}
 {% if rows.is_empty() %}
-<p class="empty">条件に合うアクターはいません。</p>
+<p class="empty" data-i18n="list.empty">{{ "list.empty"|t }}</p>
 {% else %}
 <div class="scroll">
 <table class="actors">
-<thead><tr><th>名前</th><th>種類</th><th>状態</th><th>課題の Key・役割</th><th>model · effort</th><th>最初の登場</th><th>最後の退場</th><th class="num">額</th><th class="num">いちばん長い文脈</th><th></th></tr></thead>
+<thead><tr><th data-i18n="list.col.name">{{ "list.col.name"|t }}</th><th data-i18n="list.col.kind">{{ "list.col.kind"|t }}</th><th data-i18n="list.col.state">{{ "list.col.state"|t }}</th><th data-i18n="list.col.keyRole">{{ "list.col.keyRole"|t }}</th><th>model · effort</th><th data-i18n="list.col.firstEntered">{{ "list.col.firstEntered"|t }}</th><th data-i18n="list.col.lastExited">{{ "list.col.lastExited"|t }}</th><th class="num" data-i18n="list.col.cost">{{ "list.col.cost"|t }}</th><th class="num" data-i18n="list.col.context">{{ "list.col.context"|t }}</th><th></th></tr></thead>
 <tbody>
 {% for row in rows %}
 <tr>
@@ -59,11 +60,11 @@
 </tbody>
 </table>
 </div>
-{% if let Some((from, to)) = cost_window %}<p class="muted" id="costs">額は、額を数えた期間（時の境に揃えた {% call m::time(from) %}{% endcall %} から {% call m::time(to) %}{% endcall %} まで）の、席の額（本体と手伝い（subagent）の計。使った量を API の値段に直した目安で、払う額ではありません）。いちばん長い文脈は、本体の回だけで出します。</p>{% endif %}
+{% if let Some((from, to)) = cost_window %}<p class="muted" id="costs"><span data-i18n="list.costs.before">{{ "list.costs.before"|t }}</span>{% call m::time(from) %}{% endcall %}<span data-i18n="list.costs.middle">{{ "list.costs.middle"|t }}</span>{% call m::time(to) %}{% endcall %}<span data-i18n="list.costs.after">{{ "list.costs.after"|t }}</span></p>{% endif %}
 {% if let Some(note) = cost_note %}<p class="note">{{ note }}</p>{% endif %}
 {% endif %}
 {% if let Some(next) = next %}
-<p class="more"><a rel="next" href="{{ next }}">次のページ</a></p>
+<p class="more"><a rel="next" href="{{ next }}" data-i18n="common.next">{{ "common.next"|t }}</a></p>
 {% endif %}
 {% endblock %}
-{% block foot %}{% call m::foot() %}{% endcall %} 表示した時刻: {% call m::time(as_of) %}{% endcall %}{% endblock %}
+{% block foot %}{% call m::foot() %}{% endcall %} <span data-i18n="common.asOf">{{ "common.asOf"|t }}</span> {% call m::time(as_of) %}{% endcall %}{% endblock %}

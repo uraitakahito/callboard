@@ -10,5 +10,309 @@
   },
   "lang": {
     "label": "言語"
+  },
+  "common": {
+    "quick": "期間（今の条件のまま、期間だけを替えます）:",
+    "skew": {
+      "label": "時刻ずれ",
+      "title": "送り手の時計が、castlist の時計と 5 分より離れています"
+    },
+    "state": {
+      "running": "稼働中",
+      "stopped": "停止",
+      "stoppedInferred": "停止（推し）"
+    },
+    "kind": {
+      "human": "人"
+    },
+    "foot": "時刻は日本時間（UTC+9）で、castlist が受け取った時刻です。時刻にマウスを重ねると ISO 8601 の形で表示します。",
+    "chart": {
+      "limit": "20 万"
+    },
+    "next": "次のページ",
+    "asOf": "表示した時刻:",
+    "toActors": "一覧へ",
+    "toTimeline": "タイムラインへ",
+    "toNetwork": "相関図へ",
+    "noRecord": "記録なし",
+    "turns": "回",
+    "window": {
+      "before": "集めた期間: "
+    },
+    "tray": {
+      "toolbar": "操作の帯",
+      "filters": "絞り込みの列",
+      "list": "一覧の列",
+      "reset": "絞り込みを外す",
+      "fresh": "● 新着",
+      "more": "続きを出す"
+    }
+  },
+  "home": {
+    "title": "入口 ・ callboard",
+    "legend": "アクターの台帳（castlist）と、ページの置き場（pagetray）の画面の入口です。",
+    "connected": "つながっています",
+    "version": "版",
+    "unreachable": "届きません"
+  },
+  "error": {
+    "home": "入口へ"
+  },
+  "filters": {
+    "legend": "絞り込み",
+    "label": "ラベル",
+    "state": "状態",
+    "all": "すべて",
+    "kind": "種類",
+    "to": "（まで）",
+    "submit": "絞り込む",
+    "clear": "条件を消す",
+    "registeredFrom": "登録した期間（から）"
+  },
+  "list": {
+    "title": "アクターの一覧 ・ callboard",
+    "heading": "アクター",
+    "filters": {
+      "activeFrom": "稼働した期間（から）",
+      "skewed": "時刻ずれあり"
+    },
+    "defaulted": "条件が無いので、この {{days}} 日に稼働したアクター（登場の記録があるアクター）を新しい順に表示しています。登場の記録が無いアクターは、ラベルなどで絞り込むと表示されます。",
+    "empty": "条件に合うアクターはいません。",
+    "col": {
+      "name": "名前",
+      "kind": "種類",
+      "state": "状態",
+      "keyRole": "課題の Key・役割",
+      "firstEntered": "最初の登場",
+      "lastExited": "最後の退場",
+      "cost": "額",
+      "context": "いちばん長い文脈"
+    },
+    "costs": {
+      "before": "額は、額を数えた期間（時の境に揃えた ",
+      "middle": " から ",
+      "after": " まで）の、席の額（本体と手伝い（subagent）の計。使った量を API の値段に直した目安で、払う額ではありません）。いちばん長い文脈は、本体の回だけで出します。"
+    }
+  },
+  "messages": {
+    "title": "メッセージの記録 ・ callboard",
+    "titleWaiting": "まだ届いていない {{n}} 件 ・ メッセージの記録 ・ callboard",
+    "heading": "メッセージの記録",
+    "undelivered": "まだ届いていない {{n}} 件",
+    "undeliveredTitle": "まだ届いていないメッセージだけに絞る",
+    "delivered": "届いた",
+    "via": "渡した時: {{via}}",
+    "again": "渡し直し {{n}} 度",
+    "empty": "合うメッセージは無い",
+    "foot": "時刻は日本時間（UTC+9）で、送り手が書いた時刻です。時刻にマウスを重ねると ISO 8601 の形で表示します。"
+  },
+  "network": {
+    "title": "相関図 ・ callboard",
+    "heading": "相関図",
+    "noscript": {
+      "before": "この画面は JavaScript で描きます。JavaScript を切っている時は、同じ条件の",
+      "link": "タイムライン",
+      "after": "をお使いください（JavaScript を使いません）。"
+    },
+    "controls": {
+      "legend": "表示する点を選ぶ"
+    },
+    "legend": "点は 1 つのアクターで、名前を下に書きます。色は最新の model、形は種類です。薄い点は停止したアクターです。点を押すとプロフィールを、名前にマウスを重ねると model · effort と状態を表示します。点はドラッグで動かせます（元の並びに戻すには、ページを読み直します）。",
+    "keys": {
+      "otherModel": "ほかの model",
+      "human": "角のある形: 人",
+      "launched": "実線の矢印: 起動した",
+      "continued": "点線の矢印: 引き継いだ（/clear の交代・fork の分身）"
+    }
+  },
+  "timeline": {
+    "title": "タイムライン ・ callboard",
+    "heading": "タイムライン",
+    "legend": "横は castlist が受け取った時刻（日本時間）です。行は 1 つのアクターで、人を上に、ほかは最初の登場の順に並べます。帯は稼働していた期間で、model と effort が替わった所で区切ります。帯にマウスを重ねると、値と時刻を表示します。名前を押すとプロフィールを表示します。{{n}} のアクター。",
+    "keys": {
+      "launched": "実線: 起動した（起動した時刻から、起動されたアクターの帯の始まりへ）",
+      "continued": "点線: 引き継いだ（引き継ぎ元の帯の終わりから、引き継ぎ先の帯の始まりへ）",
+      "compacted": "要約",
+      "reportedIn": "名乗り",
+      "modelUnreadable": "model 不明",
+      "open": "右端が尖った帯: まだ稼働中（か、表示する期間の外へ続く）",
+      "inferred": "点線の帯: 便りが途絶えた後、roster が落ちたと推して閉じた（推しの幕引きまで）"
+    },
+    "now": "今（表示した時刻）",
+    "empty": {
+      "before": "条件に合うアクターはいません。条件を減らすか、",
+      "link": "条件を消して",
+      "after": "ください。"
+    }
+  },
+  "pages": {
+    "title": "ページの置き場 ・ callboard",
+    "titleWaiting": "返事待ち {{n}} 件 ・ ページの置き場 ・ callboard",
+    "heading": "ページの置き場",
+    "search": {
+      "placeholder": "題と本文を探す",
+      "submit": "探す"
+    },
+    "sort": {
+      "title": "並びを替える",
+      "label": "並び: {{sort}}"
+    },
+    "count": "{{n}} 件",
+    "untitled": "（題なし）",
+    "reviews": "レビュー:",
+    "empty": "合うページは無い",
+    "files": {
+      "label": "file の枠",
+      "heading": "この Key の file",
+      "empty": "この Key の file は無い"
+    },
+    "upload": {
+      "label": "上げる枠",
+      "heading": "file を上げる",
+      "noscript": "上げるには script が要る。",
+      "drop": "file を選ぶか、ここに落とす",
+      "reviewed": "秘密（token・鍵・個人の情報・ほかの人の画面）が写っていないか見た",
+      "submit": "送る"
+    },
+    "viewer": {
+      "label": "本文の枠",
+      "open": "別の tab で開く",
+      "frame": "選んだページ",
+      "empty": "ページを選ぶと、ここに 1 枚だけ出る"
+    },
+    "foot": "時刻は日本時間（UTC+9）で、pagetray が受け取った時刻です。時刻にマウスを重ねると ISO 8601 の形で表示します。"
+  },
+  "profile": {
+    "issuer": "発行元（issuer）",
+    "registered": "登録した時刻",
+    "state": {
+      "heading": "今の状態"
+    },
+    "usage": {
+      "heading": "使用量（直近 31 日）",
+      "error": "数を読めません（{{why}}）。",
+      "costSplit": "（本体 {{main}}・手伝い {{helper}}）",
+      "helperTurns": "（手伝い {{n}}）",
+      "truncated": "記録が多すぎて、全部を読めませんでした。上の数と図は、読めた分だけの物です。",
+      "keys": {
+        "context": "線: 1 時間ごとの、本体の回のいちばん長い文脈（記録の無い時は切る）",
+        "compact": "縦の点線: 要約（圧縮）。マウスを重ねると時刻と、前と後の文脈の長さ"
+      },
+      "empty": "この 31 日に、数の記録はありません。",
+      "window": {
+        "after": " まで（時の境に揃えています）。額は、使った量を API の値段に直した目安で、払う額ではありません。いちばん長い文脈と線は、本体の回だけで出します。"
+      },
+      "toUsage": "使用量の画面へ"
+    },
+    "labels": {
+      "heading": "ラベル"
+    },
+    "none": "ありません。",
+    "bindings": {
+      "heading": "外部の id",
+      "value": "値",
+      "key": "キー",
+      "current": "今"
+    },
+    "col": {
+      "received": "受け取った時刻"
+    },
+    "launchedBy": {
+      "heading": "起動した人",
+      "none": "ありません（起点）。"
+    },
+    "children": {
+      "heading": "起動したアクター"
+    },
+    "continued": {
+      "heading": "引き継ぎ",
+      "before": "引き継ぎ元",
+      "after": "引き継ぎ先"
+    },
+    "settings": {
+      "heading": "model と effort の履歴",
+      "source": "指定・実際",
+      "mismatch": "食い違い",
+      "mismatchTitle": "その前に指定した model か effort と違います",
+      "mismatchNote": "食い違い: 実際の値のうち、その前に最後に指定した値と model か effort が違う物です。"
+    },
+    "events": {
+      "heading": "出来事",
+      "event": "出来事",
+      "reason": "理由（reason）",
+      "source": "きっかけ（source）",
+      "sent": "送り手の時刻"
+    }
+  },
+  "usage": {
+    "title": "使用量 ・ callboard",
+    "heading": "使用量",
+    "subheading": "トークンの数と、額の目安",
+    "filters": {
+      "from": "期間（から）"
+    },
+    "window": {
+      "after": " まで（日本時間。記録が 1 時間ごとなので、期間を時の境に揃えています）。",
+      "afterDefaulted": " まで（日本時間。記録が 1 時間ごとなので、期間を時の境に揃えています。期間が無いので、直近 {{days}} 日を表示しています）。"
+    },
+    "tooMany": "記録が多すぎて、全部を読めませんでした（{{read}} 行まで読みました）。下の数は、読めた分だけの数です。期間を狭めてください。",
+    "tooSlow": "時間内に、全部を読めませんでした（{{read}} 行まで読みました）。下の数は、読めた分だけの数です。期間を狭めてください。",
+    "total": {
+      "heading": "全体",
+      "seats": "席（アクター）",
+      "helperTurns": "手伝い（subagent）の回",
+      "helperCost": "（額 {{cost}}）",
+      "helperCostShare": "（額 {{cost}}。全体の額の {{share}}）"
+    },
+    "byContext": {
+      "heading": "文脈の長さの段ごとの額（本体の回）",
+      "legend": "横は文脈の長さ（{{width}}刻みの段。目盛りは段の下の端）、縦はその段の回の額です。点線は 20 万。棒にマウスを重ねると、段と額と回の数を表示します。",
+      "empty": "この期間に、本体の回の記録はありません。"
+    },
+    "bySlot": {
+      "heading": "{{unit}}ごとの額（日本時間）",
+      "main": "本体",
+      "helper": "手伝い（subagent。本体の上に積む）",
+      "legend": "行の{{unit}}は、記録の区間の終わりの時刻で決めます。集めた期間が 1 日までなら時ごと、1 日より長ければ日ごと（日本時間の 0 時で区切る）にします。",
+      "table": "{{unit}}ごとの額を、表で見る"
+    },
+    "col": {
+      "helper": "手伝い",
+      "sum": "計",
+      "role": "役割",
+      "seats": "席",
+      "mainTurns": "回（本体）",
+      "mainCost": "額（本体）",
+      "share": "全体の額に対する比",
+      "median": "文脈の長さの中央",
+      "p90": "上から 1 割",
+      "overTurns": "20 万以上の回",
+      "overCost": "20 万以上の回の額",
+      "helperCost": "手伝いの額",
+      "subject": "課題",
+      "allTurns": "回（本体と手伝い）",
+      "allCost": "額（本体と手伝い）"
+    },
+    "roles": {
+      "heading": "役割ごと"
+    },
+    "noName": "（無し）",
+    "subjects": {
+      "heading": "課題ごと"
+    },
+    "notes": {
+      "cost": "額は、使った量を API の値段に直した目安で、払う額ではありません。",
+      "groups": {
+        "before": "役割はラベル ",
+        "subject": "、課題はラベル ",
+        "fallback": "（無ければ ",
+        "after": "）で分けます。"
+      },
+      "context": "文脈の長さ（中央・上から 1 割・いちばん長い文脈・20 万以上の回）は、本体の回だけで出します（手伝い（subagent）の回は、自分の短い文脈で動くので混ぜません）。",
+      "bands": "中央と上から 1 割は、{{width}}刻みの段から出した近い値です（その回が入る段の下の端。「22.5 万〜」は、22.5 万以上 25 万未満）。",
+      "delay": "稼働中の席の数は、長くて 1 時間ほど遅れて出ます。"
+    },
+    "empty": "この期間に、数の記録はありません。",
+    "foot": "時刻は日本時間（UTC+9）です。時刻にマウスを重ねると ISO 8601 の形で表示します。"
   }
 }

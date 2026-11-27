@@ -10,5 +10,309 @@
   },
   "lang": {
     "label": "Language"
+  },
+  "common": {
+    "quick": "Period (keeps the other filters and changes only the period):",
+    "skew": {
+      "label": "Clock skew",
+      "title": "The sender's clock is more than 5 minutes off from castlist's clock"
+    },
+    "state": {
+      "running": "Running",
+      "stopped": "Stopped",
+      "stoppedInferred": "Stopped (inferred)"
+    },
+    "kind": {
+      "human": "Human"
+    },
+    "foot": "Times are Japan time (UTC+9), as received by castlist. Hover over a time to see it in ISO 8601.",
+    "chart": {
+      "limit": "200k"
+    },
+    "next": "Next page",
+    "asOf": "Shown at:",
+    "toActors": "Actor list",
+    "toTimeline": "Timeline",
+    "toNetwork": "Network",
+    "noRecord": "No record",
+    "turns": "Turns",
+    "window": {
+      "before": "Collected period: "
+    },
+    "tray": {
+      "toolbar": "Toolbar",
+      "filters": "Filters column",
+      "list": "List column",
+      "reset": "Remove filters",
+      "fresh": "● New",
+      "more": "Show more"
+    }
+  },
+  "home": {
+    "title": "Home · callboard",
+    "legend": "The entry to the screens of the actor ledger (castlist) and the page store (pagetray).",
+    "connected": "Connected",
+    "version": "Version",
+    "unreachable": "Unreachable"
+  },
+  "error": {
+    "home": "Go to home"
+  },
+  "filters": {
+    "legend": "Filters",
+    "label": "Label",
+    "state": "State",
+    "all": "All",
+    "kind": "Kind",
+    "to": "(to)",
+    "submit": "Apply",
+    "clear": "Clear filters",
+    "registeredFrom": "Registered period (from)"
+  },
+  "list": {
+    "title": "Actors · callboard",
+    "heading": "Actors",
+    "filters": {
+      "activeFrom": "Active period (from)",
+      "skewed": "With clock skew"
+    },
+    "defaulted": "No filters are set, so this shows actors active in the last {{days}} days (actors with an entry record), newest first. Actors without an entry record appear when you filter by a label or similar.",
+    "empty": "No actors match the filters.",
+    "col": {
+      "name": "Name",
+      "kind": "Kind",
+      "state": "State",
+      "keyRole": "Issue key · role",
+      "firstEntered": "First entered",
+      "lastExited": "Last exited",
+      "cost": "Cost",
+      "context": "Longest context"
+    },
+    "costs": {
+      "before": "Cost is each seat's cost over the counted window (aligned to the hour, from ",
+      "middle": " to ",
+      "after": "): the main session plus helpers (subagents), an estimate of usage at API prices, not an amount paid. The longest context counts the main session's turns only."
+    }
+  },
+  "messages": {
+    "title": "Message log · callboard",
+    "titleWaiting": "Undelivered: {{n}} · Message log · callboard",
+    "heading": "Message log",
+    "undelivered": "Undelivered: {{n}}",
+    "undeliveredTitle": "Show only undelivered messages",
+    "delivered": "Delivered",
+    "via": "Delivered via: {{via}}",
+    "again": "Redelivered: {{n}}",
+    "empty": "No matching messages",
+    "foot": "Times are Japan time (UTC+9), as written by the sender. Hover over a time to see it in ISO 8601."
+  },
+  "network": {
+    "title": "Network · callboard",
+    "heading": "Network",
+    "noscript": {
+      "before": "This screen is drawn with JavaScript. With JavaScript turned off, use the ",
+      "link": "timeline",
+      "after": " with the same filters (it does not use JavaScript)."
+    },
+    "controls": {
+      "legend": "Choose nodes to show"
+    },
+    "legend": "Each node is an actor, with its name below. Color is the latest model; shape is the kind. Faded nodes are stopped actors. Click a node to open its profile; hover over a name to see model · effort and state. You can drag nodes (reload the page to restore the layout).",
+    "keys": {
+      "otherModel": "Other model",
+      "human": "Angular shape: human",
+      "launched": "Solid arrow: launched",
+      "continued": "Dotted arrow: continued (/clear handoff or fork)"
+    }
+  },
+  "timeline": {
+    "title": "Timeline · callboard",
+    "heading": "Timeline",
+    "legend": "The horizontal axis is the time castlist received (Japan time). Each row is an actor: humans first, then the rest by first entry. Bars are running periods, split where model or effort changed. Hover over a bar to see its values and times. Click a name to open the profile. Actors: {{n}}.",
+    "keys": {
+      "launched": "Solid line: launched (from the launch time to the start of the launched actor's bar)",
+      "continued": "Dotted line: continued (from the end of the previous bar to the start of the next)",
+      "compacted": "Compaction",
+      "reportedIn": "Reported in",
+      "modelUnreadable": "Unknown model",
+      "open": "Pointed right end: still running (or continues past the shown period)",
+      "inferred": "Dotted bar: closed after roster inferred a crash when heartbeats stopped (up to the inferred exit)"
+    },
+    "now": "Now (time shown)",
+    "empty": {
+      "before": "No actors match the filters. Remove some filters, or ",
+      "link": "clear them",
+      "after": "."
+    }
+  },
+  "pages": {
+    "title": "Page store · callboard",
+    "titleWaiting": "Awaiting reply: {{n}} · Page store · callboard",
+    "heading": "Page store",
+    "search": {
+      "placeholder": "Search titles and text",
+      "submit": "Search"
+    },
+    "sort": {
+      "title": "Change the order",
+      "label": "Order: {{sort}}"
+    },
+    "count": "{{n}}",
+    "untitled": "(untitled)",
+    "reviews": "Reviews:",
+    "empty": "No matching pages",
+    "files": {
+      "label": "Files panel",
+      "heading": "Files for this key",
+      "empty": "No files for this key"
+    },
+    "upload": {
+      "label": "Upload panel",
+      "heading": "Upload a file",
+      "noscript": "Uploading requires JavaScript.",
+      "drop": "Choose a file or drop it here",
+      "reviewed": "I checked that it shows no secrets (tokens, keys, personal information, other people's screens)",
+      "submit": "Upload"
+    },
+    "viewer": {
+      "label": "Page panel",
+      "open": "Open in a new tab",
+      "frame": "Selected page",
+      "empty": "Select a page to show it here"
+    },
+    "foot": "Times are Japan time (UTC+9), as received by pagetray. Hover over a time to see it in ISO 8601."
+  },
+  "profile": {
+    "issuer": "Issuer",
+    "registered": "Registered at",
+    "state": {
+      "heading": "Current state"
+    },
+    "usage": {
+      "heading": "Usage (last 31 days)",
+      "error": "Could not read the counts ({{why}}).",
+      "costSplit": " (main {{main}}, helpers {{helper}})",
+      "helperTurns": " (helpers {{n}})",
+      "truncated": "There were too many records to read them all. The numbers and chart above cover only what was read.",
+      "keys": {
+        "context": "Line: longest context of the main session's turns per hour (broken where there are no records)",
+        "compact": "Vertical dotted line: compaction. Hover to see the time and the context length before and after"
+      },
+      "empty": "No usage records in the last 31 days.",
+      "window": {
+        "after": " (aligned to the hour). Cost is an estimate of usage at API prices, not an amount paid. The longest context and the line count the main session's turns only. "
+      },
+      "toUsage": "Usage screen"
+    },
+    "labels": {
+      "heading": "Labels"
+    },
+    "none": "None.",
+    "bindings": {
+      "heading": "External IDs",
+      "value": "Value",
+      "key": "Key",
+      "current": "Current"
+    },
+    "col": {
+      "received": "Received at"
+    },
+    "launchedBy": {
+      "heading": "Launched by",
+      "none": "None (origin)."
+    },
+    "children": {
+      "heading": "Launched actors"
+    },
+    "continued": {
+      "heading": "Continuation",
+      "before": "Continued from",
+      "after": "Continued by"
+    },
+    "settings": {
+      "heading": "model and effort history",
+      "source": "Requested / actual",
+      "mismatch": "Mismatch",
+      "mismatchTitle": "Differs from the model or effort requested before it",
+      "mismatchNote": "Mismatch: an actual value whose model or effort differs from the last requested value before it."
+    },
+    "events": {
+      "heading": "Events",
+      "event": "Event",
+      "reason": "Reason",
+      "source": "Trigger (source)",
+      "sent": "Sender's time"
+    }
+  },
+  "usage": {
+    "title": "Usage · callboard",
+    "heading": "Usage",
+    "subheading": "Token counts and estimated cost",
+    "filters": {
+      "from": "Period (from)"
+    },
+    "window": {
+      "after": " (Japan time; records are hourly, so the period is aligned to the hour).",
+      "afterDefaulted": " (Japan time; records are hourly, so the period is aligned to the hour. No period was set, so this shows the last {{days}} days)."
+    },
+    "tooMany": "There were too many records to read them all (read {{read}} rows). The numbers below cover only what was read. Narrow the period.",
+    "tooSlow": "Could not read all records in time (read {{read}} rows). The numbers below cover only what was read. Narrow the period.",
+    "total": {
+      "heading": "Overall",
+      "seats": "Seats (actors)",
+      "helperTurns": "Helper (subagent) turns",
+      "helperCost": " (cost {{cost}})",
+      "helperCostShare": " (cost {{cost}}; {{share}} of the total cost)"
+    },
+    "byContext": {
+      "heading": "Cost by context length band (main session turns)",
+      "legend": "The horizontal axis is context length (bands of {{width}}; ticks mark each band's lower edge), the vertical axis is the cost of turns in that band. The dotted line is 200k. Hover over a bar to see the band, cost and number of turns.",
+      "empty": "No main session turns in this period."
+    },
+    "bySlot": {
+      "heading": "Cost per {{unit}} (Japan time)",
+      "main": "Main",
+      "helper": "Helpers (subagents; stacked on main)",
+      "legend": "Each row's {{unit}} is set by the end time of the record's interval. Periods up to 1 day are shown per hour; longer periods per day (split at midnight Japan time).",
+      "table": "Show cost per {{unit}} as a table"
+    },
+    "col": {
+      "helper": "Helpers",
+      "sum": "Total",
+      "role": "Role",
+      "seats": "Seats",
+      "mainTurns": "Turns (main)",
+      "mainCost": "Cost (main)",
+      "share": "Share of total cost",
+      "median": "Median context",
+      "p90": "Top 10%",
+      "overTurns": "Turns ≥ 200k",
+      "overCost": "Cost of turns ≥ 200k",
+      "helperCost": "Helper cost",
+      "subject": "Issue",
+      "allTurns": "Turns (main + helpers)",
+      "allCost": "Cost (main + helpers)"
+    },
+    "roles": {
+      "heading": "By role"
+    },
+    "noName": "(none)",
+    "subjects": {
+      "heading": "By issue"
+    },
+    "notes": {
+      "cost": "Cost is an estimate of usage at API prices, not an amount paid.",
+      "groups": {
+        "before": "Roles are grouped by the label ",
+        "subject": ", issues by the label ",
+        "fallback": " (or ",
+        "after": " if missing)."
+      },
+      "context": "Context lengths (median, top 10%, longest context, turns ≥ 200k) count the main session's turns only (helper (subagent) turns run in their own short contexts, so they are left out).",
+      "bands": "The median and top 10% are approximations from bands of {{width}} (the lower edge of the band the turn falls in; \"225k–\" means at least 225k and under 250k).",
+      "delay": "Numbers for running seats can lag by up to about an hour."
+    },
+    "empty": "No usage records in this period.",
+    "foot": "Times are Japan time (UTC+9). Hover over a time to see it in ISO 8601."
   }
 }

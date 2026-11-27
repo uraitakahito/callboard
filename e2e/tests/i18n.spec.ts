@@ -162,3 +162,33 @@ test('cookie が英語で英語の訳が届かない時も、日本語を選び�
   await expect.poll(async () => (await context.cookies()).find((c) => c.name === 'callboard-lang')?.value).toBe('ja');
   await context.close();
 });
+
+test('英語のブラウザーでは、どの画面も鍵を付けた字と属性と題を英語に差し替える（日本語が残らない）', async ({ browser }) => {
+  const { context, page } = await open(browser, 'en-US');
+  const problems = collectProblems(page);
+  for (const path of ['/', '/actors/', '/graph/timeline', '/graph/network', '/usage/', '/messages', '/pages/']) {
+    await page.goto(path);
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    // メッセージとページの一覧は、新着を読み直した時に server の題（日本語）を写す。段 5 で直すので、それまで題を見ない。
+    const skipTitle = path === '/messages' || path === '/pages/';
+    const left = await page.evaluate((skipTitle) => {
+      const japanese = /[ぁ-んァ-ヶ一-龠]/;
+      const out: string[] = [];
+      // 値を差し込む要素は、値（Rust が組む字）がまだ日本語の所がある（段 4 で鍵にする）。段 4 でこの除外を外す。
+      for (const element of document.querySelectorAll(skipTitle ? '[data-i18n]:not([data-i18n-options]):not(title)' : '[data-i18n]:not([data-i18n-options])')) {
+        if (japanese.test(element.textContent ?? '')) out.push(`${element.getAttribute('data-i18n')}: ${element.textContent}`);
+      }
+      for (const element of document.querySelectorAll('[data-i18n-attr]')) {
+        for (const pair of element.getAttribute('data-i18n-attr')!.split(';')) {
+          const name = pair.split(':')[0].trim();
+          if (japanese.test(element.getAttribute(name) ?? '')) out.push(`${pair}: ${element.getAttribute(name)}`);
+        }
+      }
+      return out;
+    }, skipTitle);
+    expect(left, path).toEqual([]);
+    if (!skipTitle) expect(await page.title(), path).not.toMatch(/[ぁ-んァ-ヶ一-龠]/);
+  }
+  expect(problems).toEqual([]);
+  await context.close();
+});

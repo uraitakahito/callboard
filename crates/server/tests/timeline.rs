@@ -121,7 +121,7 @@ async fn タイムラインは_アクターごとに_1_行で_人を上に初め
     let app = start(answer()).await;
     let body = app.html("/graph/timeline").await;
     assert!(
-        body.contains("<title>タイムライン ・ callboard</title>"),
+        body.contains("<title data-i18n=\"timeline.title\">タイムライン ・ callboard</title>"),
         "{body}"
     );
     assert!(body.contains("4 のアクター。"), "{body}");
@@ -189,7 +189,7 @@ async fn タイムラインは_model_の替わり目で帯を区切り_推しの
     // 今（castlist が答えた時刻）の線と、表示した時刻。
     assert!(svg.contains("<line class=\"now\""), "{svg}");
     assert!(
-        body.contains("表示した時刻: <time datetime=\"2026-11-22T06:00:00.000Z\""),
+        body.contains("<span data-i18n=\"common.asOf\">表示した時刻:</span> <time datetime=\"2026-11-22T06:00:00.000Z\""),
         "{body}"
     );
     // 凡例は、出てくる model（短い名の順）。
@@ -229,7 +229,7 @@ async fn タイムラインの絞りは_castlist_の_api_に渡し_期間を付�
     assert!(body.contains("name=\"to\" value=\"2026-11-22T12:00\""));
     assert!(body.contains("<form class=\"filters\" method=\"get\" action=\"/graph/timeline\">"));
     assert!(
-        body.contains("<a href=\"/actors/\">一覧へ</a> ・ <a href=\"/graph/network\">相関図へ</a>"),
+        body.contains("<a href=\"/actors/\" data-i18n=\"common.toActors\">一覧へ</a> ・ <a href=\"/graph/network\" data-i18n=\"common.toNetwork\">相関図へ</a>"),
         "{body}"
     );
     assert!(
@@ -242,7 +242,7 @@ async fn タイムラインの絞りは_castlist_の_api_に渡し_期間を付�
 async fn タイムラインに当たる者が無ければ_そう書き_svg_を出さない() {
     let app = start(json!({"asOf": "2026-11-22T06:00:00Z", "nodes": [], "edges": [], "events": [], "settings": []})).await;
     let body = app.html("/graph/timeline?label=a:b").await;
-    assert!(body.contains("条件に合うアクターはいません。条件を減らすか、<a href=\"/graph/timeline\">条件を消して</a>ください。"), "{body}");
+    assert!(body.contains("<span data-i18n=\"timeline.empty.before\">条件に合うアクターはいません。条件を減らすか、</span><a href=\"/graph/timeline\" data-i18n=\"timeline.empty.link\">条件を消して</a><span data-i18n=\"timeline.empty.after\">ください。</span>"), "{body}");
     assert!(!body.contains("<svg"), "{body}");
 }
 
