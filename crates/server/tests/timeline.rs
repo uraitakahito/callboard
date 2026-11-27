@@ -342,3 +342,77 @@ async fn castlist_に聞けなければ_503_の画面で_訳を書き_聞く先�
         "{body}"
     );
 }
+
+/// アクターの多いタイムラインの答え（1 人に登場と要約と model の替わり目。線は、前のアクターが次を起こした鎖）。
+fn big(n: usize) -> Value {
+    let id = |i: usize| format!("019a0000-0000-7000-8000-{i:012x}");
+    let at = |i: usize, s: usize| format!("2026-11-22T{:02}:{:02}:{:02}Z", i / 60 % 24, i % 60, s);
+    let mut nodes = Vec::new();
+    let mut edges = Vec::new();
+    let mut events = Vec::new();
+    let mut settings = Vec::new();
+    for i in 0..n {
+        nodes.push(node(
+            &id(i),
+            &format!("se.{i}"),
+            "ai",
+            &at(i, 0),
+            Some(&at(i, 1)),
+        ));
+        if i > 0 {
+            edges.push(link(&format!("l-{i}"), "launched", &id(i - 1), &id(i)));
+        }
+        events.push(event(&id(i), "entered", &at(i, 1)));
+        events.push(event(&id(i), "compacted", &at(i, 30)));
+        settings.push(setting(&id(i), "requested", "claude-opus-5-5", &at(i, 0)));
+        settings.push(setting(&id(i), "observed", "claude-sonnet-5", &at(i, 20)));
+    }
+    json!({"asOf": "2026-11-23T12:00:00Z", "nodes": nodes, "edges": edges, "events": events, "settings": settings})
+}
+
+/// 並べる計算は、tokio の糸の外（spawn_blocking）で走る。糸が 1 本でも、大きなタイムラインを組んでいる間に、
+/// ほかの問い合わせ（/healthz）が待たされない（castlist の画面にあった決まりを、並べる計算と一緒に移した。
+/// callboard の container の CPU は 1 なので、糸の上で組むと、ほかの画面が止まる）。
+#[tokio::test(flavor = "current_thread")]
+async fn 大きなタイムラインを組んでいる間も_ほかの問い合わせを待たせない() {
+    let app = start(big(1500)).await;
+    // 1 度組むのにかかる長さ（これが短すぎると、待たされたかを見分けられない）。
+    let started = std::time::Instant::now();
+    let body = app.html("/graph/timeline").await;
+    let once = started.elapsed();
+    assert!(body.contains("1500 のアクター。"), "図が出ていない");
+    assert!(
+        once > std::time::Duration::from_millis(40),
+        "見本が小さすぎて、並べる計算が {once:?} で終わる（見本を大きくする）"
+    );
+    // 図を 3 つ続けて組ませている間に、/healthz を叩き続ける。
+    let router = app.router.clone();
+    let building = tokio::spawn(async move {
+        for _ in 0..3 {
+            let (status, _, _) = common::send(&router, get("/graph/timeline")).await;
+            assert_eq!(status, StatusCode::OK);
+        }
+    });
+    // 1 回りは「1 ms 待つ → /healthz を問う」。糸が塞がれていれば、待ちから戻るのが遅れるので、1 回りの長さで見る
+    // （/healthz だけの長さでは見えない: 問い始めてから答えるまでに、糸をほかへ譲る所が無い）。
+    let mut slowest = std::time::Duration::ZERO;
+    let mut asked = 0;
+    while !building.is_finished() {
+        let started = std::time::Instant::now();
+        tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+        let (status, _, _) = app.send(get("/healthz")).await;
+        assert_eq!(status, StatusCode::OK);
+        slowest = slowest.max(started.elapsed());
+        asked += 1;
+    }
+    building.await.unwrap();
+    assert!(
+        asked >= 3,
+        "組んでいる間に /healthz を {asked} 回しか問えていない"
+    );
+    // 糸の上で組んでいれば、1 回りは図 1 つ分（once）ほど待たされる。
+    assert!(
+        slowest < once / 3,
+        "/healthz が {slowest:?} 待たされた（図を 1 度組むのは {once:?}）"
+    );
+}

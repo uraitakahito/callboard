@@ -1,5 +1,6 @@
 // プロフィール（/actors/{id}）を、本物の castlist を相手に見る。見本の記録は seed.setup.ts が castlist に置く。
-// 「新旧の比べ」: 同じ castlist を相手に、castlist の画面（古い画面）と callboard の画面の中身を比べる。
+// castlist の画面（古い画面）と中身を比べる試験は、castlist が画面を外した 2.0.0 で、比べる相手が無くなったので外した
+// （外す前の比べの結果は、AI-32 の成果のページと、callboard の PR #2・#4 にある）。
 import { expect, test, type APIRequestContext } from '@playwright/test';
 import { CASTLIST } from './helpers';
 
@@ -17,35 +18,18 @@ async function byName(request: APIRequestContext, name: string): Promise<Node> {
   return node!;
 }
 
-/**
- * 画面の `<main>` の中身。時刻の字の秒の下は、3 桁にそろえる（castlist の画面は、送り手の時刻を送られた字のまま出し、
- * callboard は API の時刻をミリ秒までの字にするので、同じ時刻でも字が違う）。
- */
-function main(html: string): string {
-  const found = /<main>([\s\S]*)<\/main>/.exec(html);
-  expect(found, 'main が無い').toBeTruthy();
-  return found![1].replace(/(T\d\d:\d\d:\d\d)(?:\.(\d+))?Z/g, (_, time: string, fraction = '') => `${time}.${`${fraction}000`.slice(0, 3)}Z`);
-}
-
-test('新旧の比べ: どのアクターのプロフィールも、castlist の画面と同じ中身', async ({ request }) => {
+test('どのアクターのプロフィールも開き、無いアクターと id の形でない物は 404 の画面', async ({ request }) => {
   const all = await nodes(request);
   expect(all).toHaveLength(5);
   for (const node of all) {
-    const old = await request.get(`${CASTLIST}/actors/${node.id}`);
-    const now = await request.get(`/actors/${node.id}`);
-    expect(old.status(), node.name).toBe(200);
-    expect(now.status(), node.name).toBe(200);
-    expect(main(await now.text()), node.name).toBe(main(await old.text()));
+    const page = await request.get(`/actors/${node.id}`);
+    expect(page.status(), node.name).toBe(200);
+    expect(await page.text(), node.name).toContain(`<code>${node.id}</code>`);
   }
-});
-
-test('新旧の比べ: 無いアクターと、id の形でない物は、どちらも 404 の画面', async ({ request }) => {
   for (const id of ['019a0000-0000-7000-8000-0000000000ff', 'no-such']) {
-    const old = await request.get(`${CASTLIST}/actors/${id}`);
-    const now = await request.get(`/actors/${id}`);
-    expect(old.status(), id).toBe(404);
-    expect(now.status(), id).toBe(404);
-    expect(await now.text()).toContain('そのアクターは無い');
+    const page = await request.get(`/actors/${id}`);
+    expect(page.status(), id).toBe(404);
+    expect(await page.text()).toContain('そのアクターは無い');
   }
 });
 

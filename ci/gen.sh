@@ -31,10 +31,10 @@ sha_for() {
 # pagetray の定義は ai.common（castlist の common.smithy）を使う。pagetray のその版が固めている castlist の版と、
 # 下の castlist の版の common.smithy が合わない時は、smithy build が落ちる（その時は、castlist と pagetray の版を揃えて上げる）。
 # 並びは「置く folder:file:digest」。
-CASTLIST_TAG=v1.1.0
+CASTLIST_TAG=v2.0.0
 PAGETRAY_TAG=v1.1.1
 PINS="castlist:common.smithy:6425614b79d58d7149f17396cebc3eb30e0e6c511516957d82004eb329fb66d0
-castlist:castlist.smithy:c4277be2082471bb95f5e001866febccd8fa93b341063aaebed377f5756d2309
+castlist:castlist.smithy:a913649956b5ee00a793f845454b817fa9d6dbebee8704e1a477e5f25cc6473a
 pagetray:pagetray.smithy:9f9df166f7b045071a89366765934f353bae31e9b41711be313bc6c69bbf5155"
 # 取る所（folder の名 → その repo の、tag の model/model/）。
 raw_for() {

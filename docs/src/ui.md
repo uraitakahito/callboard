@@ -11,9 +11,9 @@ callboard が HTML を組んで返す画面（askama。`templates/`）。callboa
 
 ## 移した画面と、まだ移していない画面
 
-castlist と pagetray の画面を、1 つずつ callboard に移している。castlist の 4 つの画面は、みな移した（0.2.0）。まだ移していない pagetray の画面への link は、pagetray の画面を指す（link の頭は設定の `CALLBOARD_PAGETRAY_LINK_URL`。[動かす](run.md)）。
+castlist と pagetray の画面を、1 つずつ callboard に移している。castlist の 4 つの画面は、みな移した（0.2.0）。castlist は、2.0.0 で自分の画面を外した（表の「castlist での道」は、前の道。今は 404）。まだ移していない pagetray の画面への link は、pagetray の画面を指す（link の頭は設定の `CALLBOARD_PAGETRAY_LINK_URL`。[動かす](run.md)）。
 
-| 画面 | 今ある所 | callboard の道 | castlist・pagetray での道 |
+| 画面 | 今ある所 | callboard の道 | castlist・pagetray での道（castlist の物は、2.0.0 で無くなった） |
 |---|---|---|---|
 | 入口 | callboard | `/` | — |
 | アクターの一覧 | callboard（0.2.0 から） | `/actors/` | castlist の `/` |
@@ -23,7 +23,7 @@ castlist と pagetray の画面を、1 つずつ callboard に移している。
 | ページの一覧 | pagetray | これから（`/pages/`） | pagetray の `/` |
 | メッセージ | pagetray | これから（`/messages`） | pagetray の `/messages` |
 
-castlist の画面との違い（画面の中身。頭の帯の下）は 2 つだけ: 送り手の時刻の ISO の字をミリ秒までにそろえることと、誤りの画面の戻りの link（「一覧へ」でなく「入口へ」）。CI の browser の試験（`e2e/tests/compare.spec.ts`・`profile.spec.ts`）が、同じ castlist を相手に、castlist の画面と比べている。
+castlist にあった画面との違い（画面の中身。頭の帯の下）は 2 つだけ: 送り手の時刻の ISO の字をミリ秒までにそろえることと、誤りの画面の戻りの link（「一覧へ」でなく「入口へ」）。castlist が画面を外す前（1.1.0）に、同じ castlist を相手に、castlist の画面と callboard の画面の中身を比べて確かめた（CI の browser の試験と、動いている台帳の写し（アクター 114 人。2026-11-27）。比べる相手が無くなったので、その試験は外した）。
 
 ## `GET /` 入口
 
