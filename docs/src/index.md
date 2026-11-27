@@ -6,7 +6,7 @@ castlist（アクターの台帳）と pagetray（ページの置き場）の画
 - data は持たない（DB も volume も無い）。止めても、起こし直しても、失う物は無い。
 - 画面は、サーバーが HTML を組んで返す。
 
-まだ release は無い（作り始めた所）。今あるのは、入口（`/`。castlist と pagetray が生きているかと版、それぞれの画面への link）と、castlist から移したプロフィール（`/actors/{id}`）と相関図（`/graph/network`）。残りの画面（アクターの一覧・タイムライン・ページの一覧・メッセージ）は、これから 1 つずつ移す。移すまでの間、まだ移していない画面への link は、castlist・pagetray の画面を指す（[画面](ui.md)）。
+v0.1.0 を出した（image は `ghcr.io/uraitakahito/callboard:v0.1.0`。変えたことは repo の `CHANGELOG.md`）。今あるのは、入口（`/`。castlist と pagetray が生きているかと版、それぞれの画面への link）と、castlist から移したプロフィール（`/actors/{id}`）と相関図（`/graph/network`）。残りの画面（アクターの一覧・タイムライン・ページの一覧・メッセージ）は、これから 1 つずつ移す。移すまでの間、まだ移していない画面への link は、castlist・pagetray の画面を指す（[画面](ui.md)）。
 
 ## 守り
 
