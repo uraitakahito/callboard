@@ -267,6 +267,36 @@ id は英語のまま（castlist の API）。名は画面だけで、字は訳�
 - **区切りの記号**: 字の間の区切りの記号（「 ・ 」「 · 」と、全角の括弧「（…）」）は、題（`<title>`）のほかは、鍵にせず記号のまま template と字に残す（英語の時も同じ記号。題だけは、鍵の字に「 ・ callboard」「 · callboard」まで入れる）。
 - **訳の file の決まり**: 差し込みは `{{名}}` だけ（サーバーとブラウザーで字が食い違わないように。`$t(…)`・`{{n, number}}` は使わない）。数で言い分ける英語は `<鍵>_one`・`<鍵>_other`（日本語は `<鍵>_other` だけ。値の名は `count`）。`data-i18n-options` で数になるのは、数の型で渡した値だけ（字の `007` は字のまま）。`ja.json` と `en.json` は同じ鍵を持つ。画面に書いた鍵と、template と Rust の source に書いた鍵は、みな `ja.json` にある。どれも試験（`crates/server/tests/i18n.rs`・`e2e/tests/i18n.spec.ts`）が見る。画面の字の決まり（`ci/check-wording.sh`）は `ja.json` も見る。
 
+### 訳語
+
+英語の画面の字は、次の訳語にそろえる（`static/locales/en.json`）。
+
+| 日本語 | 英語 |
+|---|---|
+| アクター | Actor（並びは Actors） |
+| ラベル | Label |
+| 稼働中・停止・停止（推し） | Running・Stopped・Stopped (inferred) |
+| 人 | Human |
+| タイムライン・相関図 | Timeline・Network |
+| 使用量・額 | Usage・Cost |
+| 時刻ずれ | Clock skew |
+| 絞り込み | Filters |
+| ページの置き場・メッセージの記録 | Page store・Message log |
+| 返事待ち・レビュー待ち | Awaiting reply・Awaiting review |
+| 届いた | Delivered |
+| 課題・役割 | Issue・Role |
+| 文脈・要約 | Context・Compaction |
+
+### 言語を足す・字を足す
+
+- **字を足す**: `ja.json` と `en.json` に同じ鍵を足し、template には `data-i18n` と `{{ "<鍵>"|t }}`、Rust には `Text::new("<鍵>")`、JavaScript には `callboardT("<鍵>")` で書く。鍵が片方にしか無い・画面に書いた鍵が無い・差し込みの形が違う、は試験が落とす。
+- **言語を足す**: 今の作りでは、言語を名指す所が次のようにあり、どれにも 1 つずつ足す（サーバーが書く字は日本語のまま替えない。言語の並び 1 つから回す形にするのは、まだ）。
+  1. `static/locales/<言語>.json`（`ja.json` と同じ鍵）。
+  2. Rust: `crates/server/src/ui/i18n.rs` に `<言語>` の JSON と、配る script（`<言語>_JS`）と `?v=` の付いた path（`<言語>_JS_HREF`）を足し、`crates/server/src/ui.rs` に配る関数と route（`/static/locales/<言語>.js`）を足す。
+  3. `templates/base.html`: `<head>` の訳の script と、言語の切り替えの釦。
+  4. `static/i18n.js`: `LANGS` に足し、`pick()`（今はブラウザーの言語が `en` かだけを見る）をその言語も選ぶ形にし、`i18next.init` の `resources` に足す。
+  5. 試験と smoke: `crates/server/tests/common/mod.rs` の `without_i18n_scripts`（head の script の並び）、`crates/server/tests/i18n.rs`（鍵のそろいと配る道。今は `ja`・`en` だけを比べる）、`ci/smoke-image.sh` の `i18n_scripts`、`e2e/tests/i18n.spec.ts`。
+
 ## 配る file
 
 | 道 | 中身 |
