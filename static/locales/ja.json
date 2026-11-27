@@ -46,17 +46,35 @@
       "reset": "絞り込みを外す",
       "fresh": "● 新着",
       "more": "続きを出す"
-    }
+    },
+    "quickRange": {
+      "hour": "直近 1 時間",
+      "today": "今日",
+      "yesterday": "昨日",
+      "week": "直近 7 日"
+    },
+    "tokens": "{{man}} 万",
+    "tokensFrom": "{{low}}〜",
+    "tokenRange": "{{low}}〜{{high}}",
+    "eventAt": "{{name}} · {{at}}"
   },
   "home": {
     "title": "入口 ・ callboard",
     "legend": "アクターの台帳（castlist）と、ページの置き場（pagetray）の画面の入口です。",
     "connected": "つながっています",
     "version": "版",
-    "unreachable": "届きません"
+    "unreachable": "届きません",
+    "castlist": {
+      "actors": "アクターの一覧"
+    },
+    "pagetray": {
+      "pages": "ページの一覧"
+    }
   },
   "error": {
-    "home": "入口へ"
+    "home": "入口へ",
+    "noSuchScreen": "その画面はありません",
+    "title": "{{status}} ・ callboard"
   },
   "filters": {
     "legend": "絞り込み",
@@ -67,14 +85,22 @@
     "to": "（まで）",
     "submit": "絞り込む",
     "clear": "条件を消す",
-    "registeredFrom": "登録した期間（から）"
+    "registeredFrom": "登録した期間（から）",
+    "registeredTo": "登録した期間（まで）",
+    "period": "期間",
+    "recipient": "受け手",
+    "sender": "送り手",
+    "key": "Key",
+    "project": "project",
+    "workspace": "workspace"
   },
   "list": {
     "title": "アクターの一覧 ・ callboard",
     "heading": "アクター",
     "filters": {
       "activeFrom": "稼働した期間（から）",
-      "skewed": "時刻ずれあり"
+      "skewed": "時刻ずれあり",
+      "activeTo": "稼働した期間（まで）"
     },
     "defaulted": "条件が無いので、この {{days}} 日に稼働したアクター（登場の記録があるアクター）を新しい順に表示しています。登場の記録が無いアクターは、ラベルなどで絞り込むと表示されます。",
     "empty": "条件に合うアクターはいません。",
@@ -92,6 +118,19 @@
       "before": "額は、額を数えた期間（時の境に揃えた ",
       "middle": " から ",
       "after": " まで）の、席の額（本体と手伝い（subagent）の計。使った量を API の値段に直した目安で、払う額ではありません）。いちばん長い文脈は、本体の回だけで出します。"
+    },
+    "errors": {
+      "brokenAfter": "after が読めない（前の答えの next を、そのまま渡す）",
+      "atWithoutBinding": "at は binding と一緒に付ける（稼働した期間で探すなら active_from・active_to）",
+      "foreignAfter": "after が読めない（actors の検索の next ではない）",
+      "afterOrder": "after は、同じ sort と order の答えの next を渡す",
+      "limit": "limit は 1 から {{max}} までの数"
+    },
+    "costNote": {
+      "tooLong": "一覧の期間が {{days}} 日を越えるので、額といちばん長い文脈は出しません（数は {{days}} 日ずつ読みます）。",
+      "slow": "額といちばん長い文脈を、時間内に読めませんでした。一覧は、そのまま出しています。",
+      "tooMany": "記録が多すぎて、額といちばん長い文脈を出せません。期間を狭めてください。",
+      "unreadable": "額といちばん長い文脈を読めません（{{why}}）。一覧は、そのまま出しています。"
     }
   },
   "messages": {
@@ -104,7 +143,21 @@
     "via": "渡した時: {{via}}",
     "again": "渡し直し {{n}} 度",
     "empty": "合うメッセージは無い",
-    "foot": "時刻は日本時間（UTC+9）で、送り手が書いた時刻です。時刻にマウスを重ねると ISO 8601 の形で表示します。"
+    "foot": "時刻は日本時間（UTC+9）で、送り手が書いた時刻です。時刻にマウスを重ねると ISO 8601 の形で表示します。",
+    "state": {
+      "waiting": "まだ届いていない",
+      "undeliverable": "渡せない",
+      "expired": "期限切れ",
+      "carried": "ほかの道具で運んだ"
+    },
+    "viaName": {
+      "gate": "検査が止めた後",
+      "wake": "起こした",
+      "prompt": "人の入力の時",
+      "maxDeliveries": "渡し直しの上限を超えた",
+      "ttl": "期限で消えた",
+      "closed": "席を閉じた"
+    }
   },
   "network": {
     "title": "相関図 ・ callboard",
@@ -143,6 +196,23 @@
       "before": "条件に合うアクターはいません。条件を減らすか、",
       "link": "条件を消して",
       "after": "ください。"
+    },
+    "errors": {
+      "render": "タイムラインを表示できません"
+    },
+    "lost": {
+      "workspaceGone": "居場所が消えた",
+      "superseded": "居場所に別の session が入った",
+      "inferred": "roster が落ちたと推した"
+    },
+    "seg": {
+      "setting": "{{label}}（{{source}}）",
+      "settingMismatch": "{{label}}（{{source}}・指定と違う）",
+      "noSetting": "model と effort の記録なし",
+      "openInferred": "続く（表示する期間の後に推しの幕引き: {{why}}）",
+      "open": "続く",
+      "endInferred": "{{end}}（推し: {{why}}）",
+      "title": "{{name}} · {{what}} · {{start}} から {{until}}"
     }
   },
   "pages": {
@@ -155,7 +225,9 @@
     },
     "sort": {
       "title": "並びを替える",
-      "label": "並び: {{sort}}"
+      "label": "並び: {{sort}}",
+      "newest": "新しい順",
+      "oldest": "古い順"
     },
     "count": "{{n}} 件",
     "untitled": "（題なし）",
@@ -172,7 +244,12 @@
       "noscript": "上げるには script が要る。",
       "drop": "file を選ぶか、ここに落とす",
       "reviewed": "秘密（token・鍵・個人の情報・ほかの人の画面）が写っていないか見た",
-      "submit": "送る"
+      "submit": "送る",
+      "errors": {
+        "segment": "project と Key の形が違う",
+        "name": "name（file の名）が要る"
+      },
+      "failed": "上げられなかった（{{status}}）: {{why}}"
     },
     "viewer": {
       "label": "本文の枠",
@@ -180,7 +257,37 @@
       "frame": "選んだページ",
       "empty": "ページを選ぶと、ここに 1 枚だけ出る"
     },
-    "foot": "時刻は日本時間（UTC+9）で、pagetray が受け取った時刻です。時刻にマウスを重ねると ISO 8601 の形で表示します。"
+    "foot": "時刻は日本時間（UTC+9）で、pagetray が受け取った時刻です。時刻にマウスを重ねると ISO 8601 の形で表示します。",
+    "verdict": {
+      "approve": "よい",
+      "concerns": "気になる所あり",
+      "reject": "直すべき",
+      "notAssessed": "見られなかった"
+    },
+    "reply": {
+      "reviewWaiting": "レビュー待ち",
+      "reviewed": "レビュー済み",
+      "escalated": "上げた",
+      "decided": "決まった",
+      "waiting": "返事待ち",
+      "answered": "答えた"
+    },
+    "counter": {
+      "waiting": "Product Manager の返事を待っているページだけに絞る",
+      "reviewWaiting": "レビューの判定を待っている依頼書だけに絞る",
+      "escalated": "判定を受けずに TPM 担当へ上げ、まだ決まっていないレビューだけに絞る"
+    },
+    "unconfirmed": "未確認",
+    "unknown": "（不明）",
+    "filters": {
+      "reply": "返事",
+      "verdict": "判定",
+      "role": "担当者（役割）"
+    },
+    "targets": {
+      "seen": "見た物",
+      "toSee": "見る物"
+    }
   },
   "profile": {
     "issuer": "発行元（issuer）",
@@ -242,6 +349,19 @@
       "reason": "理由（reason）",
       "source": "きっかけ（source）",
       "sent": "送り手の時刻"
+    },
+    "title": "{{name}} ・ callboard",
+    "compaction": {
+      "tokens": "{{name}} · {{at}}（{{pre}} → {{post}}）"
+    },
+    "source": {
+      "requested": "指定",
+      "observed": "実際"
+    },
+    "notFound": "そのアクターは無い",
+    "chain": {
+      "launched": "起動した",
+      "continued": "引き継がせた"
     }
   },
   "usage": {
@@ -249,7 +369,8 @@
     "heading": "使用量",
     "subheading": "トークンの数と、額の目安",
     "filters": {
-      "from": "期間（から）"
+      "from": "期間（から）",
+      "to": "期間（まで）"
     },
     "window": {
       "after": " まで（日本時間。記録が 1 時間ごとなので、期間を時の境に揃えています）。",
@@ -267,14 +388,37 @@
     "byContext": {
       "heading": "文脈の長さの段ごとの額（本体の回）",
       "legend": "横は文脈の長さ（{{width}}刻みの段。目盛りは段の下の端）、縦はその段の回の額です。点線は 20 万。棒にマウスを重ねると、段と額と回の数を表示します。",
-      "empty": "この期間に、本体の回の記録はありません。"
+      "empty": "この期間に、本体の回の記録はありません。",
+      "chartLabel": "文脈の長さの段ごとの額（本体の回）。横は文脈の長さ（{{width}}刻みの段）、縦は額。20 万に点線。本体の額の計 {{total}}。",
+      "bar_other": "{{range}}: {{cost}}（{{turns}} 回）"
     },
     "bySlot": {
-      "heading": "{{unit}}ごとの額（日本時間）",
       "main": "本体",
       "helper": "手伝い（subagent。本体の上に積む）",
-      "legend": "行の{{unit}}は、記録の区間の終わりの時刻で決めます。集めた期間が 1 日までなら時ごと、1 日より長ければ日ごと（日本時間の 0 時で区切る）にします。",
-      "table": "{{unit}}ごとの額を、表で見る"
+      "heading": {
+        "hour": "時ごとの額（日本時間）",
+        "day": "日ごとの額（日本時間）"
+      },
+      "legend": {
+        "hour": "行の時は、記録の区間の終わりの時刻で決めます。集めた期間が 1 日までなら時ごと、1 日より長ければ日ごと（日本時間の 0 時で区切る）にします。",
+        "day": "行の日は、記録の区間の終わりの時刻で決めます。集めた期間が 1 日までなら時ごと、1 日より長ければ日ごと（日本時間の 0 時で区切る）にします。"
+      },
+      "table": {
+        "hour": "時ごとの額を、表で見る",
+        "day": "日ごとの額を、表で見る"
+      },
+      "col": {
+        "hour": "時",
+        "day": "日"
+      },
+      "chartLabel": {
+        "hour": "時ごとの額（日本時間）。本体と手伝いを積んだ棒。額の計 {{total}}。",
+        "day": "日ごとの額（日本時間）。本体と手伝いを積んだ棒。額の計 {{total}}。"
+      },
+      "bar": {
+        "main": "{{name}}: 本体 {{cost}}（本体と手伝いの計 {{sum}}）",
+        "helper": "{{name}}: 手伝い {{cost}}（本体と手伝いの計 {{sum}}）"
+      }
     },
     "col": {
       "helper": "手伝い",
@@ -313,6 +457,82 @@
       "delay": "稼働中の席の数は、長くて 1 時間ほど遅れて出ます。"
     },
     "empty": "この期間に、数の記録はありません。",
-    "foot": "時刻は日本時間（UTC+9）です。時刻にマウスを重ねると ISO 8601 の形で表示します。"
+    "foot": "時刻は日本時間（UTC+9）です。時刻にマウスを重ねると ISO 8601 の形で表示します。",
+    "line": {
+      "chartLabel": "文脈の長さの段々の線（1 時間ごとの、本体の回のいちばん長い文脈）。横は時刻（日本時間）、縦は文脈の長さ。20 万に点線。いちばん長い文脈 {{max}}。",
+      "hit": "{{from}}〜{{to}}: {{value}}"
+    },
+    "errors": {
+      "notAfter": "「期間（まで）」は、「期間（から）」より後にしてください。",
+      "tooLong": "期間は {{days}} 日までです（時の境に揃えた後の長さ）。期間を狭めてください。",
+      "startsLater": "「期間（から）」が、先の時刻です。",
+      "render": "使用量を表示できません"
+    }
+  },
+  "upstream": {
+    "slow": "時間内に答えがありません",
+    "unreachable": "つながりません",
+    "unreadable": "答えを読めません",
+    "returned": "{{status}} が返りました",
+    "slowMaybePlaced": "時間内に答えがありません。file は置かれたかもしれません",
+    "nextPageRejected": "次の頁を断られました: {{why}}"
+  },
+  "errors": {
+    "badArguments": "引数を読めません",
+    "host": "Host は 127.0.0.1 か localhost だけを受ける",
+    "formOnly": "file は、ページの一覧の画面の form からだけ上げられる",
+    "origin": "browser の中のページからは書けない",
+    "tooSlow": {
+      "seconds": "時間がかかりすぎた（{{n}} 秒）。少し待ってから送り直す",
+      "ms": "時間がかかりすぎた（{{n}} ms）。少し待ってから送り直す"
+    },
+    "tooLarge": "本文は {{n}} MiB まで",
+    "unreadableBody": "本文を読めない",
+    "kind": {
+      "validation": "{{detail}}",
+      "serialization": "{{detail}}",
+      "unsupportedMediaType": "{{detail}}",
+      "payloadTooLarge": "{{detail}}",
+      "notFound": "{{detail}}",
+      "forbidden": "{{detail}}",
+      "conflict": "{{detail}}",
+      "unavailable": "{{detail}}",
+      "internal": "{{detail}}",
+      "other": "{{detail}}"
+    },
+    "unreachable": "{{service}} に聞けません（{{why}}）",
+    "rejected": "{{service}} が引数を断りました: {{detail}}",
+    "rejectedBare": "{{service}} が引数を断りました",
+    "unreachableRetry": "{{service}} に聞けません（{{why}}）。少し待ってから開き直してください。",
+    "twice": "引数を読めません（{{name}} を 2 度書いています）"
+  },
+  "params": {
+    "unreadable": "問い合わせの引数が読めない: {{detail}}",
+    "unknown": "知らない引数: {{name}}（使えるのは {{known}}）",
+    "once": "{{name}} は 1 つだけ付ける",
+    "time": "{{name}} は RFC 3339 の時刻（例 2026-11-22T13:00:00+09:00）",
+    "flag": "{{name}} は true か false",
+    "onlyTrue": "{{name}} は true だけ（絞らないなら付けない）",
+    "name": "{{name}} は英小文字・数字・- . で 64 字まで",
+    "value": "{{name}} は空でない 256 字まで",
+    "choice": "{{name}} は {{choices}} のどれか",
+    "pair": "{{name}} は「{{shape}}」の形（{{value}}）",
+    "shape": {
+      "label": "鍵:値",
+      "binding": "種類:値"
+    },
+    "period": "「{{label}}」の日時を読めません。日時の欄で選ぶか、2026-11-22T13:00 の形で入れてください。"
+  },
+  "events": {
+    "entered": "登場",
+    "reentered": "再登場",
+    "forked": "分身",
+    "compacted": "要約",
+    "cleared": "交代",
+    "exited": "退場",
+    "closed": "幕引き",
+    "reportedIn": "名乗り",
+    "modelUnreadable": "model 不明",
+    "retracted": "取り消し"
   }
 }

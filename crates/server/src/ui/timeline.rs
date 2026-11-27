@@ -15,14 +15,13 @@ use castlist_client::operation::get_timeline::GetTimelineOutput;
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
-use super::i18n::filters;
+use super::i18n::{Text, filters};
 use super::params::{self, GRAPH_PERIOD, GraphForm, PageError, Pairs};
 use super::profile::{event_name, source_name};
 use super::time::{OFFSET, Time, stamp, time};
 use super::timeline_layout::{self as timeline, END_ROOM, MARGIN, Presence, ROW_H, text_width};
 use super::{CSS_HREF, Nav, error_page, kind_name, render};
 use crate::App;
-use crate::upstream::Failure;
 
 /// castlist の答えを、並べる計算の前の形にした物（時刻は、castlist の API の字と同じ UTC・ミリ秒までの字）。
 /// castlist の画面が DB から読んでいた行と同じ欄の名にしてある（移した code を変えないため）。
@@ -174,18 +173,8 @@ async fn timeline_page(
         .castlist
         .timeline(label.as_deref(), from.as_deref(), to.as_deref())
         .await
-        .map_err(|e| match e {
-            // castlist が引数を断った（callboard の確かめを通った物なので、ふつうは起きない）。castlist の訳を、そのまま書く。
-            Failure::Rejected(message) => {
-                params::bad_request(format!("castlist が引数を断りました: {message}"))
-            }
-            // この操作に、名指す物は無い。
-            Failure::NotFound => params::bad_request("castlist が引数を断りました"),
-            Failure::Unavailable(why) => PageError(
-                StatusCode::SERVICE_UNAVAILABLE,
-                format!("castlist に聞けません（{why}）。少し待ってから開き直してください。"),
-            ),
-        })?;
+        // castlist が引数を断った時（callboard の確かめを通った物なので、ふつうは起きない）は、castlist の訳を、そのまま書く。
+        .map_err(|e| params::failed("castlist", e))?;
     // 表示した時刻は、castlist が読み始めた時刻（図の「今」の線も、この時刻）。
     let as_of = time(&answer.as_of).iso;
     tokio::task::spawn_blocking(move || {
@@ -213,7 +202,7 @@ async fn timeline_page(
         tracing::error!("タイムラインを表示できません: {e}");
         PageError(
             StatusCode::INTERNAL_SERVER_ERROR,
-            "タイムラインを表示できません".to_owned(),
+            Text::new("timeline.errors.render"),
         )
     })
 }
@@ -238,7 +227,7 @@ struct TimelinePage<'a> {
     css: &'static str,
     nav: &'a Nav,
     form: GraphForm,
-    quick: Vec<(&'static str, String)>,
+    quick: Vec<(Text, String)>,
     count: usize,
     /// 凡例の model（短い名と色の class）。
     legend: Vec<(String, &'static str)>,
@@ -267,7 +256,7 @@ struct TimelineSvg {
 struct LaneView {
     href: String,
     name: String,
-    kind: &'static str,
+    kind: Option<Text>,
     human: bool,
     /// 行の上と、名の字の下の線と、種類の字の左。
     y: u32,
@@ -283,7 +272,7 @@ struct SegView {
     y: u32,
     w: u32,
     h: u32,
-    title: String,
+    title: Text,
     /// 帯に書く字と、その置き場（収まらなければ無い）。
     label: Option<(u32, u32, String)>,
     /// 開いた端の印の path（居るまま・窓の外へ続く）。
@@ -296,16 +285,16 @@ struct MarkView {
     x: u32,
     y0: u32,
     y1: u32,
-    title: String,
+    title: Text,
 }
 
 /// 推しの幕引きの訳（`detail.reason`）の字。知らない訳と、訳の無い物は、推した者だけを書く。
-fn lost_reason(reason: Option<&str>) -> &'static str {
-    match reason {
-        Some("workspace_gone") => "居場所が消えた",
-        Some("superseded") => "居場所に別の session が入った",
-        _ => "roster が落ちたと推した",
-    }
+fn lost_reason(reason: Option<&str>) -> Text {
+    Text::new(match reason {
+        Some("workspace_gone") => "timeline.lost.workspaceGone",
+        Some("superseded") => "timeline.lost.superseded",
+        _ => "timeline.lost.inferred",
+    })
 }
 
 /// 印を付ける出来事。
@@ -356,12 +345,12 @@ fn timeline_svg(data: &graph::Timeline, window: timeline::Window) -> Option<Time
             timeline::Lane {
                 human: n.actor.kind == "human",
                 order: millis(order).unwrap_or(i64::MAX),
+                // 種類の字の幅は、日本語と英語の広い方（英語の時はブラウザーが字を替えるので）。
                 label_width: name_width(&n.actor.name)
-                    + if kind.is_empty() {
-                        0
-                    } else {
-                        6 + text_width(kind, SUB_PX)
-                    },
+                    + kind.map_or(0, |kind| {
+                        6 + text_width(&kind.to_string(), SUB_PX)
+                            .max(text_width(&kind.english(), SUB_PX))
+                    }),
                 ..timeline::Lane::default()
             }
         })
@@ -465,17 +454,15 @@ fn timeline_svg(data: &graph::Timeline, window: timeline::Window) -> Option<Time
         let (class, what) = match row {
             Some((change, (setting, mismatch))) => (
                 format!("seg {}", tone(&setting.model)),
-                format!(
-                    "{}（{}{}）",
-                    change.label,
-                    source_name(&setting.source),
-                    if mismatch { "・指定と違う" } else { "" }
-                ),
+                Text::new(if mismatch {
+                    "timeline.seg.settingMismatch"
+                } else {
+                    "timeline.seg.setting"
+                })
+                .with("label", &change.label)
+                .with_text("source", &source_name(&setting.source)),
             ),
-            None => (
-                "seg m-none".to_owned(),
-                "model と effort の記録なし".to_owned(),
-            ),
+            None => ("seg m-none".to_owned(), Text::new("timeline.seg.noSetting")),
         };
         // 推しの切れの訳: その切れの終わりか後の、初めの推しの幕引き。
         let why = || {
@@ -486,13 +473,15 @@ fn timeline_svg(data: &graph::Timeline, window: timeline::Window) -> Option<Time
             lost_reason(reason)
         };
         let until = if s.inferred && s.open_end {
-            format!("続く（表示する期間の後に推しの幕引き: {}）", why())
+            Text::new("timeline.seg.openInferred").with_text("why", &why())
         } else if s.open_end {
-            "続く".to_owned()
+            Text::new("timeline.seg.open")
         } else if s.inferred {
-            format!("{}（推し: {}）", clock(s.end), why())
+            Text::new("timeline.seg.endInferred")
+                .with("end", clock(s.end))
+                .with_text("why", &why())
         } else {
-            clock(s.end)
+            Text::plain(clock(s.end))
         };
         let class = if s.inferred {
             format!("{class} inferred")
@@ -506,7 +495,11 @@ fn timeline_svg(data: &graph::Timeline, window: timeline::Window) -> Option<Time
             y: s.y,
             w: s.w,
             h: s.h,
-            title: format!("{name} · {what} · {} から {until}", clock(s.start)),
+            title: Text::new("timeline.seg.title")
+                .with("name", name)
+                .with_text("what", &what)
+                .with("start", clock(s.start))
+                .with_text("until", &until),
             label: s
                 .label_x
                 .and_then(|x| row.map(|(c, _)| (x, mid + 4, c.label.clone()))),
@@ -533,7 +526,9 @@ fn timeline_svg(data: &graph::Timeline, window: timeline::Window) -> Option<Time
             x: m.x,
             y0: m.y0,
             y1: m.y1,
-            title: format!("{} · {}", event_name(kind), time_of(at).local),
+            title: Text::new("common.eventAt")
+                .with_text("name", &event_name(kind))
+                .with("at", time_of(at).local),
         });
     }
     let now = (layout.start..=layout.end)
@@ -583,5 +578,10 @@ mod tests {
         );
         assert_eq!(lost_reason(None), "roster が落ちたと推した");
         assert_eq!(lost_reason(Some("other")), "roster が落ちたと推した");
+        assert_eq!(lost_reason(None).key(), "timeline.lost.inferred");
+        assert_eq!(
+            lost_reason(Some("workspace_gone")).key(),
+            "timeline.lost.workspaceGone"
+        );
     }
 }

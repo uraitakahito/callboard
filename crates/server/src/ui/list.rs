@@ -16,15 +16,16 @@ use axum::response::Response;
 use castlist_client::types::ActorRow;
 use time::OffsetDateTime;
 
-use super::i18n::filters;
-use super::params::{self, LIST_PERIOD, PageError, Pairs, Params, bad_request};
+use super::i18n::{Text, filters};
+use super::params::{
+    self, BINDING_SHAPE, LABEL_SHAPE, LIST_PERIOD, PageError, Pairs, Params, bad_request,
+};
 use super::profile::event_name;
 use super::time::{Time, local, stamp, time};
 use super::usage::{self, MAX_DAYS, Misfit};
 use super::usage_summary::{self as summary, Seat};
 use super::{CSS_HREF, Nav, error_page, kind_name, render};
 use crate::App;
-use crate::upstream::Failure;
 use crate::upstream::castlist::ActorSearch;
 
 /// 一覧の道。
@@ -77,7 +78,7 @@ fn decode(token: &str) -> Option<Vec<String>> {
 }
 
 fn broken_after() -> PageError {
-    bad_request("after が読めない（前の答えの next を、そのまま渡す）")
+    bad_request(Text::new("list.errors.brokenAfter"))
 }
 
 /// 一覧の引数を確かめ、castlist の API（ListActors）に渡す条件にする。誤りの字は、castlist の画面と同じ。
@@ -88,18 +89,16 @@ fn actor_search(p: &Params) -> Result<ActorSearch, PageError> {
     };
     let labels = p
         .all("label")
-        .map(|v| params::pair("label", v, "鍵:値").map(|()| v.to_owned()))
+        .map(|v| params::pair("label", v, LABEL_SHAPE).map(|()| v.to_owned()))
         .collect::<Result<Vec<_>, _>>()?;
     let at = api_time("at")?;
     let binding = match p.one("binding") {
         Some(v) => {
-            params::pair("binding", v, "種類:値")?;
+            params::pair("binding", v, BINDING_SHAPE)?;
             Some(v.to_owned())
         }
         None if at.is_some() => {
-            return Err(bad_request(
-                "at は binding と一緒に付ける（稼働した期間で探すなら active_from・active_to）",
-            ));
+            return Err(bad_request(Text::new("list.errors.atWithoutBinding")));
         }
         None => None,
     };
@@ -112,19 +111,13 @@ fn actor_search(p: &Params) -> Result<ActorSearch, PageError> {
         Some(v) => {
             let parts = decode(v).ok_or_else(broken_after)?;
             let [kind, token_sort, token_order, _value, seq] = &parts[..] else {
-                return Err(bad_request(
-                    "after が読めない（actors の検索の next ではない）",
-                ));
+                return Err(bad_request(Text::new("list.errors.foreignAfter")));
             };
             if kind != TOKEN_KIND {
-                return Err(bad_request(
-                    "after が読めない（actors の検索の next ではない）",
-                ));
+                return Err(bad_request(Text::new("list.errors.foreignAfter")));
             }
             if token_sort != sort || token_order != order {
-                return Err(bad_request(
-                    "after は、同じ sort と order の答えの next を渡す",
-                ));
+                return Err(bad_request(Text::new("list.errors.afterOrder")));
             }
             seq.parse::<i64>().map_err(|_| broken_after())?;
             Some(v.to_owned())
@@ -136,7 +129,9 @@ fn actor_search(p: &Params) -> Result<ActorSearch, PageError> {
             v.parse()
                 .ok()
                 .filter(|n| (1..=MAX_LIMIT).contains(n))
-                .ok_or_else(|| bad_request(format!("limit は 1 から {MAX_LIMIT} までの数")))?,
+                .ok_or_else(|| {
+                    bad_request(Text::new("list.errors.limit").with_num("max", MAX_LIMIT))
+                })?,
         ),
     };
     Ok(ActorSearch {
@@ -175,12 +170,12 @@ fn narrowed(search: &ActorSearch) -> bool {
 struct Row {
     href: String,
     name: String,
-    kind: &'static str,
+    kind: Option<Text>,
     present: bool,
     /// 今の状態を決めた出来事が、推しの幕引き（「停止（推し）」と書く）。
     inferred: bool,
-    /// 稼働を替える出来事の最新（日本語の名・id）。
-    presence: Option<(String, String)>,
+    /// 稼働を替える出来事の最新（名・id）。
+    presence: Option<(Text, String)>,
     key: Option<String>,
     role: Option<String>,
     /// 最新の model と effort。
@@ -190,7 +185,7 @@ struct Row {
     skewed: bool,
     /// 一覧の期間の、席の額（本体と手伝いの計）と、いちばん長い文脈（本体）。数が無ければ無い（「—」）。
     cost: Option<String>,
-    context: Option<String>,
+    context: Option<Text>,
 }
 
 fn row(item: &ActorRow, seats: &BTreeMap<String, Seat>) -> Row {
@@ -204,7 +199,7 @@ fn row(item: &ActorRow, seats: &BTreeMap<String, Seat>) -> Row {
         presence: item
             .presence
             .as_deref()
-            .map(|p| (event_name(p).to_owned(), p.to_owned())),
+            .map(|p| (event_name(p), p.to_owned())),
         key: item.labels.get("tpm.key").cloned(),
         role: item.labels.get("tpm.role").cloned(),
         setting: item.model.clone().zip(item.effort.clone()),
@@ -221,7 +216,7 @@ struct Costs {
     window: Option<(Time, Time)>,
     seats: BTreeMap<String, Seat>,
     /// 列を空けた訳（表の下の注）。
-    note: Option<String>,
+    note: Option<Text>,
 }
 
 fn time_of(t: OffsetDateTime) -> Time {
@@ -240,7 +235,7 @@ async fn costs(app: &App, search: &ActorSearch, now: OffsetDateTime) -> Costs {
     let at = |t: Option<DateTime>| {
         t.and_then(|t| OffsetDateTime::from_unix_timestamp_nanos(t.as_nanos()).ok())
     };
-    let empty = |note: Option<String>| Costs {
+    let empty = |note: Option<Text>| Costs {
         window: None,
         seats: BTreeMap::new(),
         note,
@@ -250,9 +245,9 @@ async fn costs(app: &App, search: &ActorSearch, now: OffsetDateTime) -> Costs {
         // 終わりが始めより後でない・始めだけが先の時刻の期間（一覧にも、だれも出ない）。
         Err(Misfit::NotAfter | Misfit::StartsLater) => return empty(None),
         Err(Misfit::TooLong) => {
-            return empty(Some(format!(
-                "一覧の期間が {MAX_DAYS} 日を越えるので、額といちばん長い文脈は出しません（数は {MAX_DAYS} 日ずつ読みます）。"
-            )));
+            return empty(Some(
+                Text::new("list.costNote.tooLong").with_num("days", MAX_DAYS),
+            ));
         }
     };
     // 一覧は人がいちばん開く画面なので、使用量は短い期限（LIST_COST_TIMEOUT）で待ち、過ぎたら列を空ける（一覧を遅らせない）。
@@ -267,20 +262,14 @@ async fn costs(app: &App, search: &ActorSearch, now: OffsetDateTime) -> Costs {
         return Costs {
             window: shown,
             seats: BTreeMap::new(),
-            note: Some(
-                "額といちばん長い文脈を、時間内に読めませんでした。一覧は、そのまま出しています。"
-                    .to_owned(),
-            ),
+            note: Some(Text::new("list.costNote.slow")),
         };
     };
     match found {
         Ok(answer) if usage::cut(&answer) => Costs {
             window: shown,
             seats: BTreeMap::new(),
-            note: Some(
-                "記録が多すぎて、額といちばん長い文脈を出せません。期間を狭めてください。"
-                    .to_owned(),
-            ),
+            note: Some(Text::new("list.costNote.tooMany")),
         },
         Ok(answer) => Costs {
             window: shown,
@@ -290,10 +279,9 @@ async fn costs(app: &App, search: &ActorSearch, now: OffsetDateTime) -> Costs {
         Err(e) => Costs {
             window: shown,
             seats: BTreeMap::new(),
-            note: Some(format!(
-                "額といちばん長い文脈を読めません（{}）。一覧は、そのまま出しています。",
-                usage::unreadable(e)
-            )),
+            note: Some(
+                Text::new("list.costNote.unreadable").with_text("why", &usage::unreadable(e)),
+            ),
         },
     }
 }
@@ -309,11 +297,11 @@ struct ListPage<'a> {
     days: i64,
     form: Form,
     /// 期間をすぐ選ぶ link（名と URL）。
-    quick: Vec<(&'static str, String)>,
+    quick: Vec<(Text, String)>,
     next: Option<String>,
     /// 額の列を出した期間（時の境に揃えた物）と、列を空けた訳。
     cost_window: Option<(Time, Time)>,
-    cost_note: Option<String>,
+    cost_note: Option<Text>,
     as_of: Time,
 }
 
@@ -394,18 +382,8 @@ async fn list_page(
     }
     // 一覧と、席ごとの額を、一緒に聞く。
     let (answer, costs) = tokio::join!(app.castlist.actors(&search), costs(app, &search, now));
-    let answer = answer.map_err(|e| match e {
-        // castlist が引数を断った（callboard の確かめを通った物なので、ふつうは起きない）。castlist の訳を、そのまま書く。
-        Failure::Rejected(message) => {
-            params::bad_request(format!("castlist が引数を断りました: {message}"))
-        }
-        // この操作に、名指す物は無い。
-        Failure::NotFound => params::bad_request("castlist が引数を断りました"),
-        Failure::Unavailable(why) => PageError(
-            StatusCode::SERVICE_UNAVAILABLE,
-            format!("castlist に聞けません（{why}）。少し待ってから開き直してください。"),
-        ),
-    })?;
+    // castlist が引数を断った時（callboard の確かめを通った物なので、ふつうは起きない）は、castlist の訳を、そのまま書く。
+    let answer = answer.map_err(|e| params::failed("castlist", e))?;
     let next = answer.next_token.as_ref().map(|after| {
         let mut next: Pairs = effective
             .iter()

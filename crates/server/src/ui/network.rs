@@ -11,7 +11,7 @@ use axum::http::StatusCode;
 use axum::response::Response;
 use time::OffsetDateTime;
 
-use super::i18n::filters;
+use super::i18n::{Text, filters};
 use super::params::{self, GRAPH_PERIOD, GraphForm, PageError, Pairs};
 use super::{CSS_HREF, CYTOSCAPE_PATH, NETWORK_JS_HREF, Nav, error_page, render};
 use crate::App;
@@ -27,7 +27,7 @@ struct NetworkPage<'a> {
     cytoscape: &'static str,
     script: &'static str,
     form: GraphForm,
-    quick: Vec<(&'static str, String)>,
+    quick: Vec<(Text, String)>,
     /// network.js が点と線を引く URL（同じ絞りの [`DATA_PATH`]）。
     data_src: String,
     /// script を切った browser に勧める、同じ絞りのタイムライン。

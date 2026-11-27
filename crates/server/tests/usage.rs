@@ -168,7 +168,7 @@ fn cells(section: &str, name: &str) -> Vec<String> {
     let row = &section[start..start + section[start..].find("</tr>").unwrap()];
     row.split("<td class=\"num\">")
         .skip(1)
-        .map(|cell| cell[..cell.find("</td>").unwrap()].to_owned())
+        .map(|cell| common::unwrap_text(&cell[..cell.find("</td>").unwrap()]).to_owned())
         .collect()
 }
 
@@ -221,6 +221,7 @@ async fn 使用量は_全体の数を出し_本体と手伝いを分ける() {
 async fn 役割ごとの表は_本体の回の数と額と_段から出した文脈の長さを_額の大きい順に出す() {
     let app = sample().await;
     let body = app.html(WINDOW).await;
+    common::check_i18n("usage.rs:223", &body);
     let roles = section(&body, "roles");
     assert_eq!(
         names(roles),
@@ -484,7 +485,7 @@ async fn 頁が多すぎれば_50_頁で止め_誤りにせず_期間を狭め�
     let body = app.html(WINDOW).await;
     assert_eq!(app.castlist.seen().len(), 50);
     assert!(
-        body.contains("<p class=\"error\" data-i18n=\"usage.tooMany\" data-i18n-options=\"{&#34;read&#34;:50}\">記録が多すぎて、全部を読めませんでした"),
+        body.contains("<p class=\"error\" data-i18n=\"usage.tooMany\" data-i18n-options=\"{&#34;read&#34;:&#34;50&#34;}\">記録が多すぎて、全部を読めませんでした"),
         "{body}"
     );
     assert!(body.contains("期間を狭めてください"), "{body}");
@@ -680,7 +681,7 @@ async fn 途中の頁で時間切れになっても_読めた分を出し_時間
     let (status, _, body) = app.send(get(WINDOW)).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(
-        body.contains("<p class=\"error\" data-i18n=\"usage.tooSlow\" data-i18n-options=\"{&#34;read&#34;:6}\">時間内に、全部を読めませんでした"),
+        body.contains("<p class=\"error\" data-i18n=\"usage.tooSlow\" data-i18n-options=\"{&#34;read&#34;:&#34;6&#34;}\">時間内に、全部を読めませんでした"),
         "{body}"
     );
     assert!(body.contains("期間を狭めてください"), "{body}");
@@ -720,13 +721,18 @@ async fn 文脈の長さの段ごとの額は_本体の回の段を棒にし_20_
     assert!(!svg.contains("bar helper"), "{svg}");
     // 棒にマウスを重ねると、段と額と回の数（段 0 は、pm.1 と se.2 の計）。
     for title in [
-        "<title>0〜2.5 万: $0.11（2 回）</title>",
-        "<title>2.5 万〜5 万: $0.50（1 回）</title>",
-        "<title>22.5 万〜25 万: $0.50（2 回）</title>",
-        "<title>97.5 万〜100 万: $3.00（1 回）</title>",
+        ">0〜2.5 万: $0.11（2 回）</title>",
+        ">2.5 万〜5 万: $0.50（1 回）</title>",
+        ">22.5 万〜25 万: $0.50（2 回）</title>",
+        ">97.5 万〜100 万: $3.00（1 回）</title>",
     ] {
         assert!(svg.contains(title), "{title}: {svg}");
     }
+    // 鍵と値（英語は回の数で言い分ける。段の範囲は言語ごとの字）。
+    assert!(
+        svg.contains(r#"<title data-i18n="usage.byContext.bar" data-i18n-options="{&#34;cost&#34;:&#34;$0.11&#34;,&#34;count&#34;:2,&#34;range&#34;:&#34;0〜2.5 万&#34;,&#34;rangeEn&#34;:&#34;0–25k&#34;,&#34;turns&#34;:&#34;2&#34;}">"#),
+        "{svg}"
+    );
     // 縦の目盛りは $0 から $3（$1 の刻み）。横の目盛りは 10 万ごと。
     for tick in [">$0</text>", ">$1</text>", ">$3</text>"] {
         assert!(svg.contains(tick), "{tick}: {svg}");
@@ -751,9 +757,10 @@ async fn 文脈の長さの段ごとの額は_本体の回の段を棒にし_20_
 async fn 期間が_1_日までなら_時ごとの額を_本体と手伝いを積んだ棒で出す() {
     let app = sample().await;
     let body = app.html(WINDOW).await;
+    common::check_i18n("usage.rs:758", &body);
     let chart = section(&body, "by-day");
     assert!(
-        chart.contains("<h2 data-i18n=\"usage.bySlot.heading\" data-i18n-options=\"{&#34;unit&#34;:&#34;時&#34;}\">時ごとの額（日本時間）</h2>"),
+        chart.contains("<h2 data-i18n=\"usage.bySlot.heading.hour\">時ごとの額（日本時間）</h2>"),
         "{chart}"
     );
     let svg = svg(chart);
@@ -770,9 +777,9 @@ async fn 期間が_1_日までなら_時ごとの額を_本体と手伝いを積
         "{svg}"
     );
     for title in [
-        "<title>11-22 10:00: 本体 $5.01（本体と手伝いの計 $5.26）</title>",
-        "<title>11-22 10:00: 手伝い $0.25（本体と手伝いの計 $5.26）</title>",
-        "<title>11-22 11:00: 本体 $2.00（本体と手伝いの計 $2.00）</title>",
+        r#"<title data-i18n="usage.bySlot.bar.main" data-i18n-options="{&#34;cost&#34;:&#34;$5.01&#34;,&#34;name&#34;:&#34;11-22 10:00&#34;,&#34;sum&#34;:&#34;$5.26&#34;}">11-22 10:00: 本体 $5.01（本体と手伝いの計 $5.26）</title>"#,
+        r#"<title data-i18n="usage.bySlot.bar.helper" data-i18n-options="{&#34;cost&#34;:&#34;$0.25&#34;,&#34;name&#34;:&#34;11-22 10:00&#34;,&#34;sum&#34;:&#34;$5.26&#34;}">11-22 10:00: 手伝い $0.25（本体と手伝いの計 $5.26）</title>"#,
+        ">11-22 11:00: 本体 $2.00（本体と手伝いの計 $2.00）</title>",
     ] {
         assert!(svg.contains(title), "{title}: {svg}");
     }
@@ -808,7 +815,7 @@ async fn 期間が_1_日を越えれば_日本時間の日ごとの額() {
         .await;
     let chart = section(&body, "by-day");
     assert!(
-        chart.contains("<h2 data-i18n=\"usage.bySlot.heading\" data-i18n-options=\"{&#34;unit&#34;:&#34;日&#34;}\">日ごとの額（日本時間）</h2>"),
+        chart.contains("<h2 data-i18n=\"usage.bySlot.heading.day\">日ごとの額（日本時間）</h2>"),
         "{chart}"
     );
     let svg = svg(chart);
@@ -823,7 +830,9 @@ async fn 期間が_1_日を越えれば_日本時間の日ごとの額() {
         "{svg}"
     );
     assert!(
-        svg.contains("<title>11-22: 本体 $7.01（本体と手伝いの計 $7.26）</title>"),
+        svg.contains(
+            r#"<title data-i18n="usage.bySlot.bar.main" data-i18n-options="{&#34;cost&#34;:&#34;$7.01&#34;,&#34;name&#34;:&#34;11-22&#34;,&#34;sum&#34;:&#34;$7.26&#34;}">11-22: 本体 $7.01（本体と手伝いの計 $7.26）</title>"#
+        ),
         "{svg}"
     );
 }
@@ -832,6 +841,7 @@ async fn 期間が_1_日を越えれば_日本時間の日ごとの額() {
 async fn 図は_script_を使わず_行が無ければ出さない() {
     let app = sample().await;
     let body = app.html(WINDOW).await;
+    common::check_i18n("usage.rs:841", &body);
     assert_eq!(body.matches("<svg class=\"chart\"").count(), 2, "{body}");
     assert!(
         !common::without_i18n_scripts(&body).contains("<script"),
@@ -881,7 +891,7 @@ async fn 日ごとの額は_図の下に畳んだ字の表でも読める() {
     let body = app.html(WINDOW).await;
     let day = section(&body, "by-day");
     assert!(
-        day.contains("<details class=\"slots\"><summary data-i18n=\"usage.bySlot.table\" data-i18n-options=\"{&#34;unit&#34;:&#34;時&#34;}\">時ごとの額を、表で見る</summary>"),
+        day.contains("<details class=\"slots\"><summary data-i18n=\"usage.bySlot.table.hour\">時ごとの額を、表で見る</summary>"),
         "{day}"
     );
     // 額の在る区切りだけを出す。表の計の欄の和は、全体の額（$7.26）と同じ。

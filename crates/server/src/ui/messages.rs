@@ -17,12 +17,11 @@ use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::Response;
 
-use super::i18n::filters;
+use super::i18n::{Text, filters};
 use super::params::{self, PageError, Pairs, bad_request, strict};
 use super::time::{Time, short};
 use super::{CSS_HREF, MESSAGES_JS_HREF, Nav, error_page, render};
 use crate::App;
-use crate::upstream::Failure;
 use crate::upstream::pagetray::{FacetCount, Message, MessageSearch};
 
 /// 一覧の道。
@@ -34,23 +33,23 @@ pub const EVENTS_PATH: &str = "/api/pagetray/events";
 /// 1 度に出す数（pagetray の画面と同じ）。
 const PAGE_SIZE: i32 = 200;
 
-/// 状態の字（pagetray の定義の `MessageState`）と、画面に出す字。
+/// 状態の字（pagetray の定義の `MessageState`）と、画面に出す字の鍵。
 const STATES: [(&str, &str); 5] = [
-    ("waiting", "まだ届いていない"),
-    ("delivered", "届いた"),
-    ("undeliverable", "渡せない"),
-    ("expired", "期限切れ"),
-    ("carried", "ほかの道具で運んだ"),
+    ("waiting", "messages.state.waiting"),
+    ("delivered", "messages.delivered"),
+    ("undeliverable", "messages.state.undeliverable"),
+    ("expired", "messages.state.expired"),
+    ("carried", "messages.state.carried"),
 ];
 
-/// 渡した時の名（呼ぶ側が `via` に書く字）と、画面に出す字。ここに無い名は、書かれた字のまま出す。
+/// 渡した時の名（呼ぶ側が `via` に書く字）と、画面に出す字の鍵。ここに無い名は、書かれた字のまま出す。
 const VIAS: [(&str, &str); 6] = [
-    ("gate", "検査が止めた後"),
-    ("wake", "起こした"),
-    ("prompt", "人の入力の時"),
-    ("max-deliveries", "渡し直しの上限を超えた"),
-    ("ttl", "期限で消えた"),
-    ("closed", "席を閉じた"),
+    ("gate", "messages.viaName.gate"),
+    ("wake", "messages.viaName.wake"),
+    ("prompt", "messages.viaName.prompt"),
+    ("max-deliveries", "messages.viaName.maxDeliveries"),
+    ("ttl", "messages.viaName.ttl"),
+    ("closed", "messages.viaName.closed"),
 ];
 
 /// 本文をそのまま出す長さ（字の数と行の数）。超えれば、頭だけ見せて、開くと全部。
@@ -96,9 +95,7 @@ impl View {
                 continue;
             };
             if seen.contains(&name) {
-                return Err(bad_request(format!(
-                    "引数を読めません（{name} を 2 度書いています）"
-                )));
+                return Err(bad_request(Text::new("errors.twice").with("name", name)));
             }
             seen.push(name);
             *field = Some(value).filter(|v| !v.trim().is_empty());
@@ -137,7 +134,7 @@ impl View {
 
 /// 絞り込みの列の、候補 1 つ。
 struct Choice {
-    label: String,
+    label: Text,
     count: i64,
     href: String,
     active: bool,
@@ -145,7 +142,7 @@ struct Choice {
 
 /// 絞り込みの列の、見出し 1 つと、その候補。
 struct FilterGroup {
-    title: &'static str,
+    title: Text,
     choices: Vec<Choice>,
 }
 
@@ -163,12 +160,12 @@ struct Row {
     /// 長い本文の頭（改行を空白にした、初めの [`HEAD_CHARS`] 字。切った時は後ろに「…」）。短い本文には無い。
     head: Option<String>,
     sent: Time,
-    /// 状態（[`STATES`] の字。知らない字は空）と、画面に出す字。
+    /// 状態（[`STATES`] の字。知らない字は空）と、画面に出す字（知らない字は無い）。
     state: &'static str,
-    state_label: &'static str,
+    state_label: Option<Text>,
     delivered: Option<Time>,
-    /// どの時に渡したかの、画面に出す字。書いていなければ空。
-    via: String,
+    /// どの時に渡したかの、画面に出す字（「渡した時: …」）。書いていなければ無い。
+    via: Option<Text>,
     /// 渡し直した数（渡した回数 − 1）。渡した回数が 2 以上の時だけ出す。
     again: i32,
     /// 最後に書き足された時刻（script が、行が替わったかを見る）。
@@ -178,7 +175,7 @@ struct Row {
 impl Row {
     /// 届いた時刻・渡した時・渡し直しの数の、どれかを出すか。
     fn has_notes(&self) -> bool {
-        self.delivered.is_some() || !self.via.is_empty() || self.again > 0
+        self.delivered.is_some() || self.via.is_some() || self.again > 0
     }
 }
 
@@ -203,15 +200,18 @@ struct MessagesPage<'a> {
 }
 
 /// 状態の名（'static にする）と、画面に出す字。知らない字なら None。
-fn state_label(state: &str) -> Option<(&'static str, &'static str)> {
-    STATES.into_iter().find(|(name, _)| *name == state)
+fn state_label(state: &str) -> Option<(&'static str, Text)> {
+    STATES
+        .into_iter()
+        .find(|(name, _)| *name == state)
+        .map(|(name, key)| (name, Text::new(key)))
 }
 
 /// 渡した時の名の、画面に出す字。決めていない名は、書かれた字のまま（隠さない）。
-fn via_label(via: &str) -> &str {
+fn via_label(via: &str) -> Text {
     VIAS.into_iter()
         .find(|(name, _)| *name == via)
-        .map_or(via, |(_, label)| label)
+        .map_or_else(|| Text::plain(via), |(_, key)| Text::new(key))
 }
 
 /// `GET /messages`。
@@ -232,20 +232,9 @@ pub async fn events(State(app): State<Arc<App>>) -> Response {
         .await
 }
 
-/// pagetray に聞けなかった訳を、画面の誤りにする。
-fn failed(e: Failure) -> PageError {
-    match e {
-        // pagetray が引数を断った（値の形が違う・続きの印が読めない）。pagetray の訳を、そのまま書く。
-        Failure::Rejected(message) => {
-            bad_request(format!("pagetray が引数を断りました: {message}"))
-        }
-        // この操作に、名指す物は無い。
-        Failure::NotFound => bad_request("pagetray が引数を断りました"),
-        Failure::Unavailable(why) => PageError(
-            StatusCode::SERVICE_UNAVAILABLE,
-            format!("pagetray に聞けません（{why}）。少し待ってから開き直してください。"),
-        ),
-    }
+/// pagetray に聞けなかった訳を、画面の誤りにする（pagetray が引数を断った時は、pagetray の訳を、そのまま書く）。
+fn failed(e: crate::upstream::Failure) -> PageError {
+    params::failed("pagetray", e)
 }
 
 /// 条件を読み、pagetray に聞き、画面を組む。
@@ -253,7 +242,8 @@ async fn page(
     app: &App,
     q: Result<Query<Pairs>, QueryRejection>,
 ) -> Result<MessagesPage<'_>, PageError> {
-    let view = View::read(params::pairs(q).map_err(|_| bad_request("引数を読めません"))?)?;
+    let view =
+        View::read(params::pairs(q).map_err(|_| bad_request(Text::new("errors.badArguments")))?)?;
     let search = MessageSearch {
         project: view.project.clone(),
         key: view.key.clone(),
@@ -283,8 +273,8 @@ async fn page(
     let group = |title,
                  counts: Vec<FacetCount>,
                  field: fn(&mut View) -> &mut Option<String>,
-                 show: fn(&str) -> String| FilterGroup {
-        title,
+                 show: fn(&str) -> Text| FilterGroup {
+        title: Text::new(title),
         choices: counts
             .into_iter()
             .map(|c| {
@@ -321,19 +311,34 @@ async fn page(
         filters: vec![
             // 状態の候補は、値でなく画面の字で出す（並びは pagetray の答えの順: 決まった順で、件数が 0 の物は無い）。
             group(
-                "状態",
+                "filters.state",
                 facets.states,
                 |v| &mut v.state,
-                |s| state_label(s).map_or(s, |(_, label)| label).to_owned(),
+                |s| state_label(s).map_or_else(|| Text::plain(s), |(_, label)| label),
             ),
-            group("受け手", facets.to, |v| &mut v.to, str::to_owned),
-            group("送り手", facets.from, |v| &mut v.from, str::to_owned),
-            group("Key", facets.keys, |v| &mut v.key, str::to_owned),
             group(
-                "project",
+                "filters.recipient",
+                facets.to,
+                |v| &mut v.to,
+                |s| Text::plain(s),
+            ),
+            group(
+                "filters.sender",
+                facets.from,
+                |v| &mut v.from,
+                |s| Text::plain(s),
+            ),
+            group(
+                "filters.key",
+                facets.keys,
+                |v| &mut v.key,
+                |s| Text::plain(s),
+            ),
+            group(
+                "filters.project",
                 facets.projects,
                 |v| &mut v.project,
-                str::to_owned,
+                |s| Text::plain(s),
             ),
         ],
         rows: found.messages.into_iter().map(row).collect(),
@@ -359,7 +364,7 @@ fn head(text: &str) -> Option<String> {
 }
 
 fn row(m: Message) -> Row {
-    let (state, state_label) = state_label(&m.state).unwrap_or(("", ""));
+    let (state, state_label) = state_label(&m.state).map_or(("", None), |(s, l)| (s, Some(l)));
     Row {
         head: head(&m.text),
         sent: short(&m.sent_at),
@@ -370,9 +375,7 @@ fn row(m: Message) -> Row {
         via: m
             .via
             .as_deref()
-            .map(via_label)
-            .unwrap_or_default()
-            .to_owned(),
+            .map(|via| Text::new("messages.via").with_text("via", &via_label(via))),
         updated_at: short(&m.updated_at).iso,
         project: m.project,
         id: m.id,

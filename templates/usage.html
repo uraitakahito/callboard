@@ -40,20 +40,20 @@
 <h2 data-i18n="usage.byContext.heading">{{ "usage.byContext.heading"|t }}</h2>
 {% if let Some(c) = t.charts.by_context %}
 <div class="scroll">{% call m::chart(c) %}{% endcall %}</div>
-<p class="legend" data-i18n="usage.byContext.legend" data-i18n-options="{{ "width"|opts1(width) }}">{{ "usage.byContext.legend"|t1("width", width) }}</p>
+<p class="legend"{{ context_legend.attrs()|safe }}>{{ context_legend }}</p>
 {% else %}
 <p class="empty" data-i18n="usage.byContext.empty">{{ "usage.byContext.empty"|t }}</p>
 {% endif %}
 </section>
 <section id="by-day">
-<h2 data-i18n="usage.bySlot.heading" data-i18n-options="{{ "unit"|opts1(t.charts.unit) }}">{{ "usage.bySlot.heading"|t1("unit", t.charts.unit) }}</h2>
+<h2{{ t.charts.slot_heading.attrs()|safe }}>{{ t.charts.slot_heading }}</h2>
 <div class="scroll">{% call m::chart(t.charts.by_slot) %}{% endcall %}</div>
 <ul class="legend keys"><li><span class="swatch main"></span><span data-i18n="usage.bySlot.main">{{ "usage.bySlot.main"|t }}</span></li><li><span class="swatch helper"></span><span data-i18n="usage.bySlot.helper">{{ "usage.bySlot.helper"|t }}</span></li></ul>
-<p class="legend" data-i18n="usage.bySlot.legend" data-i18n-options="{{ "unit"|opts1(t.charts.unit) }}">{{ "usage.bySlot.legend"|t1("unit", t.charts.unit) }}</p>
-<details class="slots"><summary data-i18n="usage.bySlot.table" data-i18n-options="{{ "unit"|opts1(t.charts.unit) }}">{{ "usage.bySlot.table"|t1("unit", t.charts.unit) }}</summary>
+<p class="legend"{{ t.charts.slot_legend.attrs()|safe }}>{{ t.charts.slot_legend }}</p>
+<details class="slots"><summary{{ t.charts.slot_table.attrs()|safe }}>{{ t.charts.slot_table }}</summary>
 <div class="scroll">
 <table class="usage">
-<thead><tr><th>{{ t.charts.unit }}</th><th class="num" data-i18n="usage.bySlot.main">{{ "usage.bySlot.main"|t }}</th><th class="num" data-i18n="usage.col.helper">{{ "usage.col.helper"|t }}</th><th class="num" data-i18n="usage.col.sum">{{ "usage.col.sum"|t }}</th></tr></thead>
+<thead><tr><th{{ t.charts.slot_col.attrs()|safe }}>{{ t.charts.slot_col }}</th><th class="num" data-i18n="usage.bySlot.main">{{ "usage.bySlot.main"|t }}</th><th class="num" data-i18n="usage.col.helper">{{ "usage.col.helper"|t }}</th><th class="num" data-i18n="usage.col.sum">{{ "usage.col.sum"|t }}</th></tr></thead>
 <tbody>
 {% for r in t.charts.slot_rows %}
 <tr><td>{{ r.name }}</td><td class="num">{{ r.main }}</td><td class="num">{{ r.helper }}</td><td class="num">{{ r.total }}</td></tr>
@@ -70,7 +70,7 @@
 <thead><tr><th data-i18n="usage.col.role">{{ "usage.col.role"|t }}</th><th class="num" data-i18n="usage.col.seats">{{ "usage.col.seats"|t }}</th><th class="num" data-i18n="usage.col.mainTurns">{{ "usage.col.mainTurns"|t }}</th><th class="num" data-i18n="usage.col.mainCost">{{ "usage.col.mainCost"|t }}</th><th class="num" data-i18n="usage.col.share">{{ "usage.col.share"|t }}</th><th class="num" data-i18n="usage.col.median">{{ "usage.col.median"|t }}</th><th class="num" data-i18n="usage.col.p90">{{ "usage.col.p90"|t }}</th><th class="num" data-i18n="list.col.context">{{ "list.col.context"|t }}</th><th class="num" data-i18n="usage.col.overTurns">{{ "usage.col.overTurns"|t }}</th><th class="num" data-i18n="usage.col.overCost">{{ "usage.col.overCost"|t }}</th><th class="num" data-i18n="usage.col.helperCost">{{ "usage.col.helperCost"|t }}</th></tr></thead>
 <tbody>
 {% for r in t.roles %}
-<tr><td>{% if let Some(name) = r.name %}<span class="chip role">{{ name }}</span>{% else %}<span class="none" data-i18n="usage.noName">{{ "usage.noName"|t }}</span>{% endif %}</td><td class="num">{{ r.seats }}</td><td class="num">{{ r.turns }}</td><td class="num">{{ r.cost }}</td><td class="num">{% call m::maybe(r.share) %}{% endcall %}</td><td class="num">{% call m::maybe(r.median) %}{% endcall %}</td><td class="num">{% call m::maybe(r.p90) %}{% endcall %}</td><td class="num">{% call m::maybe(r.max_context) %}{% endcall %}</td><td class="num">{% call m::maybe(r.over_turns) %}{% endcall %}</td><td class="num">{% call m::maybe(r.over_cost) %}{% endcall %}</td><td class="num">{{ r.helper_cost }}</td></tr>
+<tr><td>{% if let Some(name) = r.name %}<span class="chip role">{{ name }}</span>{% else %}<span class="none" data-i18n="usage.noName">{{ "usage.noName"|t }}</span>{% endif %}</td><td class="num">{{ r.seats }}</td><td class="num">{{ r.turns }}</td><td class="num">{{ r.cost }}</td><td class="num">{% call m::maybe(r.share) %}{% endcall %}</td><td class="num">{% call m::maybe_text(r.median) %}{% endcall %}</td><td class="num">{% call m::maybe_text(r.p90) %}{% endcall %}</td><td class="num">{% call m::maybe_text(r.max_context) %}{% endcall %}</td><td class="num">{% call m::maybe(r.over_turns) %}{% endcall %}</td><td class="num">{% call m::maybe(r.over_cost) %}{% endcall %}</td><td class="num">{{ r.helper_cost }}</td></tr>
 {% endfor %}
 </tbody>
 </table>
@@ -83,7 +83,7 @@
 <thead><tr><th data-i18n="usage.col.subject">{{ "usage.col.subject"|t }}</th><th class="num" data-i18n="usage.col.seats">{{ "usage.col.seats"|t }}</th><th class="num" data-i18n="usage.col.allTurns">{{ "usage.col.allTurns"|t }}</th><th class="num" data-i18n="usage.col.allCost">{{ "usage.col.allCost"|t }}</th><th class="num" data-i18n="list.col.context">{{ "list.col.context"|t }}</th></tr></thead>
 <tbody>
 {% for s in t.subjects %}
-<tr><td>{% if let Some(name) = s.name %}<span class="chip">{{ name }}</span>{% else %}<span class="none" data-i18n="usage.noName">{{ "usage.noName"|t }}</span>{% endif %}</td><td class="num">{{ s.seats }}</td><td class="num">{{ s.turns }}</td><td class="num">{{ s.cost }}</td><td class="num">{% call m::maybe(s.max_context) %}{% endcall %}</td></tr>
+<tr><td>{% if let Some(name) = s.name %}<span class="chip">{{ name }}</span>{% else %}<span class="none" data-i18n="usage.noName">{{ "usage.noName"|t }}</span>{% endif %}</td><td class="num">{{ s.seats }}</td><td class="num">{{ s.turns }}</td><td class="num">{{ s.cost }}</td><td class="num">{% call m::maybe_text(s.max_context) %}{% endcall %}</td></tr>
 {% endfor %}
 </tbody>
 </table>
@@ -93,7 +93,7 @@
 <li data-i18n="usage.notes.cost">{{ "usage.notes.cost"|t }}</li>
 <li><span data-i18n="usage.notes.groups.before">{{ "usage.notes.groups.before"|t }}</span><code>tpm.role</code><span data-i18n="usage.notes.groups.subject">{{ "usage.notes.groups.subject"|t }}</span><code>tpm.subject</code><span data-i18n="usage.notes.groups.fallback">{{ "usage.notes.groups.fallback"|t }}</span><code>tpm.key</code><span data-i18n="usage.notes.groups.after">{{ "usage.notes.groups.after"|t }}</span></li>
 <li data-i18n="usage.notes.context">{{ "usage.notes.context"|t }}</li>
-<li data-i18n="usage.notes.bands" data-i18n-options="{{ "width"|opts1(width) }}">{{ "usage.notes.bands"|t1("width", width) }}</li>
+<li{{ bands.attrs()|safe }}>{{ bands }}</li>
 <li data-i18n="usage.notes.delay">{{ "usage.notes.delay"|t }}</li>
 </ul>
 {% else %}

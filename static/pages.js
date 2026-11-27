@@ -307,8 +307,10 @@
       });
       const json = await response.json().catch(() => ({}));
       if (!response.ok) {
-        // 断った訳は message に入る。
-        const why = `上げられなかった（${response.status}）: ${json.message || json.error || response.statusText}`;
+        // 断った訳は message に入る。code（字の鍵）と values があれば、選んだ言語の字で組む（日本語の字は message と同じ）。
+        const why = json.code
+          ? window.callboardT('pages.upload.failed', { status: response.status, why: window.callboardT(json.code, json.values) })
+          : `上げられなかった（${response.status}）: ${json.message || json.error || response.statusText}`;
         if (response.status === 503) {
           // 聞けなかった時（時間切れなど）は、置かれたかもしれない。file の枠を読み直して、送り直す前に確かめられるようにする。
           await refresh().catch(() => {});

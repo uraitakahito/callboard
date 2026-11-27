@@ -47,13 +47,13 @@
 {% for row in rows %}
 <tr>
 <td><a class="name" href="{{ row.href }}">{{ row.name }}</a></td>
-<td>{{ row.kind }}</td>
+<td>{% if let Some(k) = row.kind %}{% call m::text(k) %}{% endcall %}{% endif %}</td>
 <td>{% call m::presence(row) %}{% endcall %}</td>
 <td>{% if let Some(key) = row.key %}<span class="chip">{{ key }}</span>{% endif %}{% if let Some(role) = row.role %} <span class="chip role">{{ role }}</span>{% endif %}</td>
 <td>{% call m::setting(row) %}{% endcall %}</td>
 <td>{% call m::maybe_time(row.first_entered) %}{% endcall %}</td>
 <td>{% call m::maybe_time(row.last_exited) %}{% endcall %}</td>
-<td class="num">{% call m::maybe(row.cost) %}{% endcall %}</td><td class="num">{% call m::maybe(row.context) %}{% endcall %}</td>
+<td class="num">{% call m::maybe(row.cost) %}{% endcall %}</td><td class="num">{% call m::maybe_text(row.context) %}{% endcall %}</td>
 <td>{% if row.skewed %}{% call m::skew() %}{% endcall %}{% endif %}</td>
 </tr>
 {% endfor %}
@@ -61,7 +61,7 @@
 </table>
 </div>
 {% if let Some((from, to)) = cost_window %}<p class="muted" id="costs"><span data-i18n="list.costs.before">{{ "list.costs.before"|t }}</span>{% call m::time(from) %}{% endcall %}<span data-i18n="list.costs.middle">{{ "list.costs.middle"|t }}</span>{% call m::time(to) %}{% endcall %}<span data-i18n="list.costs.after">{{ "list.costs.after"|t }}</span></p>{% endif %}
-{% if let Some(note) = cost_note %}<p class="note">{{ note }}</p>{% endif %}
+{% if let Some(note) = cost_note %}<p class="note"{{ note.attrs()|safe }}>{{ note }}</p>{% endif %}
 {% endif %}
 {% if let Some(next) = next %}
 <p class="more"><a rel="next" href="{{ next }}" data-i18n="common.next">{{ "common.next"|t }}</a></p>

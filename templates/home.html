@@ -6,10 +6,10 @@
 <p class="legend" data-i18n="home.legend">{{ "home.legend"|t }}</p>
 {% for s in services %}
 <section id="{{ s.id }}">
-<h2>{{ s.title }} <span class="kind">{{ s.id }}</span></h2>
-<p class="upstream">{% if let Some(version) = s.version %}<span class="state on" data-i18n="home.connected">{{ "home.connected"|t }}</span> <span class="muted"><span data-i18n="home.version">{{ "home.version"|t }}</span> <code>{{ version }}</code></span>{% else %}<span class="state off" data-i18n="home.unreachable">{{ "home.unreachable"|t }}</span> <span class="muted">{{ s.reason }}</span>{% endif %}</p>
+<h2><span{{ s.title.attrs()|safe }}>{{ s.title }}</span> <span class="kind">{{ s.id }}</span></h2>
+<p class="upstream">{% if let Some(version) = s.version %}<span class="state on" data-i18n="home.connected">{{ "home.connected"|t }}</span> <span class="muted"><span data-i18n="home.version">{{ "home.version"|t }}</span> <code>{{ version }}</code></span>{% else %}<span class="state off" data-i18n="home.unreachable">{{ "home.unreachable"|t }}</span> {% if let Some(reason) = s.reason %}<span class="muted"{{ reason.attrs()|safe }}>{{ reason }}</span>{% endif %}{% endif %}</p>
 <ul class="links">
-{% for (name, href) in s.links %}<li><a href="{{ href }}">{{ name }}</a></li>
+{% for (name, href) in s.links %}<li><a href="{{ href }}"{{ name.attrs()|safe }}>{{ name }}</a></li>
 {% endfor %}
 </ul>
 </section>

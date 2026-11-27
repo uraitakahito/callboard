@@ -161,6 +161,7 @@ async fn 行は_記録を_状態の字にして出す() {
     ]});
     let app = start(list, facets()).await;
     let page = app.html("/messages").await;
+    common::check_i18n("messages.rs:163", &page);
     assert_eq!(shown(&page), ["p/m-2", "p/m-1"]);
     let line = row(&page, "p/m-2");
     assert!(
@@ -174,12 +175,12 @@ async fn 行は_記録を_状態の字にして出す() {
         r#"<time datetime="2026-11-02T00:00:00.000Z" title="2026-11-02T00:00:00.000Z">11-02 09:00</time>"#,
         "<span>A-1</span>",
         r#"<span class="name">answer</span>"#,
-        r#"<span class="state delivered">届いた</span>"#,
+        r#"<span class="state delivered" data-i18n="messages.delivered">届いた</span>"#,
         r#"<span class="route">t-1.swe.1 → pm.1</span>"#,
         // 日付をまたぐ（UTC の 15:00 は、次の日の 00:00）。
         r#"<span><span data-i18n="messages.delivered">届いた</span> <time datetime="2026-11-02T15:00:07.000Z" title="2026-11-02T15:00:07.000Z">11-03 00:00</time></span>"#,
         // 決めていない名は、書かれた字のまま。
-        r#"<span data-i18n="messages.via" data-i18n-options="{&#34;via&#34;:&#34;session-start&#34;}">渡した時: session-start</span>"#,
+        r#"<span data-i18n="messages.via" data-i18n-options="{&#34;via&#34;:&#34;session-start&#34;,&#34;viaEn&#34;:&#34;session-start&#34;}">渡した時: session-start</span>"#,
         r#"<span data-i18n="messages.again" data-i18n-options="{&#34;n&#34;:2}">渡し直し 2 度</span>"#,
         "<pre>りんごにする</pre>",
     ] {
@@ -188,7 +189,7 @@ async fn 行は_記録を_状態の字にして出す() {
     // 要る欄だけの記録: Key・届いた時刻・渡した時・渡し直しの行は出さない。
     let line = row(&page, "p/m-1");
     assert!(
-        line.contains(r#"<span class="state waiting">まだ届いていない</span>"#),
+        line.contains(r#"<span class="state waiting" data-i18n="messages.state.waiting">まだ届いていない</span>"#),
         "{line}"
     );
     assert!(!line.contains(r#"class="who""#), "{line}");
@@ -201,11 +202,11 @@ async fn 行は_記録を_状態の字にして出す() {
 #[tokio::test]
 async fn 状態と_渡した時は_画面の字で出す() {
     let states = [
-        ("waiting", "まだ届いていない"),
-        ("delivered", "届いた"),
-        ("undeliverable", "渡せない"),
-        ("expired", "期限切れ"),
-        ("carried", "ほかの道具で運んだ"),
+        ("waiting", "まだ届いていない", "messages.state.waiting"),
+        ("delivered", "届いた", "messages.delivered"),
+        ("undeliverable", "渡せない", "messages.state.undeliverable"),
+        ("expired", "期限切れ", "messages.state.expired"),
+        ("carried", "ほかの道具で運んだ", "messages.state.carried"),
     ];
     let vias = [
         ("gate", "検査が止めた後"),
@@ -216,7 +217,7 @@ async fn 状態と_渡した時は_画面の字で出す() {
         ("closed", "席を閉じた"),
     ];
     let mut messages = Vec::new();
-    for (i, (state, _)) in states.iter().enumerate() {
+    for (i, (state, _, _)) in states.iter().enumerate() {
         messages.push(with(
             message("p", &format!("s-{i}")),
             json!({ "state": state }),
@@ -230,19 +231,23 @@ async fn 状態と_渡した時は_画面の字で出す() {
     }
     let app = start(json!({ "messages": messages }), facets()).await;
     let page = app.html("/messages").await;
-    for (i, (state, label)) in states.iter().enumerate() {
+    common::check_i18n("messages.rs:232", &page);
+    for (i, (state, label, key)) in states.iter().enumerate() {
         let line = row(&page, &format!("p/s-{i}"));
         assert!(
-            line.contains(&format!(r#"<span class="state {state}">{label}</span>"#)),
+            line.contains(&format!(
+                r#"<span class="state {state}" data-i18n="{key}">{label}</span>"#
+            )),
             "{line}"
         );
     }
     for (i, (_, label)) in vias.iter().enumerate() {
         let line = row(&page, &format!("p/v-{i}"));
+        // 英語の字は、値 viaEn（鍵 messages.viaName.* の英語の字）で組む。
         assert!(
             line.contains(&format!(
-                r#"<span data-i18n="messages.via" data-i18n-options="{{&#34;via&#34;:&#34;{label}&#34;}}">渡した時: {label}</span>"#
-            )),
+                r#"<span data-i18n="messages.via" data-i18n-options="{{&#34;via&#34;:&#34;{label}&#34;,&#34;viaEn&#34;:&#34;"#
+            )) && line.contains(&format!(r#"&#34;}}">渡した時: {label}</span>"#)),
             "{line}"
         );
         // 渡した回数が 1 なら、渡し直しは出さない。
@@ -348,6 +353,7 @@ async fn 引数を_一覧と候補の問いに渡す() {
 async fn 絞り込みの列と_まだ届いていない数を出す() {
     let app = start(json!({ "messages": [message("p", "m-1")] }), facets()).await;
     let page = app.html("/messages").await;
+    common::check_i18n("messages.rs:353", &page);
     assert!(
         page.contains("<title data-i18n=\"messages.titleWaiting\" data-i18n-options=\"{&#34;n&#34;:2}\">まだ届いていない 2 件 ・ メッセージの記録 ・ callboard</title>"),
         "{page}"
@@ -357,18 +363,18 @@ async fn 絞り込みの列と_まだ届いていない数を出す() {
         "{page}"
     );
     for choice in [
-        "<h2>状態</h2>",
-        r#"<a href="/messages?state=waiting"><span>まだ届いていない</span><span class="n">2</span></a>"#,
-        r#"<a href="/messages?state=carried"><span>ほかの道具で運んだ</span><span class="n">1</span></a>"#,
-        "<h2>受け手</h2>",
+        r#"<h2 data-i18n="filters.state">状態</h2>"#,
+        r#"<a href="/messages?state=waiting"><span data-i18n="messages.state.waiting">まだ届いていない</span><span class="n">2</span></a>"#,
+        r#"<a href="/messages?state=carried"><span data-i18n="messages.state.carried">ほかの道具で運んだ</span><span class="n">1</span></a>"#,
+        r#"<h2 data-i18n="filters.recipient">受け手</h2>"#,
         r#"<a href="/messages?to=tpm"><span>tpm</span><span class="n">3</span></a>"#,
-        "<h2>送り手</h2>",
+        r#"<h2 data-i18n="filters.sender">送り手</h2>"#,
         r#"<a href="/messages?from=pm.1"><span>pm.1</span><span class="n">2</span></a>"#,
         // 値は % で包む。
         r#"<a href="/messages?from=a%20b%3Fc%26d"><span>a b?c&#38;d</span><span class="n">1</span></a>"#,
-        "<h2>Key</h2>",
+        r#"<h2 data-i18n="filters.key">Key</h2>"#,
         r#"<a href="/messages?key=A-1"><span>A-1</span><span class="n">4</span></a>"#,
-        "<h2>project</h2>",
+        r#"<h2 data-i18n="filters.project">project</h2>"#,
         r#"<a href="/messages?project=q"><span>q</span><span class="n">2</span></a>"#,
     ] {
         assert!(page.contains(choice), "{choice}: {page}");
@@ -381,7 +387,7 @@ async fn 絞り込みの列と_まだ届いていない数を出す() {
     let page = app.html("/messages?state=waiting&at=6d65").await;
     // 選んだ候補は印が付き、もう 1 度押すと外れる。ほかの候補は、今の条件に重ねる。続きの印（at）は、条件を替えると外す。
     assert!(
-        page.contains(r#"<a href="/messages" class="on" aria-current="true"><span>まだ届いていない</span><span class="n">2</span></a>"#),
+        page.contains(r#"<a href="/messages" class="on" aria-current="true"><span data-i18n="messages.state.waiting">まだ届いていない</span><span class="n">2</span></a>"#),
         "{page}"
     );
     assert!(
@@ -486,7 +492,7 @@ async fn 画面の間の_link_と_script() {
     assert!(body.contains("EventSource"), "{body}");
     let home = app.html("/").await;
     assert!(
-        home.contains(r#"<a href="/messages">メッセージ</a>"#),
+        home.contains(r#"<a href="/messages" data-i18n="nav.messages">メッセージ</a>"#),
         "{home}"
     );
 }

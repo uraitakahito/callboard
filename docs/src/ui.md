@@ -211,7 +211,7 @@ castlist の `GetGraph`（`GET /api/graph`）の答えを、そのまま返す�
 
 - 渡すのは、問い合わせの引数の字だけ（castlist が確かめる）。browser の header（`Cookie`・`Referer` など）は渡さず、`Host: 127.0.0.1` で聞く。
 - 返すのは、castlist の答えの状態・本文の型・誤りの型の名（`X-Amzn-Errortype`）・本文。castlist の誤り（400 など）も、そのまま返る。
-- castlist に聞けない時（つながらない・答えを読み終えるまで 4 秒）は、503 `Unavailable`（`{"message":"castlist に聞けません（…）"}`）。
+- castlist に聞けない時（つながらない・答えを読み終えるまで 4 秒）は、503 `Unavailable`（`{"message":"castlist に聞けません（…）","code":"errors.unreachable","values":{…}}`。下の「画面の字の言語」）。castlist が断った答えには、`code`（型の名の鍵）と `values`（`detail` に castlist の訳）を足す。
 - 読むだけ（`GET`・`HEAD`）。castlist のほかの道は中継しない。
 
 CSP を緩めずに cytoscape を使うための、2 つの決まり（`static/network.js`）:
@@ -235,7 +235,7 @@ CSP を緩めずに cytoscape を使うための、2 つの決まり（`static/n
 
 ## 出来事の名
 
-id は英語のまま（castlist の API）。日本語の名は画面だけで、`crates/server/src/ui/profile.rs` の `EVENT_NAMES` の 1 か所に置く。
+id は英語のまま（castlist の API）。名は画面だけで、字は訳の file（`static/locales/ja.json`・`en.json`）の `events` の 1 か所に置く（id と鍵の組は `crates/server/src/ui/profile.rs` の `EVENT_NAMES`）。知らない id は、id のまま出す。
 
 | id | 名 |
 |---|---|
@@ -260,7 +260,11 @@ id は英語のまま（castlist の API）。日本語の名は画面だけで�
 - **英語の時**: `<head>` の内に `<html>` へ `i18n-wait` を付けて本文を隠し、読み終えたら `[data-i18n]` と `[data-i18n-attr]` を差し替え、`lang="en"` にして外す。差し替えは `textContent` と属性でだけする（`innerHTML` は使わない）。途中で止まっても、`site.css` の守り（CSS だけで効く）が 1.5 秒で本文を日本語のまま見せる。
 - **JavaScript の決まり**: 新着で server の HTML を読み直す script は、比べと差し替えの前に `window.callboardLocalize(読み直した木)` で訳す。JavaScript は、起きた時に DOM の字を読まない（本文の終わりの script は差し替えより先に動くので、日本語を取る）。字は `callboardT` で引く。
 - **鍵を付ける要素の決まり**: `data-i18n` は、子の要素を持たない要素にだけ付ける（英語の時は字を丸ごと替えるので、子の link・強め・数の要素は消える）。字の中に link や時刻がある文は、その前と後で鍵を分け、それぞれを `<span>` に入れる。
-- **訳の file の決まり**: 差し込みは `{{名}}` だけ（サーバーとブラウザーで字が食い違わないように。`$t(…)`・`{{n, number}}` は使わない）。数で言い分ける英語は `<鍵>_one`・`<鍵>_other`（日本語は `<鍵>_other` だけ）。`ja.json` と `en.json` は同じ鍵を持つ。画面に書いた鍵は、みな `ja.json` にある。どれも試験（`crates/server/tests/i18n.rs`・`e2e/tests/i18n.spec.ts`）が見る。画面の字の決まり（`ci/check-wording.sh`）は `ja.json` も見る。
+- **Rust が組む字**: Rust（`crates/server/src/`）は、画面に出す字を日本語で返さず、鍵と値（`ui/i18n.rs` の `Text`）で返す。`Text` を `{{ x }}` で書くと日本語の字、`{{ x.attrs()|safe }}` でその要素の `data-i18n`（と `data-i18n-options`）、属性の字は `x.attr("title")`。英語は、ブラウザーが同じ鍵と値で組む。時・日のように言語で替わる単位は、値に入れずに鍵を分ける（`usage.bySlot.heading.hour`・`.day`）。鍵の無い字（数・時刻・記録の値）は `Text::plain` で、鍵を付けない。
+- **言語で形の替わる値**: 「万」の数（`2.5 万`）や、ほかの字の中に入れる字（「つながりません」）は、日本語の字が `{{名}}`、英語の字が `{{名En}}` で引き、`data-i18n-options` には両方を書く（`Text::with_both`・`with_text`。例 `{"width":"2.5 万","widthEn":"25k"}`）。トークンの数は、日本語は「万」（`22.5 万`）、英語は千（`225k`。同じ桁まで）。
+- **誤りの JSON**: callboard が返す誤りの答え（守りの層・file を上げる道・中継の道）は、`message`（日本語の字。今までのまま）に、`code`（その字の鍵）と `values`（差し込む値）を足す。ブラウザーは `callboardT(code, values)` で選んだ言語の字を組む（今はページの一覧の、上げられなかった訳）。castlist・pagetray が断った答えを運ぶ時は、`code` を型の名（`X-Amzn-Errortype`）の鍵（`errors.kind.unsupportedMediaType` など）にし、呼ぶ先の訳を `values` の `detail` に入れる（日本語の字は `{{detail}}` で、呼ぶ先の訳のまま。英語は型ごとの決まった字）。
+- **区切りの記号**: 字の間の区切りの記号（「 ・ 」「 · 」と、全角の括弧「（…）」）は、題（`<title>`）のほかは、鍵にせず記号のまま template と字に残す（英語の時も同じ記号。題だけは、鍵の字に「 ・ callboard」「 · callboard」まで入れる）。
+- **訳の file の決まり**: 差し込みは `{{名}}` だけ（サーバーとブラウザーで字が食い違わないように。`$t(…)`・`{{n, number}}` は使わない）。数で言い分ける英語は `<鍵>_one`・`<鍵>_other`（日本語は `<鍵>_other` だけ。値の名は `count`）。`data-i18n-options` で数になるのは、数の型で渡した値だけ（字の `007` は字のまま）。`ja.json` と `en.json` は同じ鍵を持つ。画面に書いた鍵と、template と Rust の source に書いた鍵は、みな `ja.json` にある。どれも試験（`crates/server/tests/i18n.rs`・`e2e/tests/i18n.spec.ts`）が見る。画面の字の決まり（`ci/check-wording.sh`）は `ja.json` も見る。
 
 ## 配る file
 

@@ -9,6 +9,9 @@ mod guard;
 mod ui;
 pub mod upstream;
 
+/// 画面に出す字（鍵と値）。呼ぶ先に聞けなかった訳（[`upstream::Failure`]）も、この形で持つ。
+pub use ui::i18n::Text;
+
 use std::sync::Arc;
 use std::time::Duration;
 

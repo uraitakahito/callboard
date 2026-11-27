@@ -153,6 +153,7 @@ async fn 一覧の行は_名_種類_状態_最後の出来事_課題の_key_と�
  {
     let app = start(rows()).await;
     let body = app.html("/actors/?label=project:x").await;
+    common::check_i18n("list.rs:155", &body);
     // 条件があれば、既定の窓の断りは出さない。
     assert!(!body.contains("条件が無いので"), "{body}");
     let pm = tr(&body, PM);
@@ -160,8 +161,11 @@ async fn 一覧の行は_名_種類_状態_最後の出来事_課題の_key_と�
         pm.contains(&format!("<a class=\"name\" href=\"/actors/{PM}\">pm.1</a>")),
         "{pm}"
     );
-    assert!(pm.contains("<td>人</td>"), "{pm}");
-    assert!(pm.contains("<span class=\"state on\" data-i18n=\"common.state.running\">稼働中</span> <span class=\"event\" title=\"entered\">登場</span>"), "{pm}");
+    assert!(
+        pm.contains("<td><span data-i18n=\"common.kind.human\">人</span></td>"),
+        "{pm}"
+    );
+    assert!(pm.contains("<span class=\"state on\" data-i18n=\"common.state.running\">稼働中</span> <span class=\"event\" title=\"entered\" data-i18n=\"events.entered\">登場</span>"), "{pm}");
     assert!(pm.contains("2026-11-22 09:30:00"), "{pm}");
     assert!(
         !pm.contains("class=\"chip") && !pm.contains("class=\"skew\""),
@@ -170,7 +174,7 @@ async fn 一覧の行は_名_種類_状態_最後の出来事_課題の_key_と�
     let se = tr(&body, SE1);
     // AI には種類の印を付けない。
     assert!(se.contains("<td></td>"), "{se}");
-    assert!(se.contains("<span class=\"state off\" data-i18n=\"common.state.stoppedInferred\">停止（推し）</span> <span class=\"event\" title=\"closed\">幕引き</span>"), "{se}");
+    assert!(se.contains("<span class=\"state off\" data-i18n=\"common.state.stoppedInferred\">停止（推し）</span> <span class=\"event\" title=\"closed\" data-i18n=\"events.closed\">幕引き</span>"), "{se}");
     assert!(
         se.contains(
             "<span class=\"chip\">t-23zs</span> <span class=\"chip role\">software-engineer</span>"
@@ -566,6 +570,7 @@ fn nums(tr: &str) -> Vec<&str> {
     tr.split("<td class=\"num\">")
         .skip(1)
         .map(|cell| &cell[..cell.find("</td>").unwrap()])
+        .map(common::unwrap_text)
         .collect()
 }
 
@@ -583,6 +588,10 @@ async fn 一覧の行に_一覧の期間の_席の額と_いちばん長い文�
     );
     // se.1: 額は本体と手伝いの計（$1.75）、いちばん長い文脈は本体の回の大きい方（23 万。手伝いの 90 万は数えない）。
     assert_eq!(nums(tr(&body, SE1)), ["$1.75", "23 万"]);
+    assert!(
+        tr(&body, SE1).contains(&common::tokens("23", "230k")),
+        "{body}"
+    );
     // 数の無い席は「—」。
     assert_eq!(nums(tr(&body, PM)), [NONE, NONE]);
     // 一覧に居ない se.2 の行は出さない。
@@ -604,6 +613,7 @@ async fn 一覧の行に_一覧の期間の_席の額と_いちばん長い文�
 async fn 一覧に期間が無ければ_数は直近_7_日を時の境に揃えて聞く() {
     let app = start_with_usage(rows(), usage()).await;
     let body = app.html("/actors/").await;
+    common::check_i18n("list.rs:608", &body);
     assert_eq!(nums(tr(&body, SE1)), ["$1.75", "23 万"]);
     let usage = usage_asked(&app).expect("数を聞いていない");
     let at = |name: &str| {

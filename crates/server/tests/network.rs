@@ -382,6 +382,9 @@ async fn 中継の道は_castlist_の誤りの状態と型と訳をそのまま�
     assert_eq!(error_type(&headers), "ValidationException");
     let json: Value = serde_json::from_str(&body).unwrap();
     assert_eq!(json["message"], "label は「鍵:値」の形");
+    // 運んだ誤りには、型の名の鍵と、castlist の訳（detail）を足す。
+    assert_eq!(json["code"], "errors.kind.validation");
+    assert_eq!(json["values"]["detail"], "label は「鍵:値」の形");
 }
 
 #[tokio::test]
@@ -398,6 +401,16 @@ async fn 中継の道は_castlist_に聞けなければ_unavailable_の形で返
     );
     let json: Value = serde_json::from_str(&body).unwrap();
     assert_eq!(json["message"], "castlist に聞けません（つながりません）");
+    // callboard が組んだ誤りには、字の鍵と値（英語の字の値も）を付ける。
+    assert_eq!(json["code"], "errors.unreachable");
+    assert_eq!(
+        json["values"],
+        serde_json::json!({"service": "castlist", "why": "つながりません", "whyEn": "cannot connect"})
+    );
+    assert_eq!(
+        common::ja_text("errors.unreachable", &json["values"]),
+        "castlist に聞けません（つながりません）"
+    );
     assert!(!body.contains(&down), "{body}");
 }
 
