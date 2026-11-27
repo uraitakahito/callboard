@@ -5,12 +5,14 @@
     // data も volume も持たないので、起こし直しても失う物は無い。起こす・止める・版を上げるのは、pagetray と同じ
     // 「TPM に相談」（guard: tpm。DevOps Engineer 担当だけが打てる。Product Manager の答え: AI-32 の confirm-4 の項目 4）。
     // 起こし方は docs の「動かす」（docs/src/run.md）。
-    // guard は命令の字に match の字が含まれるかで見る。CI の試しの container の名（smoke-callboard など）には当たらない。
-    // 名の前に旗を挟む命令（rm -f・delete --force など）は、字が続かないので当たらない。よく使う形だけ、下に足してある
-    // （旗の組み合わせを、みな並べることはできない。stop -t <秒> のように値の入る旗は当てられない）。
-    // 上の 3 行は、字の含みで見る前の guard の話。命令の語で当てる roster の guard（t-7j37）では、間に旗や値が挟まっても当たる
-    // （rm -f などの書き足しの項目は、残しても害が無い）。語で当たらなくても字に含まれれば今のとおり止める（callboard-x など）。
-    // 字の含みだけで通すのは、roster・git commit・grep・rg だけの命令（roster file put の名を付ける旗の値など）。
+    // roster の guard の当て方（roster の docs-site の設定のページの「環境の手続き」）のうち、要るところだけ:
+    // - 項目は命令の語で当てる。間に旗や値が挟まってもよい（container rm -f callboard・container stop -t 5 callboard も
+    //   container rm callboard・container stop callboard の項目で当たる）。container の命令の旗はそろえてから当てるので、--name=callboard も --name callboard の項目で当たる。
+    // - 語で当たらなくても、命令の字に項目の字（--name=callboard の書き方も）が含まれれば止める（--name callboard-x など）。
+    //   CI の試しの container の名（smoke-callboard など）を的にする命令には当たらない。
+    //   字の含みだけで通すのは、roster・git commit・grep・rg だけの命令（roster file put の名を付ける旗の値など）。
+    // - 名を宣言した container（--name の項目）を的にする container の命令は、ここに書いていない動詞（exec・cp・commit・export など）でも
+    //   止まる（ssh host '…' の中も）。読むだけの logs・inspect・stats・ls は通る（roster の t-d37r）。
     "callboard": {
       "guard": "tpm",
       "match": [
@@ -20,11 +22,6 @@
         "container kill callboard",
         "container delete callboard",
         "container rm callboard",
-        "--name=callboard",
-        "container rm -f callboard",
-        "container rm --force callboard",
-        "container delete -f callboard",
-        "container delete --force callboard",
       ],
     },
   },
