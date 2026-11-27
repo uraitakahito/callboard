@@ -16,6 +16,7 @@ mod profile;
 mod time;
 mod timeline;
 mod timeline_layout;
+mod usage_summary;
 
 use std::sync::{Arc, LazyLock};
 

@@ -173,3 +173,82 @@ pub fn routes(actor: Value, lineage: Value) -> Router {
             }),
         )
 }
+
+// --- トークンの数と費え（ListUsage。castlist 2.1.0 から） ---
+
+/// 数の 1 行（Usage）。`agent` が在れば手伝い（subagent）の回。`to_at` は区間の終わりの時刻。`counts` は、既定の値に
+/// 重ねる欄（`turns`・`costMicroUsd`・`maxContext`・`buckets` など）。
+pub fn usage_row(id: &str, actor: &str, agent: Option<&str>, to_at: &str, counts: Value) -> Value {
+    let mut row = json!({
+        "id": id, "actorId": actor, "model": "claude-opus-5-5", "speed": "standard", "serviceTier": "standard",
+        "fromAt": to_at, "toAt": to_at, "turns": 1,
+        "inputTokens": 10, "outputTokens": 20, "cacheReadTokens": 30, "cacheWrite5mTokens": 0, "cacheWrite1hTokens": 40,
+        "webSearchRequests": 0, "webFetchRequests": 0, "costMicroUsd": 0, "maxContext": 0,
+        "buckets": [{"bucket": 0, "turns": 1, "costMicroUsd": 0}],
+        "sentAt": to_at, "receivedAt": to_at, "clockSkew": false,
+    });
+    if let Some(agent) = agent {
+        row["agent"] = json!(agent);
+    }
+    for (name, value) in counts.as_object().expect("counts は JSON の object") {
+        row[name] = value.clone();
+    }
+    row
+}
+
+/// 段の並び（`(番号, 回の数, 額)`）。
+pub fn usage_buckets(buckets: &[(i32, i64, i64)]) -> Value {
+    buckets
+        .iter()
+        .map(
+            |(bucket, turns, cost)| json!({"bucket": bucket, "turns": turns, "costMicroUsd": cost}),
+        )
+        .collect()
+}
+
+/// 行に出てきたアクター（UsageActor）。
+pub fn usage_actor(id: &str, name: &str, labels: Value) -> Value {
+    json!({"id": id, "name": name, "labels": labels})
+}
+
+/// ListUsage の答えの 1 頁。`next` が在れば、次の頁の印を付ける。
+pub fn usage_page(rows: Vec<Value>, actors: Vec<Value>, next: Option<&str>) -> Value {
+    let mut page = json!({"asOf": "2026-11-22T06:00:00Z", "usage": rows, "actors": actors});
+    if let Some(next) = next {
+        page["nextToken"] = json!(next);
+    }
+    page
+}
+
+/// ListUsage（`GET /api/usage`）を返す偽の castlist の道。`pages[0]` は `nextToken` の無い問いへの答え、
+/// `pages[n]` は `nextToken=p<n>` の問いへの答え（ほかの印は 400）。
+pub fn usage_routes(pages: Vec<Value>) -> Router {
+    super::castlist_routes().route(
+        "/api/usage",
+        get(
+            move |axum::extract::RawQuery(query): axum::extract::RawQuery| {
+                let token = query.as_deref().and_then(|q| {
+                    q.split('&')
+                        .find_map(|p| p.strip_prefix("nextToken=").map(str::to_owned))
+                });
+                let page = match token {
+                    None => pages.first().cloned(),
+                    Some(token) => token
+                        .strip_prefix('p')
+                        .and_then(|n| n.parse::<usize>().ok())
+                        .and_then(|n| pages.get(n).cloned()),
+                };
+                async move {
+                    match page {
+                        Some(page) => answer(StatusCode::OK, &page.to_string()),
+                        None => error(
+                            StatusCode::BAD_REQUEST,
+                            "ValidationException",
+                            "nextToken が読めない",
+                        ),
+                    }
+                }
+            },
+        ),
+    )
+}
