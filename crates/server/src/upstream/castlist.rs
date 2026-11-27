@@ -55,6 +55,8 @@ pub struct UsageSearch {
     pub to: aws_smithy_types::DateTime,
     /// `鍵:値`。重ねれば、どれも持つアクターの行。
     pub labels: Vec<String>,
+    /// そのアクターの行だけ（アクターの頁）。
+    pub actor_id: Option<String>,
 }
 
 /// 窓の内の、トークンの数と費えの行（ListUsage の頁を、みな引いた物）。

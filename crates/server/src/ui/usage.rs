@@ -231,6 +231,7 @@ fn summarize(answer: UsageAnswer) -> Summary {
         .rows
         .into_iter()
         .map(|u| summary::Row {
+            to_at: u.to_at.secs(),
             actor_id: u.actor_id,
             helper: u.agent.is_some(),
             turns: u.turns,
@@ -350,6 +351,7 @@ async fn usage_page(
         from: DateTime::from_secs(from.unix_timestamp()),
         to: DateTime::from_secs(to.unix_timestamp()),
         labels,
+        actor_id: None,
     };
     let answer = app.castlist.usage(&search).await.map_err(|e| match e {
         // castlist が引数を断った（callboard の確かめを通った物なので、ふつうは起きない）。castlist の訳を、そのまま書く。

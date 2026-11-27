@@ -258,7 +258,12 @@ pub fn usage_routes_slow(pages: Vec<Value>, slow: usize, delay: std::time::Durat
 /// ListUsage（`GET /api/usage`）を返す偽の castlist の道。`pages[0]` は `nextToken` の無い問いへの答え、
 /// `pages[n]` は `nextToken=p<n>` の問いへの答え（ほかの印は 400）。
 pub fn usage_routes(pages: Vec<Value>) -> Router {
-    super::castlist_routes().route(
+    with_usage(super::castlist_routes(), pages)
+}
+
+/// ほかの道（一覧・アクター 1 つ）に、ListUsage の道（[`usage_routes`] と同じ答え）を足す。
+pub fn with_usage(routes: Router, pages: Vec<Value>) -> Router {
+    routes.route(
         "/api/usage",
         get(
             move |axum::extract::RawQuery(query): axum::extract::RawQuery| {
