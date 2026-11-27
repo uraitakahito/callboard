@@ -290,7 +290,12 @@ id は英語のまま（castlist の API）。名は画面だけで、字は訳�
 ### 言語を足す・字を足す
 
 - **字を足す**: `ja.json` と `en.json` に同じ鍵を足し、template には `data-i18n` と `{{ "<鍵>"|t }}`、Rust には `Text::new("<鍵>")`、JavaScript には `callboardT("<鍵>")` で書く。鍵が片方にしか無い・画面に書いた鍵が無い・差し込みの形が違う、は試験が落とす。
-- **言語を足す**: `static/locales/<言語>.json` を足し、`crates/server/src/ui/i18n.rs` で `/static/locales/<言語>.js` として配り（`ja`・`en` と同じ形）、`templates/base.html` の `<head>` と言語の切り替えに 1 つずつ足し、`static/i18n.js` の `LANGS` に足す。サーバーの字（日本語）と Rust は替えない。
+- **言語を足す**: 今の作りでは、言語を名指す所が次のようにあり、どれにも 1 つずつ足す（サーバーが書く字は日本語のまま替えない。言語の並び 1 つから回す形にするのは、まだ）。
+  1. `static/locales/<言語>.json`（`ja.json` と同じ鍵）。
+  2. Rust: `crates/server/src/ui/i18n.rs` に `<言語>` の JSON と、配る script（`<言語>_JS`）と `?v=` の付いた path（`<言語>_JS_HREF`）を足し、`crates/server/src/ui.rs` に配る関数と route（`/static/locales/<言語>.js`）を足す。
+  3. `templates/base.html`: `<head>` の訳の script と、言語の切り替えの釦。
+  4. `static/i18n.js`: `LANGS` に足し、`pick()`（今はブラウザーの言語が `en` かだけを見る）をその言語も選ぶ形にし、`i18next.init` の `resources` に足す。
+  5. 試験と smoke: `crates/server/tests/common/mod.rs` の `without_i18n_scripts`（head の script の並び）、`crates/server/tests/i18n.rs`（鍵のそろいと配る道。今は `ja`・`en` だけを比べる）、`ci/smoke-image.sh` の `i18n_scripts`、`e2e/tests/i18n.spec.ts`。
 
 ## 配る file
 

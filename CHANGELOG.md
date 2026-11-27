@@ -6,12 +6,12 @@
 
 画面を日本語と英語で出す版（AI-34・AI-50）。
 
-- **画面の字を日本語と英語で出す**: 字は `static/locales/ja.json`・`en.json`（i18next の形）の 1 か所に置き、画面・Rust・JavaScript は鍵で引く。サーバーは今までどおり日本語の字を書き、英語の時はブラウザーの i18next（取り込んだ 27.2.9。MIT）が字を差し替える。日本語の画面の字と見た目は 1.0.1 と同じ（一覧の引数の誤りの字だけは、1.0.1 の後に t-5dhg が直した字）。
+- **画面の字を日本語と英語で出す**: 字は `static/locales/ja.json`・`en.json`（i18next の形）の 1 か所に置き、画面・Rust・JavaScript は鍵で引く。サーバーは今までどおり日本語の字を書き、英語の時はブラウザーの i18next（取り込んだ 27.2.9。MIT）が字を差し替える。頭の帯の右の言語の切り替えのほかは、日本語の画面の字と見た目は 1.0.1 と同じ（一覧の引数の誤りの字だけは、1.0.1 の後に t-5dhg が直した字）。
 - **言語の選び**: cookie `callboard-lang` → ブラウザーの言語の並びの初めの 1 つ → 日本語。頭の帯の右に「日本語 / English」の切り替え。JavaScript を切った時は日本語（相関図のほかは今までどおり読める）。
 - どの画面も `<head>` で、i18next・訳 2 つ（`/static/locales/{ja,en}.js`）・`/static/i18n.js` を読む。CSP は変えない（inline の script は無い）。
 - callboard が返す誤りの JSON（守りの層・file を上げる道・中継の道）に、字の鍵の `code` と `values` を足した（`message` は今までのまま）。呼ぶ先の本文に `code` があれば `upstreamCode` に移す。
 - **呼ぶ先の要る版は変わらない**: castlist は 1.1.0 から（使用量は 2.1.0 から）、pagetray は 1.3.0 から。castlist・pagetray が返す訳（誤りの詳しい本文など）は、呼ぶ先の言葉（日本語）のまま出る（英語にするのは AI-48）。
-- 設定・image の中身（binary 1 つ）は変わらない。`ci/check-vendor.sh` は取り込んだ package ごとの節を見る形にした。`ci/check-wording.sh` は `static/locales/ja.json` も見る。
+- 設定・image の中身（binary 1 つ）は変わらない。`ci/check-vendor.sh` は取り込んだ package ごとの節を見る形にした。`ci/check-wording.sh` は `static/locales/ja.json` も見る。前の画面の字と「費え」は、画面の字を持つ code（`crates/server/src`・`static/*.js`）でも見る（t-5dhg）。
 
 ## 1.0.1
 
