@@ -525,8 +525,9 @@ fn slot_chart(
     rows: &[summary::Row],
     from: OffsetDateTime,
     to: OffsetDateTime,
-) -> (ChartView, &'static str) {
+) -> (ChartView, &'static str, Vec<SlotRow>) {
     let (start, end) = (from.unix_timestamp(), to.unix_timestamp());
+    let mut table = Vec::new();
     let hourly = end - start <= chart::DAY;
     let starts = if hourly {
         chart::hour_starts(start, end)
@@ -565,11 +566,23 @@ fn slot_chart(
             });
         }
         let sum = dollars(main + helper);
-        for (class, base, value, what) in [
-            ("bar main", 0, *main, "本体"),
-            ("bar helper", *main, *helper, "手伝い"),
+        // 図の外の字の表（読み上げのため。図の棒の <title> は読み上げに出ない）。額の在る区切りだけ。
+        if main + helper > 0 {
+            table.push(SlotRow {
+                name: name.clone(),
+                main: dollars(*main),
+                helper: dollars(*helper),
+                total: sum.clone(),
+            });
+        }
+        // 手伝いの棒は、本体の棒の上の端から積む（本体の棒が 1 px に満たず 1 px で描いた時に、それを覆わない）。
+        let main_bar = chart::bar(axis, slot, 0, *main);
+        let helper_bar = chart::stacked(axis, slot, main_bar, *main, *helper);
+        for (class, value, what, bar) in [
+            ("bar main", *main, "本体", main_bar),
+            ("bar helper", *helper, "手伝い", helper_bar),
         ] {
-            if let Some(b) = chart::bar(axis, slot, base, value) {
+            if let Some(b) = bar {
                 view.bars.push(BarView {
                     class,
                     x: b.x,
@@ -584,7 +597,15 @@ fn slot_chart(
             }
         }
     }
-    (view, unit)
+    (view, unit, table)
+}
+
+/// 区切り（日・時）ごとの額の、字の表の 1 行。
+pub(super) struct SlotRow {
+    name: String,
+    main: String,
+    helper: String,
+    total: String,
 }
 
 /// 文脈の長さの段々の線（1 時間ごとの、本体の回のいちばん長い文脈）と、縦の印（時刻・字）。本体の回が無ければ無い。
@@ -592,8 +613,8 @@ fn slot_chart(
 pub(super) fn line_chart(rows: &[summary::Row], marks: &[(i64, String)]) -> Option<ChartView> {
     let points = summary::context_by_hour(rows);
     let (first, last) = (points.first()?.0, points.last()?.0 + chart::HOUR);
-    let start = marks.iter().map(|m| m.0).fold(first, i64::min);
-    let end = marks.iter().map(|m| m.0).fold(last, i64::max);
+    // 横は、数の記録の在る時の内だけ（その外の印は描かない。取り込みの始まる前の印で、線が端に縮まないように）。
+    let (start, end) = (first, last);
     let max = points.iter().map(|p| p.1).max().unwrap_or(0);
     let axis = chart::axis(max.max(LIMIT), 10_000);
     let mut view = frame(
@@ -645,6 +666,7 @@ pub(super) fn line_chart(rows: &[summary::Row], marks: &[(i64, String)]) -> Opti
     view.line = Some(chart::steps(&points, start, end, axis));
     view.marks = marks
         .iter()
+        .filter(|(t, _)| (start..=end).contains(t))
         .map(|(t, title)| MarkView {
             x: chart::x_at(start, end, *t),
             title: title.clone(),
@@ -667,6 +689,8 @@ pub(super) fn line_chart(rows: &[summary::Row], marks: &[(i64, String)]) -> Opti
 struct Charts {
     by_context: Option<ChartView>,
     by_slot: ChartView,
+    /// 日ごと・時ごとの額の字の表（畳んで置く）。
+    slot_rows: Vec<SlotRow>,
     /// 区切りの名（日・時）。
     unit: &'static str,
 }
@@ -779,10 +803,11 @@ async fn usage_page(
         let read = count(i64::try_from(answer.rows.len()).unwrap_or(i64::MAX));
         let rows = rows_of(answer.rows);
         let tables = (!rows.is_empty()).then(|| {
-            let (by_slot, unit) = slot_chart(&rows, from, to);
+            let (by_slot, unit, slot_rows) = slot_chart(&rows, from, to);
             let charts = Charts {
                 by_context: context_chart(&rows),
                 by_slot,
+                slot_rows,
                 unit,
             };
             tables(summarize(&rows, answer.actors), charts)

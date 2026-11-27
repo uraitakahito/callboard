@@ -857,3 +857,31 @@ async fn 図は_script_を使わず_行が無ければ出さない() {
         1
     );
 }
+
+#[tokio::test]
+async fn 日ごとの額は_図の下に畳んだ字の表でも読める() {
+    let app = sample().await;
+    let body = app.html(WINDOW).await;
+    let day = section(&body, "by-day");
+    assert!(
+        day.contains("<details class=\"slots\"><summary>時ごとの額を、表で見る</summary>"),
+        "{day}"
+    );
+    // 額の在る区切りだけを出す。表の計の欄の和は、全体の額（$7.26）と同じ。
+    let table = day.split("<details").nth(1).unwrap();
+    let totals: Vec<f64> = table
+        .split("<tr><td>")
+        .skip(1)
+        .map(|tr| {
+            let last = tr.split("<td class=\"num\">").last().unwrap();
+            last[1..last.find("</td>").unwrap()]
+                .replace(',', "")
+                .parse::<f64>()
+                .unwrap()
+        })
+        .collect();
+    assert!(!totals.is_empty(), "{table}");
+    assert!(totals.iter().all(|t| *t > 0.0), "{table}");
+    let sum: f64 = totals.iter().sum();
+    assert!((sum - 7.26).abs() < 0.015, "{sum}: {table}");
+}

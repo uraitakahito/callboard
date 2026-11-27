@@ -140,6 +140,19 @@ pub fn bar(axis: Axis, slot: &Slot, base: i64, value: i64) -> Option<Bar> {
     })
 }
 
+/// 下の棒（`below`）の上に積む棒（`base` から `base + value` まで）。下の端は、下の棒の上の端（下の棒が 1 px に満たず 1 px で
+/// 描いた時も、それを覆わない）。下の棒が無ければ [`bar`] と同じ。`value` が 0 以下なら無い。0 でなければ、低くても 1 px。
+pub fn stacked(axis: Axis, slot: &Slot, below: Option<Bar>, base: i64, value: i64) -> Option<Bar> {
+    let mut b = bar(axis, slot, base, value)?;
+    if let Some(below) = below {
+        let top = axis.y(base.saturating_add(value));
+        let bottom = below.y;
+        b.h = bottom.saturating_sub(top).max(1);
+        b.y = bottom.saturating_sub(b.h);
+    }
+    Some(b)
+}
+
 /// `n` の枠に横の目盛りの字を置く時の間引き: 字の間を `min_px` より狭くしない、いちばん小さい間（枠の数）。
 pub fn label_every(n: usize, min_px: u32) -> usize {
     let width = u32::try_from(n)
@@ -314,6 +327,23 @@ mod tests {
             s.iter().all(|slot| (15..=16).contains(&slot.width)),
             "{s:?}"
         );
+    }
+
+    #[test]
+    fn 積む棒は_下の棒の上の端から描き_1_px_の下の棒を覆わない() {
+        let axis = axis(1_000_000, 1);
+        let slot = &slots(1)[0];
+        // 下の棒は、とても小さい（1 px に満たないので 1 px）。
+        let below = bar(axis, slot, 0, 1).unwrap();
+        assert_eq!(below.h, 1);
+        let up = stacked(axis, slot, Some(below), 1, 500_000).unwrap();
+        assert_eq!(up.y + up.h, below.y, "{up:?} {below:?}");
+        // 下の棒が無ければ、bar と同じ。
+        assert_eq!(
+            stacked(axis, slot, None, 0, 500_000),
+            bar(axis, slot, 0, 500_000)
+        );
+        assert_eq!(stacked(axis, slot, Some(below), 1, 0), None);
     }
 
     #[test]

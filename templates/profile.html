@@ -31,7 +31,7 @@
 {% if u.truncated %}<p class="error">記録が多すぎて、全部を読めませんでした。上の数と図は、読めた分だけの物です。</p>{% endif %}
 {% if let Some(c) = u.chart %}
 <div class="scroll">{% call m::chart(c) %}{% endcall %}</div>
-<ul class="legend keys"><li><span class="key"></span>線: 1 時間ごとの、本体の回のいちばん長い文脈（記録の無い時は切る）</li><li><span class="compact-key"></span>縦の点線: 要約（圧縮）。マウスを重ねると時刻と、前と後の文脈の長さ</li></ul>
+<ul class="legend keys"><li><span class="key context"></span>線: 1 時間ごとの、本体の回のいちばん長い文脈（記録の無い時は切る）</li><li><span class="compact-key"></span>縦の点線: 要約（圧縮）。マウスを重ねると時刻と、前と後の文脈の長さ</li></ul>
 {% endif %}
 {% else %}<p class="empty">この 31 日に、数の記録はありません。</p>
 {% endif %}

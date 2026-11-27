@@ -581,7 +581,10 @@ async fn 一覧の行に_一覧の期間の_席の額と_いちばん長い文�
     assert_eq!(one(&usage, "label"), Some("project:x"));
     assert_eq!(one(&usage, "actorId"), None);
     // 表の下に、列の訳。
-    assert!(body.contains("額は、一覧の期間（時の境に揃えた"), "{body}");
+    assert!(
+        body.contains("額は、額を数えた期間（時の境に揃えた"),
+        "{body}"
+    );
 }
 
 #[tokio::test]
@@ -665,4 +668,46 @@ async fn 数を聞けなくても_一覧は_200_で出し_列を空けて訳を�
         "{body}"
     );
     assert!(!body.contains("秘密の訳"), "{body}");
+}
+
+#[tokio::test]
+async fn 数の口が遅くても_一覧は_長く待たずに出し_列を空けて訳を書く() {
+    // 数の口だけが 3 秒待たせる castlist（一覧の側の期限は 1 秒。review-13 の #1）。
+    let app = App::start_with(
+        castlist(rows()).route(
+            "/api/usage",
+            route_get(|| async {
+                tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                common::json(StatusCode::OK, &usage().to_string())
+            }),
+        ),
+        common::pagetray_routes(),
+        callboard::Config::default(),
+    )
+    .await;
+    let started = std::time::Instant::now();
+    let (status, _, body) = app.send(get("/actors/?label=project:x")).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(2),
+        "{:?}",
+        started.elapsed()
+    );
+    assert_eq!(nums(tr(&body, SE1)), [NONE, NONE]);
+    assert!(
+        body.contains(
+            "額といちばん長い文脈を、時間内に読めませんでした。一覧は、そのまま出しています。"
+        ),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn 額の注は_額を数えた期間と書く() {
+    let app = start_with_usage(rows(), usage()).await;
+    let body = app.html("/actors/?label=project:x").await;
+    assert!(
+        body.contains("額は、額を数えた期間（時の境に揃えた "),
+        "{body}"
+    );
 }

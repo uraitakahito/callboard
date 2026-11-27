@@ -59,7 +59,7 @@
 </tbody>
 </table>
 </div>
-{% if let Some((from, to)) = cost_window %}<p class="muted" id="costs">額は、一覧の期間（時の境に揃えた {% call m::time(from) %}{% endcall %} から {% call m::time(to) %}{% endcall %} まで）の、席の額（本体と手伝い（subagent）の計。使った量を API の値段に直した目安で、払う額ではありません）。いちばん長い文脈は、本体の回だけで出します。</p>{% endif %}
+{% if let Some((from, to)) = cost_window %}<p class="muted" id="costs">額は、額を数えた期間（時の境に揃えた {% call m::time(from) %}{% endcall %} から {% call m::time(to) %}{% endcall %} まで）の、席の額（本体と手伝い（subagent）の計。使った量を API の値段に直した目安で、払う額ではありません）。いちばん長い文脈は、本体の回だけで出します。</p>{% endif %}
 {% if let Some(note) = cost_note %}<p class="note">{{ note }}</p>{% endif %}
 {% endif %}
 {% if let Some(next) = next %}

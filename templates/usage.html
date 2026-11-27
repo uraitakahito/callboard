@@ -49,6 +49,18 @@
 <div class="scroll">{% call m::chart(t.charts.by_slot) %}{% endcall %}</div>
 <ul class="legend keys"><li><span class="swatch main"></span>本体</li><li><span class="swatch helper"></span>手伝い（subagent。本体の上に積む）</li></ul>
 <p class="legend">行の{{ t.charts.unit }}は、記録の区間の終わりの時刻で決めます。集めた期間が 1 日までなら時ごと、1 日より長ければ日ごと（日本時間の 0 時で区切る）にします。</p>
+<details class="slots"><summary>{{ t.charts.unit }}ごとの額を、表で見る</summary>
+<div class="scroll">
+<table class="usage">
+<thead><tr><th>{{ t.charts.unit }}</th><th class="num">本体</th><th class="num">手伝い</th><th class="num">計</th></tr></thead>
+<tbody>
+{% for r in t.charts.slot_rows %}
+<tr><td>{{ r.name }}</td><td class="num">{{ r.main }}</td><td class="num">{{ r.helper }}</td><td class="num">{{ r.total }}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+</details>
 </section>
 <section id="roles">
 <h2>役割ごと</h2>

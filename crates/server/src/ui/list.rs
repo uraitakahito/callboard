@@ -232,6 +232,9 @@ fn time_of(t: OffsetDateTime) -> Time {
 
 /// 一覧の期間（castlist に渡す `active_from`・`active_to`）を時の境に揃え、席ごとの額を聞く（ListUsage を 1 度。頁はみな引く）。
 /// 聞けない・期間が長すぎる時は、列を空ける（一覧は出す）。
+/// 一覧の、費えの数を待つ長さ（費えの画面とアクターの頁は、castlist の口の期限のまま）。
+const LIST_COST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
+
 async fn costs(app: &App, search: &ActorSearch, now: OffsetDateTime) -> Costs {
     let at = |t: Option<DateTime>| {
         t.and_then(|t| OffsetDateTime::from_unix_timestamp_nanos(t.as_nanos()).ok())
@@ -251,11 +254,24 @@ async fn costs(app: &App, search: &ActorSearch, now: OffsetDateTime) -> Costs {
             )));
         }
     };
-    let found = app
-        .castlist
-        .usage(&usage::search(window, search.labels.clone(), None))
-        .await;
+    // 一覧は人がいちばん開く画面なので、費えの数は短い期限（LIST_COST_TIMEOUT）で待ち、過ぎたら列を空ける（一覧を遅らせない）。
+    let found = tokio::time::timeout(
+        LIST_COST_TIMEOUT,
+        app.castlist
+            .usage(&usage::search(window, search.labels.clone(), None)),
+    )
+    .await;
     let shown = Some((time_of(window.0), time_of(window.1)));
+    let Ok(found) = found else {
+        return Costs {
+            window: shown,
+            seats: BTreeMap::new(),
+            note: Some(
+                "額といちばん長い文脈を、時間内に読めませんでした。一覧は、そのまま出しています。"
+                    .to_owned(),
+            ),
+        };
+    };
     match found {
         Ok(answer) if usage::cut(&answer) => Costs {
             window: shown,
