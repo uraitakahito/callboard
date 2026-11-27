@@ -1,4 +1,4 @@
-//! 偽の castlist の答え（アクター 1 つ・辿った先・図・トークンの数と費え）。形は castlist の API（restJson1。欄は camelCase）の答えと同じ。
+//! 偽の castlist の答え（アクター 1 つ・辿った先・図・トークンの使用量）。形は castlist の API（restJson1。欄は camelCase）の答えと同じ。
 //!
 //! 見本:
 //!   pm.1（人）─起動した→ tpm.1 ─起動した→ se.1 ─引き継いだ→ se.2
@@ -174,7 +174,7 @@ pub fn routes(actor: Value, lineage: Value) -> Router {
         )
 }
 
-// --- トークンの数と費え（ListUsage。castlist 2.1.0 から） ---
+// --- トークンの使用量（ListUsage。castlist 2.1.0 から） ---
 
 /// 数の 1 行（Usage）。`agent` が在れば手伝い（subagent）の回。`to_at` は区間の終わりの時刻。`counts` は、既定の値に
 /// 重ねる欄（`turns`・`costMicroUsd`・`maxContext`・`buckets` など）。

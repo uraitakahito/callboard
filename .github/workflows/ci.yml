@@ -32,6 +32,7 @@ jobs:
       - run: "! ci/check-wording.sh ci/testdata/bad-wording.md"
       - run: "! ci/check-wording.sh ci/testdata/bad-label.md"
       - run: "! ci/check-wording.sh ci/testdata/bad-words.md"
+      - run: "! ci/check-wording.sh ci/testdata/bad-usage.md"
       # release の workflow が使う、tag と版の突き合わせ（ci/check-release-version.sh）の試験。
       - run: ci/test-check-release-version.sh
       # 取り込んだ外の JavaScript（static/vendor/）が、npm に出ている物と同じか（static/vendor/SOURCES.md）。
@@ -129,7 +130,7 @@ jobs:
       - name: Chromium と、それが要る library を入れる
         working-directory: e2e
         run: pnpm exec playwright install --with-deps --only-shell chromium
-      - name: 画面の試験（castlist の 4 つの画面・費えの画面・メッセージの一覧・ページの一覧）
+      - name: 画面の試験（castlist の 4 つの画面・使用量の画面・メッセージの一覧・ページの一覧）
         working-directory: e2e
         run: |
           CALLBOARD_E2E_SERVER=../target/debug/callboard-server \

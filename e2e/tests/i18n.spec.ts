@@ -6,7 +6,7 @@ import { collectProblems } from './helpers';
 /** 頭の帯の画面の link の字（出た順）。 */
 const navTexts = (page: Page) => page.locator('header.bar nav a').allTextContents();
 
-const JA_NAV = ['アクター', 'タイムライン', '相関図', '費え', 'ページ', 'メッセージ'];
+const JA_NAV = ['アクター', 'タイムライン', '相関図', '使用量', 'ページ', 'メッセージ'];
 const EN_NAV = ['Actors', 'Timeline', 'Network', 'Usage', 'Pages', 'Messages'];
 
 /** ブラウザーの言語を決めた新しい画面。 */

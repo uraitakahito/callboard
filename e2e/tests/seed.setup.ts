@@ -5,7 +5,7 @@
 // 点は 5 つ、線は 4 本（起動した 3・引き継いだ 1）。
 // 時刻ずれ（送り手の時刻が 10 分前。castlist は 5 分より離れた行に印を立てる）は、出どころごとに別のアクターに 1 つずつ:
 //   pm.1 は登録・tpm.1 は出来事（登場）・other.1 は model と effort（実際の値）。se.1 と se.2 には無い。
-// トークンの数と費えの行（castlist 2.1.0 から。費えの画面 /usage/ が読む）は 3 つ: se.1 の本体（3 回・$1.50）と
+// トークンの使用量の行（castlist 2.1.0 から。使用量の画面 /usage/ が読む）は 3 つ: se.1 の本体（3 回・$1.50）と
 // 手伝い（Explore。2 回・$0.25）、other.1 の本体（1 回・$0.01）。どれも、今の時（UTC）の内の行。
 import { expect, test as setup, type APIRequestContext } from '@playwright/test';
 import { CASTLIST } from './helpers';
@@ -107,7 +107,7 @@ setup('見本の記録を置く', async ({ request }) => {
     detail: { inferred: true, reason: 'workspace_gone' },
   });
 
-  // トークンの数と費えの行（費えの画面）。
+  // トークンの使用量の行（使用量の画面）。
   await send(request, 'put', '/api/usage/u-se1-main', usage(SE1, undefined, 230_000, [[1, 1, 500_000], [9, 2, 1_000_000]]));
   await send(request, 'put', '/api/usage/u-se1-explore', usage(SE1, 'Explore', 30_000, [[1, 2, 250_000]]));
   await send(request, 'put', '/api/usage/u-other-main', usage(OTHER, undefined, 10_000, [[0, 1, 10_000]]));

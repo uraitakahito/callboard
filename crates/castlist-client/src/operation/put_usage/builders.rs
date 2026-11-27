@@ -22,7 +22,7 @@ impl crate::operation::put_usage::builders::PutUsageInputBuilder {
 }
 /// Fluent builder constructing a request to `PutUsage`.
 ///
-/// アクターのトークンの数と費えを 1 行足す（2.1.0 から）。同じ id で同じ本文なら 200（足さない）、同じ id で本文が違えば 409（前の行はそのまま）。 同じ id かは、`by` を引くより先に見る。 - 1 行は、アクター 1 人の、時計の 1 時間（UTC の時）の内の、同じ種類（`model`・`agent`・`speed`・`serviceTier`）の回のまとめ。 同じアクター・同じ時・同じ種類の行は、2 つ以上在りうる（送り手が、増えた分を新しい id の行で送る）。 PutSetting の「最新と同じなら足さない」は無い（同じかは、id と本文だけで決める）。 - 読む側は、数（`turns`・トークンの数・web の検索と取得の回数・`costMicroUsd`・`buckets` の段ごとの数）を足し、`maxContext` は大きい方を取る。 - `fromAt`・`toAt` は区間の始めの回と終わりの回の時刻。`fromAt` は `toAt` より後でなく、2 つは同じ UTC の時（年月日と時が同じ）の内（違えば 400）。 ミリ秒まで残す（それより下は切る）。 - `buckets` は、文脈の長さの段ごとの数。同じ `bucket` は 1 度だけで、`turns` の和は行の `turns` と、`costMicroUsd` の和は行の `costMicroUsd` と合う（違えば 400）。並びは問わない（答えは `bucket` の順）。 - 知らない model の名は、初めて来た時に一覧に足す。
+/// アクターのトークンの使用量を 1 行足す（2.1.0 から）。同じ id で同じ本文なら 200（足さない）、同じ id で本文が違えば 409（前の行はそのまま）。 同じ id かは、`by` を引くより先に見る。 - 1 行は、アクター 1 人の、時計の 1 時間（UTC の時）の内の、同じ種類（`model`・`agent`・`speed`・`serviceTier`）の回のまとめ。 同じアクター・同じ時・同じ種類の行は、2 つ以上在りうる（送り手が、増えた分を新しい id の行で送る）。 PutSetting の「最新と同じなら足さない」は無い（同じかは、id と本文だけで決める）。 - 読む側は、数（`turns`・トークンの数・web の検索と取得の回数・`costMicroUsd`・`buckets` の段ごとの数）を足し、`maxContext` は大きい方を取る。 - `fromAt`・`toAt` は区間の始めの回と終わりの回の時刻。`fromAt` は `toAt` より後でなく、2 つは同じ UTC の時（年月日と時が同じ）の内（違えば 400）。 ミリ秒まで残す（それより下は切る）。 - `buckets` は、文脈の長さの段ごとの数。同じ `bucket` は 1 度だけで、`turns` の和は行の `turns` と、`costMicroUsd` の和は行の `costMicroUsd` と合う（違えば 400）。並びは問わない（答えは `bucket` の順）。 - 知らない model の名は、初めて来た時に一覧に足す。
 #[derive(::std::clone::Clone, ::std::fmt::Debug)]
 pub struct PutUsageFluentBuilder {
     handle: ::std::sync::Arc<crate::client::Handle>,

@@ -47,7 +47,7 @@ pub struct ActorSearch {
     pub after: Option<String>,
 }
 
-/// トークンの数と費えの行を読む条件（ListUsage の引数。画面が確かめた物）。
+/// トークンの使用量の行を読む条件（ListUsage の引数。画面が確かめた物）。
 #[derive(Clone, Debug)]
 pub struct UsageSearch {
     /// 区間の終わりの時刻の窓（`from <= toAt < to`）。時の境（UTC）に揃えた物。
@@ -59,7 +59,7 @@ pub struct UsageSearch {
     pub actor_id: Option<String>,
 }
 
-/// 窓の内の、トークンの数と費えの行（ListUsage の頁を、みな引いた物）。
+/// 窓の内の、トークンの使用量の行（ListUsage の頁を、みな引いた物）。
 #[derive(Clone, Debug)]
 pub struct UsageAnswer {
     /// castlist が、初めの頁を読み始めた時刻。
@@ -243,7 +243,7 @@ impl Castlist {
             })
     }
 
-    /// 窓の内の、トークンの数と費えの行（ListUsage。castlist 2.1.0 から）。次の頁の印で、行をみな引く（[`USAGE_MAX_PAGES`] 頁まで）。
+    /// 窓の内の、トークンの使用量の行（ListUsage。castlist 2.1.0 から）。次の頁の印で、行をみな引く（[`USAGE_MAX_PAGES`] 頁まで）。
     /// 待つのは、全部の頁で [`TIMEOUT`]（頁ごとではない。callboard 自身の時間切れより先に、訳を書いた画面を返すため）。
     /// castlist が引数を断れば [`Failure::Rejected`]。
     /// 初めの頁が時間内に読めなければ 503 `Unavailable`。2 頁目より後で時間を過ぎたら、そこまでに読めた行を返す

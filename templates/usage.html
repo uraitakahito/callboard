@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
-{% block title %}費え{% endblock %}
+{% block title %}使用量{% endblock %}
 {% block main %}
-<h1>費え <span class="kind">トークンの数と、額の目安</span></h1>
+<h1>使用量 <span class="kind">トークンの数と、額の目安</span></h1>
 <form class="filters" method="get" action="/usage/">
 <fieldset>
 <legend>絞り込み</legend>
@@ -36,7 +36,7 @@
 </dl>
 </section>
 <section id="by-context">
-<h2>文脈の長さの段ごとの費え（本体の回）</h2>
+<h2>文脈の長さの段ごとの額（本体の回）</h2>
 {% if let Some(c) = t.charts.by_context %}
 <div class="scroll">{% call m::chart(c) %}{% endcall %}</div>
 <p class="legend">横は文脈の長さ（{{ width }}刻みの段。目盛りは段の下の端）、縦はその段の回の額です。点線は 20 万。棒にマウスを重ねると、段と額と回の数を表示します。</p>
@@ -45,7 +45,7 @@
 {% endif %}
 </section>
 <section id="by-day">
-<h2>{{ t.charts.unit }}ごとの費え（日本時間）</h2>
+<h2>{{ t.charts.unit }}ごとの額（日本時間）</h2>
 <div class="scroll">{% call m::chart(t.charts.by_slot) %}{% endcall %}</div>
 <ul class="legend keys"><li><span class="swatch main"></span>本体</li><li><span class="swatch helper"></span>手伝い（subagent。本体の上に積む）</li></ul>
 <p class="legend">行の{{ t.charts.unit }}は、記録の区間の終わりの時刻で決めます。集めた期間が 1 日までなら時ごと、1 日より長ければ日ごと（日本時間の 0 時で区切る）にします。</p>

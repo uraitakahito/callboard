@@ -108,7 +108,7 @@ struct ProfilePage<'a> {
     as_of: Time,
 }
 
-/// 節「費え」（直近 31 日の、このアクターの数）。数を読めなければ `error`、行が無ければ `view` が無い。
+/// 節「使用量」（直近 31 日の、このアクターの数）。数を読めなければ `error`、行が無ければ `view` が無い。
 struct UsageSection {
     from: Time,
     to: Time,
@@ -136,7 +136,7 @@ fn time_of(t: OffsetDateTime) -> Time {
     }
 }
 
-/// 節「費え」を組む。圧縮の印は、出来事のうち、期間の内の要約（`compacted`）。
+/// 節「使用量」を組む。圧縮の印は、出来事のうち、期間の内の要約（`compacted`）。
 fn usage_section(
     window: (OffsetDateTime, OffsetDateTime),
     found: Result<UsageAnswer, Failure>,
@@ -264,7 +264,7 @@ pub async fn profile(State(app): State<Arc<App>>, Path(id): Path<String>) -> Res
     if !is_actor_id(&id) {
         return not_found();
     }
-    // 節「費え」の数は 3 つ目の問い。これが落ちても、頁は出す（節にだけ訳を書く）。
+    // 節「使用量」の数は 3 つ目の問い。これが落ちても、頁は出す（節にだけ訳を書く）。
     let window = usage::recent(OffsetDateTime::now_utc());
     let search = usage::search(window, Vec::new(), Some(id.clone()));
     let (actor, lineage, found) = tokio::join!(

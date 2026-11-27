@@ -382,7 +382,7 @@ async fn castlist_には_host_127_0_0_1_で_3_つを聞き_browser_の_header_�
     let seen = app.castlist.seen();
     let mut uris: Vec<&str> = seen.iter().map(|s| s.uri.as_str()).collect();
     uris.sort_unstable();
-    // 3 つ目は、費えの節の数（ListUsage）。
+    // 3 つ目は、使用量の節の数（ListUsage）。
     let uris: Vec<&str> = uris.iter().map(|u| u.split('?').next().unwrap()).collect();
     assert_eq!(
         uris,
@@ -480,7 +480,7 @@ async fn castlist_に聞けなければ_503_の画面で_訳を書き_聞く先�
     assert!(!body.contains("秘密の訳"), "{body}");
 }
 
-// --- 節「費え」（castlist の ListUsage。直近 31 日の、そのアクターの行） ---
+// --- 節「使用量」（castlist の ListUsage。直近 31 日の、そのアクターの行） ---
 
 use common::castlist::{usage_actor, usage_buckets, usage_page, usage_row, with_usage};
 
@@ -552,11 +552,11 @@ fn fact<'a>(section: &'a str, name: &str) -> &'a str {
 }
 
 #[tokio::test]
-async fn 費えの節は_直近_31_日の_そのアクターの額と回と_いちばん長い文脈を出す() {
+async fn 使用量の節は_直近_31_日の_そのアクターの額と回と_いちばん長い文脈を出す() {
     let app = start_with_usage(compacted_actor(), usage()).await;
     let body = app.html(&format!("/actors/{SE1}")).await;
     let usage = section(&body, "usage");
-    assert!(usage.contains("<h2>費え（直近 31 日）</h2>"), "{usage}");
+    assert!(usage.contains("<h2>使用量（直近 31 日）</h2>"), "{usage}");
     assert_eq!(fact(usage, "額"), "$3.25（本体 $3.00・手伝い $0.25）");
     assert_eq!(fact(usage, "回"), "10（手伝い 4）");
     assert_eq!(fact(usage, "いちばん長い文脈"), "23 万");
@@ -603,7 +603,7 @@ async fn 費えの節は_直近_31_日の_そのアクターの額と回と_い�
 }
 
 #[tokio::test]
-async fn 費えの節の線は_時ごとの本体のいちばん長い文脈の段々で_圧縮の印を立てる() {
+async fn 使用量の節の線は_時ごとの本体のいちばん長い文脈の段々で_圧縮の印を立てる() {
     let app = start_with_usage(compacted_actor(), usage()).await;
     let body = app.html(&format!("/actors/{SE1}")).await;
     let usage = section(&body, "usage");
@@ -667,7 +667,7 @@ fn usage_answer_only_main() -> serde_json::Value {
 }
 
 #[tokio::test]
-async fn 費えの節は_行が無ければ_そう書く() {
+async fn 使用量の節は_行が無ければ_そう書く() {
     let app = start_with_usage(se1_actor(), usage_page(vec![], vec![], None)).await;
     let body = app.html(&format!("/actors/{SE1}")).await;
     let usage = section(&body, "usage");
@@ -679,7 +679,7 @@ async fn 費えの節は_行が無ければ_そう書く() {
 }
 
 #[tokio::test]
-async fn 数を聞けなくても_頁は_200_で出し_費えの節だけに訳を書く() {
+async fn 数を聞けなくても_頁は_200_で出し_使用量の節だけに訳を書く() {
     // castlist が古い（ListUsage を持たない。404）。
     let app = start().await;
     let body = app.html(&format!("/actors/{SE1}")).await;
