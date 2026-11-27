@@ -305,6 +305,29 @@ async fn castlist_に聞けなければ_503_の画面で_訳を書き_聞く先�
     );
     assert!(!body.contains(&down), "{body}");
 
+    // castlist が引数を断った時は、400 の画面で castlist の訳を書く。
+    let app = App::start_with(
+        Router::new().route(
+            "/api/timeline",
+            route_get(|| async {
+                common::castlist::error(
+                    StatusCode::BAD_REQUEST,
+                    "ValidationException",
+                    "窓は 1 年まで",
+                )
+            }),
+        ),
+        common::pagetray_routes(),
+        callboard::Config::default(),
+    )
+    .await;
+    let (status, _, body) = app.send(get("/graph/timeline")).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    assert!(
+        body.contains("castlist が引数を断りました: 窓は 1 年まで"),
+        "{body}"
+    );
+
     // 1.1.0 より古い castlist（GetTimeline を持たない。404）でも、503 の画面で訳を書く。
     let app = App::start_with(
         common::castlist_routes(),

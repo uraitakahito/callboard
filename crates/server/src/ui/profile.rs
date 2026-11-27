@@ -168,7 +168,9 @@ pub async fn profile(State(app): State<Arc<App>>, Path(id): Path<String>) -> Res
             Some(page) => render(StatusCode::OK, &page),
             None => not_found(),
         },
-        (Err(Failure::NotFound), _) | (_, Err(Failure::NotFound)) => not_found(),
+        // castlist が id を断った時（形は先に見てあるので、ふつうは起きない）も、無いアクターと同じに見せる。
+        (Err(Failure::NotFound | Failure::Rejected(_)), _)
+        | (_, Err(Failure::NotFound | Failure::Rejected(_))) => not_found(),
         (Err(Failure::Unavailable(why)), _) | (_, Err(Failure::Unavailable(why))) => error_page(
             nav,
             StatusCode::SERVICE_UNAVAILABLE,

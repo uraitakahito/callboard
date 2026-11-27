@@ -100,7 +100,7 @@ fn kind_name(kind: &str) -> &'static str {
     if kind == "human" { "人" } else { "" }
 }
 
-/// どの画面の頭にも出す、画面の間の link。まだ移していない画面は、castlist・pagetray の画面を指す。
+/// どの画面の頭にも出す、画面の間の link。まだ移していない画面（pagetray のページの一覧・メッセージ）は、pagetray の画面を指す。
 pub struct Nav {
     actors: String,
     timeline: String,

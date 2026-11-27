@@ -449,12 +449,17 @@ async fn castlist_に聞けなければ_503_の画面で_訳を書き_聞く先�
     );
     assert!(!body.contains(&down), "{body}");
 
-    // castlist が引数を断った時（callboard の確かめを通った物なので、起きない見込み）も、castlist の字は出さない。
+    // castlist が引数を断った時（callboard の確かめを通った物なので、ふつうは起きない）は、400 の画面で castlist の訳を書く
+    // （送り直しても直らないので、「待って開き直す」とは書かない）。
     let app = App::start_with(
         Router::new().route(
             "/api/actors",
             route_get(|| async {
-                common::castlist::error(StatusCode::BAD_REQUEST, "ValidationException", "秘密の訳")
+                common::castlist::error(
+                    StatusCode::BAD_REQUEST,
+                    "ValidationException",
+                    "label は 3 つまで",
+                )
             }),
         ),
         common::pagetray_routes(),
@@ -462,10 +467,10 @@ async fn castlist_に聞けなければ_503_の画面で_訳を書き_聞く先�
     )
     .await;
     let (status, _, body) = app.send(get("/actors/")).await;
-    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{body}");
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
     assert!(
-        body.contains("castlist に聞けません（400 が返りました）"),
+        body.contains("castlist が引数を断りました: label は 3 つまで"),
         "{body}"
     );
-    assert!(!body.contains("秘密の訳"), "{body}");
+    assert!(!body.contains("開き直して"), "{body}");
 }

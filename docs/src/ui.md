@@ -114,7 +114,7 @@ castlist の API の 2 つの答えから組む: アクター 1 つ（`GetActor`
 並べ方（`crates/server/src/ui/timeline_layout.rs`。castlist の `timeline.rs` をそのまま移した、外に触らない純な計算で、単体の試験を持つ）は、行ごとの稼働・停止の出来事と替わり目と印の時刻（ミリ秒）、線、期間を受けて、帯の切れ・矢印・印・目盛りの置き場を返す。同じ入力からは、いつも同じ図。並べる計算と HTML を組むのは `tokio::task::spawn_blocking` の糸で行う。色は `site.css` の class で決める（明るい色と暗い色）。矢印は帯の下に、帯の字は印の上に（縁取りを付けて）描く。
 
 - castlist に聞けない時は 503 の画面で、訳を書く。castlist が 1.1.0 より古いと、「castlist に聞けません（404 が返りました）」になる。
-- 答えの大きさ: castlist は頁を分けずに、組のアクターの出来事の全部を返す（アクター 108 人で 257 KB、castlist が答えるまで 20 ms ほどだった。2026-11-27 の動いている台帳の写しで測った）。広い組は、ラベルか期間で絞る。
+- 答えの大きさ: castlist は頁を分けずに、組のアクターの出来事の全部を返す。測った値（release の build。手元の機械）: 動いている台帳の写し（アクター 108 人。2026-11-27）で、castlist の答えは 257 KB。アクター 500 人の見本（1 人に出来事 4〜5 つと model と effort 2 行・線 499 本）で、castlist の答えは 869 KB・17 ms、callboard の画面は 504 KB・26 ms。callboard が castlist を待つ 4 秒には遠い。もっと広い組は、ラベルか期間で絞る。
 
 ## `GET /graph/network` 相関図
 

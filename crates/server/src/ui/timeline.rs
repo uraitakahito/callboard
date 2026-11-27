@@ -174,7 +174,11 @@ async fn timeline_page(
         .timeline(label.as_deref(), from.as_deref(), to.as_deref())
         .await
         .map_err(|e| match e {
-            // castlist が引数を断った（callboard の確かめを通った物なので、起きない見込み）。
+            // castlist が引数を断った（callboard の確かめを通った物なので、ふつうは起きない）。castlist の訳を、そのまま書く。
+            Failure::Rejected(message) => {
+                params::bad_request(format!("castlist が引数を断りました: {message}"))
+            }
+            // この操作に、名指す物は無い。
             Failure::NotFound => params::bad_request("castlist が引数を断りました"),
             Failure::Unavailable(why) => PageError(
                 StatusCode::SERVICE_UNAVAILABLE,

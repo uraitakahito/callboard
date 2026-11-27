@@ -298,8 +298,12 @@ async fn list_page(
         effective.push(("active_from".to_owned(), from));
     }
     let answer = app.castlist.actors(&search).await.map_err(|e| match e {
-        // castlist が引数を断った（callboard の確かめを通った物なので、起きない見込み）。
-        Failure::NotFound => bad_request("castlist が引数を断りました"),
+        // castlist が引数を断った（callboard の確かめを通った物なので、ふつうは起きない）。castlist の訳を、そのまま書く。
+        Failure::Rejected(message) => {
+            params::bad_request(format!("castlist が引数を断りました: {message}"))
+        }
+        // この操作に、名指す物は無い。
+        Failure::NotFound => params::bad_request("castlist が引数を断りました"),
         Failure::Unavailable(why) => PageError(
             StatusCode::SERVICE_UNAVAILABLE,
             format!("castlist に聞けません（{why}）。少し待ってから開き直してください。"),

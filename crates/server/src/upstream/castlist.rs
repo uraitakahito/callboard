@@ -151,11 +151,17 @@ impl Castlist {
             })
             .send()
             .await
-            .map_err(|e| Failure::Unavailable(reason(NAME, &self.api, &e)))
+            .map_err(|e| match e.as_service_error() {
+                // castlist が引数を断った。画面が確かめた物なので、ふつうは起きない（castlist が確かめを足した版に向けた時）。
+                Some(e) if e.is_validation_error() => {
+                    Failure::Rejected(e.meta().message().unwrap_or_default().to_owned())
+                }
+                _ => Failure::Unavailable(reason(NAME, &self.api, &e)),
+            })
     }
 
     /// タイムラインを描く元の値（GetTimeline。castlist 1.1.0 から）。`label` は `鍵:値`、`from`・`to` は UTC の RFC 3339 の字
-    /// （画面が確かめた物）。castlist が引数を断れば [`Failure::NotFound`] でなく、聞けなかった訳（400 が返りました）になる。
+    /// （画面が確かめた物）。castlist が引数を断れば [`Failure::Rejected`]。
     pub async fn timeline(
         &self,
         label: Option<&str>,
@@ -182,7 +188,13 @@ impl Castlist {
             })
             .send()
             .await
-            .map_err(|e| Failure::Unavailable(reason(NAME, &self.api, &e)))
+            .map_err(|e| match e.as_service_error() {
+                // castlist が引数を断った。画面が確かめた物なので、ふつうは起きない（castlist が確かめを足した版に向けた時）。
+                Some(e) if e.is_validation_error() => {
+                    Failure::Rejected(e.meta().message().unwrap_or_default().to_owned())
+                }
+                _ => Failure::Unavailable(reason(NAME, &self.api, &e)),
+            })
     }
 
     /// 図の点と線（GetGraph。`GET /api/graph`）の答えを、そのまま返す（相関図の script が browser から引く）。
