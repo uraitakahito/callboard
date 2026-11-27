@@ -1,14 +1,16 @@
 //! 画面: 入口（`/`）・アクターの一覧（`/actors/`）・プロフィール（`/actors/{id}`）・タイムライン（`/graph/timeline`）・
-//! 相関図（`/graph/network`）・メッセージの一覧（`/messages`）と、それが読む CSS（`/static/site.css`）と
-//! script（`/static/network.js` と取り込んだ cytoscape、`/static/messages.js`）。
+//! 相関図（`/graph/network`）・メッセージの一覧（`/messages`）・ページの一覧（`/pages/`）と、それが読む CSS
+//! （`/static/site.css`）と script（`/static/network.js` と取り込んだ cytoscape、`/static/messages.js`、`/static/pages.js`）。
 //!
 //! - サーバーが HTML を組んで返す（askama。`templates/`）。字はみな HTML として逃がす。
-//!   script を使うのは相関図とメッセージの一覧だけで、callboard が配る file だけを読む（inline の script は無い）。
+//!   script を使うのは相関図・メッセージの一覧・ページの一覧だけで、callboard が配る file だけを読む（inline の script は無い）。
 //! - CSP（[`crate::CSP`]）が inline の script と style を断るので、style は callboard が配る CSS の file だけ。
-//! - まだ callboard に移していない画面（pagetray のページの一覧）への link は、pagetray の link の頭（[`crate::config`]）で組む。
+//! - ページの本文と file の中身は pagetray が持つ。ページの一覧の、本文の枠と file の link は、pagetray の link の頭
+//!   （[`crate::config`]）で組む（[`pages`]）。
 mod list;
 mod messages;
 mod network;
+mod pages;
 mod params;
 mod profile;
 mod time;
@@ -27,6 +29,8 @@ use sha2::{Digest, Sha256};
 
 use crate::App;
 use crate::upstream::Health;
+
+pub use pages::csp as pages_csp;
 
 // --- CSS と script ---
 
@@ -57,6 +61,10 @@ const MESSAGES_JS: &str = include_str!("../../../static/messages.js");
 
 static MESSAGES_JS_HREF: LazyLock<String> =
     LazyLock::new(|| versioned("/static/messages.js", MESSAGES_JS));
+/// ページの一覧（`/pages/`）の script（新着の知らせ・未読の印・file を上げる枠）。
+const PAGES_JS: &str = include_str!("../../../static/pages.js");
+
+static PAGES_JS_HREF: LazyLock<String> = LazyLock::new(|| versioned("/static/pages.js", PAGES_JS));
 static CSS_HREF: LazyLock<String> = LazyLock::new(|| versioned("/static/site.css", SITE_CSS));
 static NETWORK_JS_HREF: LazyLock<String> =
     LazyLock::new(|| versioned("/static/network.js", NETWORK_JS));
@@ -100,6 +108,11 @@ async fn messages_js() -> Response {
     asset("application/javascript; charset=utf-8", MESSAGES_JS)
 }
 
+/// `GET /static/pages.js`: ページの一覧の script。
+async fn pages_js() -> Response {
+    asset("application/javascript; charset=utf-8", PAGES_JS)
+}
+
 /// `GET /static/network.js`: 相関図を描く script。
 async fn network_js() -> Response {
     asset("application/javascript; charset=utf-8", NETWORK_JS)
@@ -112,7 +125,7 @@ fn kind_name(kind: &str) -> &'static str {
     if kind == "human" { "人" } else { "" }
 }
 
-/// どの画面の頭にも出す、画面の間の link。まだ移していない画面（pagetray のページの一覧）は、pagetray の画面を指す。
+/// どの画面の頭にも出す、画面の間の link。castlist と pagetray の画面は、みな callboard に移した。
 pub struct Nav {
     actors: String,
     timeline: String,
@@ -122,8 +135,8 @@ pub struct Nav {
 }
 
 impl Nav {
-    /// link の頭（`http://<host>:<port>`）から組む。
-    pub fn new(pagetray: &str) -> Self {
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
         Self {
             // castlist の 4 つの画面は、みな callboard に移した。
             actors: list::PATH.to_owned(),
@@ -131,7 +144,8 @@ impl Nav {
             timeline: "/graph/timeline".to_owned(),
             // 相関図は callboard に移した。
             network: "/graph/network".to_owned(),
-            pages: format!("{pagetray}/"),
+            // ページの一覧も callboard に移した。
+            pages: pages::PATH.to_owned(),
             // メッセージの一覧は callboard に移した。
             messages: messages::PATH.to_owned(),
         }
@@ -225,10 +239,14 @@ pub fn routes(app: Arc<App>) -> Router {
         .route(network::DATA_PATH, get(network::graph))
         .route(messages::PATH, get(messages::messages))
         .route(messages::EVENTS_PATH, get(messages::events))
+        .route(pages::PATH, get(pages::pages))
+        .route("/pages", get(pages::redirect))
+        .route(pages::UPLOAD_ROUTE, axum::routing::post(pages::upload))
         .route("/static/site.css", get(site_css))
         .route("/static/icon.svg", get(icon_svg))
         .route("/static/network.js", get(network_js))
         .route("/static/messages.js", get(messages_js))
+        .route("/static/pages.js", get(pages_js))
         .route(CYTOSCAPE_PATH, get(cytoscape_js))
         .fallback(not_found)
         .with_state(app)

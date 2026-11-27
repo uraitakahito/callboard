@@ -15,14 +15,14 @@ const message = (change: Partial<Message> = {}): Message => ({
   ...change,
 });
 
-test('頭の帯の「メッセージ」は callboard の一覧を開き、操作の帯の「ページ」は pagetray のページの一覧を指す', async ({ page, request }) => {
+test('頭の帯の「メッセージ」は callboard の一覧を開き、操作の帯の「ページ」は callboard のページの一覧を指す', async ({ page, request }) => {
   await putMessage(request, 'msg-link', 'm-1', message());
   await page.goto('/');
   await page.locator('header.bar').getByRole('link', { name: 'メッセージ', exact: true }).click();
   await expect(page).toHaveURL(/\/messages$/);
   await expect(page).toHaveTitle('メッセージの記録 ・ callboard');
   await expect(messageRow(page, 'msg-link', 'm-1')).toBeVisible();
-  await expect(page.locator('#toolbar').getByRole('link', { name: 'ページ', exact: true })).toHaveAttribute('href', `${PAGETRAY}/`);
+  await expect(page.locator('#toolbar').getByRole('link', { name: 'ページ', exact: true })).toHaveAttribute('href', '/pages/');
 });
 
 test('行: 送った時刻・Key・見出し・送り手と受け手・状態の字・届いた時刻・渡した時・渡し直しの数。絞り込める。console の誤りも CSP の違反も無い', async ({ page, request }) => {

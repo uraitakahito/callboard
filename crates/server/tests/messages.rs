@@ -432,8 +432,8 @@ async fn 続きは_link_で出す() {
     );
 }
 
-/// 頭の帯の「メッセージ」と入口の link は、callboard のメッセージの一覧を指す。操作の帯の「ページ」は、まだ移していない
-/// pagetray のページの一覧を指す。画面は script の file を 1 つ読み、inline の script と style は無い。
+/// 頭の帯の「メッセージ」と入口の link は、callboard のメッセージの一覧を指す。操作の帯の「ページ」は、callboard の
+/// ページの一覧を指す。画面は script の file を 1 つ読み、inline の script と style は無い。
 #[tokio::test]
 async fn 画面の間の_link_と_script() {
     let app = start(json!({ "messages": [] }), facets()).await;
@@ -443,10 +443,7 @@ async fn 画面の間の_link_と_script() {
         "{page}"
     );
     assert!(
-        page.contains(&format!(
-            r#"<a class="btn" href="{}/">ページ</a>"#,
-            common::PAGETRAY_LINK
-        )),
+        page.contains(r#"<a class="btn" href="/pages/">ページ</a>"#),
         "{page}"
     );
     assert!(

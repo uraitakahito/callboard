@@ -565,7 +565,12 @@ async fn 誤りの画面() {
     };
     let app = App::start_with(
         common::castlist_routes(),
-        pagetray(json!({}), json!({}), json!({})).route("/api/pages", route_get(refuse)),
+        common::pagetray_routes()
+            .route("/api/pages", route_get(refuse))
+            .route(
+                "/api/pages/facets",
+                route_get(|| async { common::json(StatusCode::OK, &facets().to_string()) }),
+            ),
         callboard::Config::default(),
     )
     .await;
