@@ -2,6 +2,8 @@
 // 試験ごとに使う物が違う。
 #![allow(dead_code)]
 
+pub mod castlist;
+
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
