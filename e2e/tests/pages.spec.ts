@@ -109,7 +109,11 @@ test('返事の状態とレビューの印: 書かれると、押さずに行の
   await waitingCount(page).click();
   await expect(page).toHaveURL(/\/pages\/\?reply=waiting$/);
   await expect(pageRow(page, confirm)).toBeVisible();
+  // 戻った画面も知らせにつないで読み直す。その読み直しが済む前に次を開くと、openLive が戻った画面の読み直し（開き直しで
+  // 終わらない）を待ってしまうので、済むのを待ってから開く。
+  const back = page.waitForResponse((r) => new URL(r.url()).pathname === '/pages/' && r.request().resourceType() === 'fetch');
   await page.goBack();
+  await (await back).finished();
   await openLive(page, '/pages/?project=pg-marks');
 
   await reply(request, confirm, 'answered');
