@@ -5,10 +5,13 @@
 //!   script を使うのは相関図だけで、callboard が配る file だけを読む（inline の script は無い）。
 //! - CSP（[`crate::CSP`]）が inline の script と style を断るので、style は callboard が配る CSS の file だけ。
 //! - まだ callboard に移していない画面（pagetray の 2 つ）への link は、pagetray の link の頭（[`crate::config`]）で組む。
+mod list;
 mod network;
 mod params;
 mod profile;
 mod time;
+mod timeline;
+mod timeline_layout;
 
 use std::sync::{Arc, LazyLock};
 
@@ -111,7 +114,7 @@ impl Nav {
     pub fn new(pagetray: &str) -> Self {
         Self {
             // castlist の 4 つの画面は、みな callboard に移した。
-            actors: "/actors/".to_owned(),
+            actors: list::PATH.to_owned(),
             // タイムラインも callboard に移した。
             timeline: "/graph/timeline".to_owned(),
             // 相関図は callboard に移した。
@@ -202,7 +205,9 @@ fn error_page(nav: &Nav, status: StatusCode, message: &str) -> Response {
 pub fn routes(app: Arc<App>) -> Router {
     Router::new()
         .route("/", get(home))
+        .route(list::PATH, get(list::list))
         .route("/actors/{id}", get(profile::profile))
+        .route("/graph/timeline", get(timeline::timeline))
         .route("/graph/network", get(network::network))
         .route(network::DATA_PATH, get(network::graph))
         .route("/static/site.css", get(site_css))
