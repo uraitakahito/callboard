@@ -1,0 +1,31 @@
+{
+  "version": "1.0",
+  "sources": ["castlist", "pagetray"],
+  "maven": {
+    "dependencies": [
+      "software.amazon.smithy:smithy-aws-traits:1.74.1",
+      "software.amazon.smithy:smithy-protocol-test-traits:1.74.1",
+      "software.amazon.smithy:smithy-validation-model:1.74.1",
+      "org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.0",
+      "software.amazon.smithy.rust:codegen-client:0.1.40"
+    ]
+  },
+  "plugins": {
+    "rust-client-codegen": {
+      "service": "ai.castlist#Castlist",
+      "module": "castlist_client",
+      "moduleVersion": "0.0.0",
+      "moduleDescription": "castlist の定義（model/castlist/。castlist の release の tag から取った物）から smithy-rs が作った呼ぶ側の crate。ci/gen.sh で作り直す。手で直さない。",
+      "moduleAuthors": ["callboard"],
+      "license": "MIT"
+    },
+    "rust-client-codegen::pagetray-client": {
+      "service": "ai.pagetray#Pagetray",
+      "module": "pagetray_client",
+      "moduleVersion": "0.0.0",
+      "moduleDescription": "pagetray の定義（model/pagetray/。pagetray の release の tag から取った物）から smithy-rs が作った呼ぶ側の crate。ci/gen.sh で作り直す。手で直さない。",
+      "moduleAuthors": ["callboard"],
+      "license": "MIT"
+    }
+  }
+}

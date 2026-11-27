@@ -1,0 +1,42 @@
+# callboard の server。castlist と pagetray を API で呼び、画面の HTML を組んで返す。DB は持たない。
+# binary は callboard-server（src/main.rs）。release の image（Containerfile）に /callboard-server の名で入る。
+[package]
+name = "callboard"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+# server を起こす binary（image の中の /callboard-server）。
+name = "callboard-server"
+path = "src/main.rs"
+
+[dependencies]
+# castlist と pagetray を呼ぶ client（それぞれの定義から作った物）と、それに渡す HTTP の client。
+# TLS の無い HTTP/1.1（hyper の作りの build_http）だけを使うので、features は default-client だけ（rustls・s2n は入れない）。
+castlist_client = { path = "../castlist-client" }
+pagetray_client = { path = "../pagetray-client" }
+aws-smithy-http-client = { version = "1.5.3", default-features = false, features = ["default-client"] }
+# 画面の HTML（repo の templates/。askama.toml）。
+askama = "0.16.1"
+axum = { version = "0.8.9", default-features = false, features = ["http1", "tokio"] }
+http-body = "1"
+http-body-util = "0.1"
+# /healthz と、守りの層が断る答えの JSON。
+serde_json = "1"
+# 配る file の path に付ける、中身の写しの頭（?v=）。
+sha2 = { version = "0.11.1", default-features = false }
+time = { version = "0.3", features = ["formatting"] }
+tokio = { version = "1.54", features = ["rt-multi-thread", "macros", "net", "signal", "time"] }
+tracing = { version = "0.1", default-features = false, features = ["std"] }
+# 時刻つきの記録（stdout）。
+tracing-subscriber = { version = "0.3", default-features = false, features = ["std", "fmt", "registry"] }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+
+[lints.clippy]
+await_holding_lock = "deny"
+disallowed_methods = "deny"
