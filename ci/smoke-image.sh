@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # image が、空の image の中で起き、/healthz に答え、外の Host と browser からの書き込みを断り、
-# 入口の画面と CSS が CSP の決まりどおりに出て、castlist と pagetray に名で届き、一覧・タイムライン・相関図・プロフィール・費えが castlist の API を、
+# 入口の画面と CSS が CSP の決まりどおりに出て、castlist と pagetray に名で届き、一覧・タイムライン・相関図・プロフィール・使用量が castlist の API を、
 # メッセージの一覧・新着の知らせの中継・ページの一覧・file を上げる道が pagetray の API を通して動き、止める合図で（流れを開いたままでも）自分から終わり、
 # 起こし直しても答えるかを見る。
 # 呼ぶ先は、出した版の castlist と pagetray の image（ghcr.io の物を digest で取る）を、同じ network に起こす。
@@ -147,7 +147,7 @@ for path in actors/ graph/timeline; do
   grep -qF '条件に合うアクターはいません' "$tmp/page.html"
 done
 test "$(code "$url/actors/?nope=1")" = 400
-# 費え: 同じ CSP が付き、inline の script と style が無く、本物の castlist（2.1.0 からの ListUsage。空の台帳）に聞いた答えを出す。
+# 使用量: 同じ CSP が付き、inline の script と style が無く、本物の castlist（2.1.0 からの ListUsage。空の台帳）に聞いた答えを出す。
 curl -fsS -D "$tmp/page-head.txt" -o "$tmp/page.html" "$url/usage/"
 tr -d '\r' <"$tmp/page-head.txt" | grep -qixF "content-security-policy: $csp"
 if grep -qiE '<script|<style|style=' "$tmp/page.html"; then

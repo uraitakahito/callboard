@@ -232,7 +232,7 @@ fn time_of(t: OffsetDateTime) -> Time {
 
 /// 一覧の期間（castlist に渡す `active_from`・`active_to`）を時の境に揃え、席ごとの額を聞く（ListUsage を 1 度。頁はみな引く）。
 /// 聞けない・期間が長すぎる時は、列を空ける（一覧は出す）。
-/// 一覧の、費えの数を待つ長さ（費えの画面とアクターの頁は、castlist の口の期限のまま）。
+/// 一覧の、使用量を待つ長さ（使用量の画面とアクターの頁は、castlist の口の期限のまま）。
 const LIST_COST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
 
 async fn costs(app: &App, search: &ActorSearch, now: OffsetDateTime) -> Costs {
@@ -250,11 +250,11 @@ async fn costs(app: &App, search: &ActorSearch, now: OffsetDateTime) -> Costs {
         Err(Misfit::NotAfter | Misfit::StartsLater) => return empty(None),
         Err(Misfit::TooLong) => {
             return empty(Some(format!(
-                "一覧の期間が {MAX_DAYS} 日を越えるので、額といちばん長い文脈は出しません（費えの数は {MAX_DAYS} 日ずつ読みます）。"
+                "一覧の期間が {MAX_DAYS} 日を越えるので、額といちばん長い文脈は出しません（数は {MAX_DAYS} 日ずつ読みます）。"
             )));
         }
     };
-    // 一覧は人がいちばん開く画面なので、費えの数は短い期限（LIST_COST_TIMEOUT）で待ち、過ぎたら列を空ける（一覧を遅らせない）。
+    // 一覧は人がいちばん開く画面なので、使用量は短い期限（LIST_COST_TIMEOUT）で待ち、過ぎたら列を空ける（一覧を遅らせない）。
     let found = tokio::time::timeout(
         LIST_COST_TIMEOUT,
         app.castlist

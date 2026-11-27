@@ -1,4 +1,4 @@
-//! 費え（`GET /usage/`）。castlist の API（ListUsage。偽の castlist）の行を、全体・役割ごと・課題ごとにまとめて出す所を見る。
+//! 使用量（`GET /usage/`）。castlist の API（ListUsage。偽の castlist）の行を、全体・役割ごと・課題ごとにまとめて出す所を見る。
 //! まとめる計算の細かい決まり（中央・上から 1 割・20 万以上の回）は、単体の試験（`src/ui/usage_summary.rs`）が見る。
 //! ここは、引数を API にどう渡すか（時の境に揃えた期間・頁をまたいで引くこと）・答えをどう出すか・誤りの画面を見る。
 mod common;
@@ -195,10 +195,13 @@ fn fact<'a>(body: &'a str, name: &str) -> &'a str {
 }
 
 #[tokio::test]
-async fn 費えは_全体の数を出し_本体と手伝いを分ける() {
+async fn 使用量は_全体の数を出し_本体と手伝いを分ける() {
     let app = sample().await;
     let body = app.html(WINDOW).await;
-    assert!(body.contains("<title>費え ・ callboard</title>"), "{body}");
+    assert!(
+        body.contains("<title>使用量 ・ callboard</title>"),
+        "{body}"
+    );
     assert_eq!(fact(&body, "席（アクター）"), "4");
     // 回の数は、同じ時の 2 行（3 回と 2 回）も足す: 3 + 2 + 4 + 5 + 1 + 1。
     assert_eq!(fact(&body, "回"), "16");
@@ -513,7 +516,7 @@ async fn 表の下に_額と_近い値と_遅れの注を書く() {
 }
 
 #[tokio::test]
-async fn 費えの引数の誤りは_訳を書いた_400_の画面で_castlist_に聞かない() {
+async fn 使用量の引数の誤りは_訳を書いた_400_の画面で_castlist_に聞かない() {
     let app = sample().await;
     for (uri, word) in [
         (
@@ -576,7 +579,7 @@ async fn 費えの引数の誤りは_訳を書いた_400_の画面で_castlist_�
 }
 
 #[tokio::test]
-async fn 費えは_script_も_inline_の_style_も使わず_利用者の字を_html_で逃がす() {
+async fn 使用量は_script_も_inline_の_style_も使わず_利用者の字を_html_で逃がす() {
     let mut actors = actors();
     actors[0]["name"] = json!("<b>se</b>.1");
     actors[0]["labels"]["tpm.role"] = json!("<i>role</i>");
@@ -611,12 +614,12 @@ async fn 費えは_script_も_inline_の_style_も使わず_利用者の字を_h
 }
 
 #[tokio::test]
-async fn 頭の帯に_費えの_link_が在る() {
+async fn 頭の帯に_使用量の_link_が在る() {
     let app = sample().await;
     let (_, _, missing) = app.send(get("/no/such")).await;
     for page in [app.html("/").await, app.html(WINDOW).await, missing] {
         let nav = &page[page.find("<nav").unwrap()..page.find("</nav>").unwrap()];
-        assert!(nav.contains("<a href=\"/usage/\">費え</a>"), "{nav}");
+        assert!(nav.contains("<a href=\"/usage/\">使用量</a>"), "{nav}");
     }
 }
 
@@ -676,7 +679,7 @@ async fn 途中の頁で時間切れになっても_読めた分を出し_時間
     assert_eq!(fact(&body, "回"), "16");
 }
 
-// --- 図（文脈の長さの段ごとの費え・日ごとか時ごとの費え） ---
+// --- 図（文脈の長さの段ごとの額・日ごとか時ごとの額） ---
 
 /// 図の SVG（`<svg …>` から `</svg>` まで）。
 fn svg(section: &str) -> &str {
@@ -687,18 +690,18 @@ fn svg(section: &str) -> &str {
 }
 
 #[tokio::test]
-async fn 文脈の長さの段ごとの費えは_本体の回の段を棒にし_20_万に点線を引く() {
+async fn 文脈の長さの段ごとの額は_本体の回の段を棒にし_20_万に点線を引く() {
     let app = sample().await;
     let body = app.html(WINDOW).await;
     let chart = section(&body, "by-context");
     assert!(
-        chart.contains("<h2>文脈の長さの段ごとの費え（本体の回）</h2>"),
+        chart.contains("<h2>文脈の長さの段ごとの額（本体の回）</h2>"),
         "{chart}"
     );
     let svg = svg(chart);
     assert!(svg.contains("role=\"img\""), "{svg}");
     assert!(
-        svg.contains("aria-label=\"文脈の長さの段ごとの費え（本体の回）。"),
+        svg.contains("aria-label=\"文脈の長さの段ごとの額（本体の回）。"),
         "{svg}"
     );
     // 本体の回の段は 0・1・2・4・9・39 の 6 つ（手伝いの段 1 の $0.25 は混ぜない）。0 の段の棒は描かない。
@@ -734,17 +737,14 @@ async fn 文脈の長さの段ごとの費えは_本体の回の段を棒にし_
 }
 
 #[tokio::test]
-async fn 期間が_1_日までなら_時ごとの費えを_本体と手伝いを積んだ棒で出す() {
+async fn 期間が_1_日までなら_時ごとの額を_本体と手伝いを積んだ棒で出す() {
     let app = sample().await;
     let body = app.html(WINDOW).await;
     let chart = section(&body, "by-day");
-    assert!(
-        chart.contains("<h2>時ごとの費え（日本時間）</h2>"),
-        "{chart}"
-    );
+    assert!(chart.contains("<h2>時ごとの額（日本時間）</h2>"), "{chart}");
     let svg = svg(chart);
     assert!(
-        svg.contains("role=\"img\"") && svg.contains("aria-label=\"時ごとの費え"),
+        svg.contains("role=\"img\"") && svg.contains("aria-label=\"時ごとの額"),
         "{svg}"
     );
     // 集めた期間は 10:00〜13:00 の 3 時間。行の時は、区間の終わりの時刻（toAt）で決める:
@@ -787,16 +787,13 @@ async fn 期間が_1_日までなら_時ごとの費えを_本体と手伝いを
 }
 
 #[tokio::test]
-async fn 期間が_1_日を越えれば_日本時間の日ごとの費え() {
+async fn 期間が_1_日を越えれば_日本時間の日ごとの額() {
     let app = sample().await;
     let body = app
         .html("/usage/?from=2026-11-20T00:00&to=2026-11-23T00:00")
         .await;
     let chart = section(&body, "by-day");
-    assert!(
-        chart.contains("<h2>日ごとの費え（日本時間）</h2>"),
-        "{chart}"
-    );
+    assert!(chart.contains("<h2>日ごとの額（日本時間）</h2>"), "{chart}");
     let svg = svg(chart);
     for tick in [">11-20</text>", ">11-21</text>", ">11-22</text>"] {
         assert!(svg.contains(tick), "{tick}: {svg}");
