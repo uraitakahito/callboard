@@ -1,0 +1,25 @@
+# castlist と pagetray の画面をまとめるサーバー（callboard-server）。server は crates/server。
+# castlist と pagetray は、その定義（Smithy。model/ に release の tag から取って置く）から作った呼ぶ側の crate
+# （crates/castlist-client/・crates/pagetray-client/）で呼ぶ。
+[workspace]
+members = ["crates/server", "crates/castlist-client", "crates/pagetray-client"]
+resolver = "3"
+# 生成した crate は手で直さないので、既定の cargo の命令（clippy・test）からは外す。
+# その中の、定義の例から作った試験（protocol の試験）は、CI が `cargo test --locked -p castlist_client`・`-p pagetray_client` で流す。
+# fmt は生成器が整えた物を、CI の `cargo fmt --all --check` が見る（ci/gen.sh は rust-toolchain.toml の rustfmt で整える）。
+default-members = ["crates/server"]
+
+[workspace.package]
+# 版はここだけに書く（release の workflow が、この file の初めの `version = "…"` の行を tag と突き合わせる）。
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.100"
+license = "MIT"
+publish = false
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
