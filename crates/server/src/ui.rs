@@ -1,6 +1,6 @@
 //! 画面: 入口（`/`）・アクターの一覧（`/actors/`）・プロフィール（`/actors/{id}`）・タイムライン（`/graph/timeline`）・
 //! 相関図（`/graph/network`）・費え（`/usage/`）・メッセージの一覧（`/messages`）・ページの一覧（`/pages/`）と、それが読む CSS
-//! （`/static/site.css`）と script（`/static/network.js` と取り込んだ cytoscape、`/static/messages.js`、`/static/pages.js`）。
+//! （`/static/site.css`）と script（`/static/network.js` と取り込んだ cytoscape、`/static/messages.js`、`/static/pages.js`、取り込んだ i18next）。
 //!
 //! - サーバーが HTML を組んで返す（askama。`templates/`）。字はみな HTML として逃がす。
 //!   script を使うのは相関図・メッセージの一覧・ページの一覧だけで、callboard が配る file だけを読む（inline の script は無い）。
@@ -56,6 +56,12 @@ const CYTOSCAPE_JS: &str = include_str!("../../../static/vendor/cytoscape-3.35.0
 /// cytoscape の path。版が名に入るので、中身が替われば path も替わる。
 const CYTOSCAPE_PATH: &str = "/static/vendor/cytoscape-3.35.0.min.js";
 
+/// 画面の字を言語ごとに差し替える i18next（npm の物をそのまま取り込んだ。static/vendor/SOURCES.md。AI-50）。
+const I18NEXT_JS: &str = include_str!("../../../static/vendor/i18next-27.2.9.min.js");
+
+/// i18next の path。版が名に入るので、中身が替われば path も替わる。
+const I18NEXT_PATH: &str = "/static/vendor/i18next-27.2.9.min.js";
+
 /// 相関図を描く、callboard の script。
 const NETWORK_JS: &str = include_str!("../../../static/network.js");
 
@@ -104,6 +110,11 @@ async fn icon_svg() -> Response {
 /// `GET /static/vendor/cytoscape-3.35.0.min.js`: 相関図が使う cytoscape。
 async fn cytoscape_js() -> Response {
     asset("application/javascript; charset=utf-8", CYTOSCAPE_JS)
+}
+
+/// `GET /static/vendor/i18next-27.2.9.min.js`: 画面の字を差し替える i18next。
+async fn i18next_js() -> Response {
+    asset("application/javascript; charset=utf-8", I18NEXT_JS)
 }
 
 /// `GET /static/messages.js`: メッセージの一覧の、新着の知らせの script。
@@ -255,6 +266,7 @@ pub fn routes(app: Arc<App>) -> Router {
         .route("/static/messages.js", get(messages_js))
         .route("/static/pages.js", get(pages_js))
         .route(CYTOSCAPE_PATH, get(cytoscape_js))
+        .route(I18NEXT_PATH, get(i18next_js))
         .fallback(not_found)
         .with_state(app)
 }
