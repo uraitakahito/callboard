@@ -345,7 +345,7 @@ async fn 一覧の引数の誤りは_引数の名を書いた_400_の画面で_c
         ),
         (
             "/actors/?at=2026-11-22T00:00:00Z".to_owned(),
-            "at は binding と一緒に付ける（居た間で探すなら active_from・active_to）",
+            "at は binding と一緒に付ける（稼働した期間で探すなら active_from・active_to）",
         ),
         (
             "/actors/?binding=a:b&at=きのう".to_owned(),

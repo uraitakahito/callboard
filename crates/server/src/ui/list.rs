@@ -98,7 +98,7 @@ fn actor_search(p: &Params) -> Result<ActorSearch, PageError> {
         }
         None if at.is_some() => {
             return Err(bad_request(
-                "at は binding と一緒に付ける（居た間で探すなら active_from・active_to）",
+                "at は binding と一緒に付ける（稼働した期間で探すなら active_from・active_to）",
             ));
         }
         None => None,
