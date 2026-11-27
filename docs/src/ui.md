@@ -267,6 +267,31 @@ id は英語のまま（castlist の API）。名は画面だけで、字は訳�
 - **区切りの記号**: 字の間の区切りの記号（「 ・ 」「 · 」と、全角の括弧「（…）」）は、題（`<title>`）のほかは、鍵にせず記号のまま template と字に残す（英語の時も同じ記号。題だけは、鍵の字に「 ・ callboard」「 · callboard」まで入れる）。
 - **訳の file の決まり**: 差し込みは `{{名}}` だけ（サーバーとブラウザーで字が食い違わないように。`$t(…)`・`{{n, number}}` は使わない）。数で言い分ける英語は `<鍵>_one`・`<鍵>_other`（日本語は `<鍵>_other` だけ。値の名は `count`）。`data-i18n-options` で数になるのは、数の型で渡した値だけ（字の `007` は字のまま）。`ja.json` と `en.json` は同じ鍵を持つ。画面に書いた鍵と、template と Rust の source に書いた鍵は、みな `ja.json` にある。どれも試験（`crates/server/tests/i18n.rs`・`e2e/tests/i18n.spec.ts`）が見る。画面の字の決まり（`ci/check-wording.sh`）は `ja.json` も見る。
 
+### 訳語
+
+英語の画面の字は、次の訳語にそろえる（`static/locales/en.json`）。
+
+| 日本語 | 英語 |
+|---|---|
+| アクター | Actor（並びは Actors） |
+| ラベル | Label |
+| 稼働中・停止・停止（推し） | Running・Stopped・Stopped (inferred) |
+| 人 | Human |
+| タイムライン・相関図 | Timeline・Network |
+| 使用量・額 | Usage・Cost |
+| 時刻ずれ | Clock skew |
+| 絞り込み | Filters |
+| ページの置き場・メッセージの記録 | Page store・Message log |
+| 返事待ち・レビュー待ち | Awaiting reply・Awaiting review |
+| 届いた | Delivered |
+| 課題・役割 | Issue・Role |
+| 文脈・要約 | Context・Compaction |
+
+### 言語を足す・字を足す
+
+- **字を足す**: `ja.json` と `en.json` に同じ鍵を足し、template には `data-i18n` と `{{ "<鍵>"|t }}`、Rust には `Text::new("<鍵>")`、JavaScript には `callboardT("<鍵>")` で書く。鍵が片方にしか無い・画面に書いた鍵が無い・差し込みの形が違う、は試験が落とす。
+- **言語を足す**: `static/locales/<言語>.json` を足し、`crates/server/src/ui/i18n.rs` で `/static/locales/<言語>.js` として配り（`ja`・`en` と同じ形）、`templates/base.html` の `<head>` と言語の切り替えに 1 つずつ足し、`static/i18n.js` の `LANGS` に足す。サーバーの字（日本語）と Rust は替えない。
+
 ## 配る file
 
 | 道 | 中身 |
