@@ -19,11 +19,20 @@ name=${SMOKE_NAME:-smoke-callboard}
 port=${SMOKE_PORT:-18813}
 url=http://127.0.0.1:$port
 tmp=${RUNNER_TEMP:-/tmp}
-# 呼ぶ先（出した版。release の本文の digest で固める）。上げる時は、ci/gen.sh の tag と合わせる。
+here=$(cd "$(dirname "$0")" && pwd)
+# 呼ぶ先（出した版。release の本文の digest で固める）。版は、定義を取った tag（ci/gen.sh）と同じにする（下で突き合わせる）。
 castlist=ghcr.io/uraitakahito/castlist@sha256:ae9ebbe8371f4f3abd5d4d8121c15aa43ce57d06e0466e61f9e8006c2a20b05d
 castlist_version=1.0.0
 pagetray=ghcr.io/uraitakahito/pagetray@sha256:1561e7322d050674f42718db2de2f7048d083571d1dfa3dfef936e6959a5cba7
 pagetray_version=1.1.1
+# 定義を取った版と、ここで起こす image の版がずれていないか（片方だけ上げると、古い image を相手に通ってしまう）。
+for pair in "CASTLIST_TAG:$castlist_version" "PAGETRAY_TAG:$pagetray_version"; do
+  tag=$(sed -n "s/^${pair%%:*}=v\(.*\)\$/\1/p" "$here/gen.sh")
+  if [ "$tag" != "${pair#*:}" ]; then
+    echo "NG: ci/gen.sh の ${pair%%:*}（v${tag}）と、ci/smoke-image.sh の版（${pair#*:}）が違う" >&2
+    exit 1
+  fi
+done
 
 up() {
   for _ in $(seq 1 40); do

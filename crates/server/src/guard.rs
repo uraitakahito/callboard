@@ -6,7 +6,8 @@
 //! 4. [`limit`]: 本文を上限まで読む。超えれば 413。
 //!
 //! castlist・pagetray の守りと同じ決まり（callboard は、その 2 つの画面を browser に出す所なので、同じ守りを自分の入口に持つ）。
-//! 断る答えは [`reply`] の形。
+//! 断る答えは [`reply`] の形。`Host`・`Origin` で断った要求は、記録に 1 行残す（問い合わせごとの行は出さない。
+//! callboard は volume を持たず、記録は stdout だけなので）。
 use std::time::Duration;
 
 use axum::body::Body;
@@ -31,6 +32,7 @@ pub async fn guard(mut request: Request, next: Next) -> Response {
         .and_then(|v| v.to_str().ok())
         .map(|v| v.rsplit_once(':').map_or(v, |(name, _port)| name));
     if !matches!(host, Some("127.0.0.1" | "localhost")) {
+        refused("host", &request);
         return reply(
             StatusCode::FORBIDDEN,
             "Forbidden",
@@ -41,6 +43,7 @@ pub async fn guard(mut request: Request, next: Next) -> Response {
         && request.method() != Method::HEAD
         && request.headers().contains_key(header::ORIGIN)
     {
+        refused("origin", &request);
         return reply(
             StatusCode::FORBIDDEN,
             "Forbidden",
@@ -67,6 +70,26 @@ pub async fn guard(mut request: Request, next: Next) -> Response {
     } else {
         response
     }
+}
+
+/// 断った要求を、記録に 1 行残す（訳・method・道・`Host`・`Origin`）。問い合わせごとの行は出さないので、
+/// 「画面が 403 になる」時に訳を引けるのは、この行だけ。
+fn refused(reason: &str, request: &Request) {
+    let header = |name| {
+        request
+            .headers()
+            .get(name)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+    };
+    tracing::info!(
+        reason,
+        method = %request.method(),
+        path = %request.uri().path(),
+        host = header(header::HOST),
+        origin = header(header::ORIGIN),
+        "refused"
+    );
 }
 
 /// `limit` の内に答えの頭を返せなければ、503 で返す（待っている物は捨てる）。
