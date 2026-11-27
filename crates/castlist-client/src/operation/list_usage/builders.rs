@@ -22,7 +22,7 @@ impl crate::operation::list_usage::builders::ListUsageInputBuilder {
 }
 /// Fluent builder constructing a request to `ListUsage`.
 ///
-/// トークンの数と費えの行を、アクターをまたいで読む（2.1.0 から）。条件はどれも AND。並びは受けた順。集計はしない（まとめるのは呼ぶ側）。 - `from`・`to` は、区間の終わりの時刻（`toAt`）の窓（`from &lt;= toAt &lt; to`。始めは含み、終わりは含まない）。どちらも要る。 `to - from` は 31 日まで（越えれば 400）。受けた時刻（`receivedAt`）とは比べない。 - `label` は `鍵:値`（ListActors の `label` と同じ）。重ねれば、どれも持つアクターの行。`actorId` は、そのアクターの行。 - `actors` は、この頁の行に出てきたアクターを 1 度ずつ（行に初めて出た順）。 - 同じアクター・同じ時・同じ種類の行は、2 つ以上在りうる。読む側は、数（`turns`・トークンの数・web の検索と取得の回数・`costMicroUsd`・`buckets` の段ごとの数）を足し、 `maxContext` は大きい方を取る。 - 頁は受けた順で後ろから続ける（辿る間に行が足されても、元の組に穴も重なりも出ない）。`nextToken` はこの検索の答えの物を渡す（違えば 400）。
+/// トークンの使用量の行を、アクターをまたいで読む（2.1.0 から）。条件はどれも AND。並びは受けた順。集計はしない（まとめるのは呼ぶ側）。 - `from`・`to` は、区間の終わりの時刻（`toAt`）の窓（`from &lt;= toAt &lt; to`。始めは含み、終わりは含まない）。どちらも要る。 `to - from` は 31 日まで（越えれば 400）。受けた時刻（`receivedAt`）とは比べない。 - `label` は `鍵:値`（ListActors の `label` と同じ）。重ねれば、どれも持つアクターの行。`actorId` は、そのアクターの行。 - `actors` は、この頁の行に出てきたアクターを 1 度ずつ（行に初めて出た順）。 - 同じアクター・同じ時・同じ種類の行は、2 つ以上在りうる。読む側は、数（`turns`・トークンの数・web の検索と取得の回数・`costMicroUsd`・`buckets` の段ごとの数）を足し、 `maxContext` は大きい方を取る。 - 頁は受けた順で後ろから続ける（辿る間に行が足されても、元の組に穴も重なりも出ない）。`nextToken` はこの検索の答えの物を渡す（違えば 400）。
 #[derive(::std::clone::Clone, ::std::fmt::Debug)]
 pub struct ListUsageFluentBuilder {
     handle: ::std::sync::Arc<crate::client::Handle>,
