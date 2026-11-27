@@ -286,8 +286,10 @@ async fn タイムラインは_script_も_inline_の_style_も使わず_利用�
     let app = start(answer).await;
     let (_, headers, body) = app.send(get("/graph/timeline")).await;
     assert!(headers.get(header::CONTENT_SECURITY_POLICY).is_some());
+    // 画面の script は、どの画面も読む字の差し替えの 4 つ（JavaScript が無くても読める）のほかに無い。
+    let page = common::without_i18n_scripts(&body);
     for raw in ["<script", "<style", "style=", "<b>", "<i>"] {
-        assert!(!body.contains(raw), "{raw}");
+        assert!(!page.contains(raw), "{raw}");
     }
     assert!(body.contains("&#60;b&#62;se&#60;/b&#62;.1"), "{body}");
 }

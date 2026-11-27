@@ -30,7 +30,7 @@ test('使用量は、見本の数の行を、全体・役割ごと・課題ご�
   await expect(cells(page, 'subjects', 't-23zs')).toHaveText(['1', '5', '$1.75', '23 万']);
   await expect(cells(page, 'subjects', 't-99')).toHaveText(['1', '1', '$0.01', '1 万']);
   await expect(page.locator('main')).toContainText('額は、使った量を API の値段に直した目安で、払う額ではありません。');
-  expect(await page.locator('script').count()).toBe(0);
+  expect(await page.locator('body script').count()).toBe(0);
 
   // ラベルで絞る（castlist が絞る）。form から送る。
   await page.locator('input[name="label"]').first().fill('tpm.key:t-99');
@@ -65,7 +65,7 @@ test('使用量の図と、一覧の額の列と、プロフィールの使用�
   await expect(byDay.locator('rect.bar.main')).toHaveCount(1);
   await expect(byDay.locator('rect.bar.helper')).toHaveCount(1);
   await expect(byDay.locator('rect.bar.main title')).toContainText('本体 $1.51（本体と手伝いの計 $1.76）');
-  expect(await page.locator('script').count()).toBe(0);
+  expect(await page.locator('body script').count()).toBe(0);
 
   // 一覧の行の、額といちばん長い文脈。数の無い席は「—」。
   await page.goto('/actors/?label=tpm.key:t-23zs');
@@ -88,6 +88,6 @@ test('使用量の図と、一覧の額の列と、プロフィールの使用�
   await expect(line.locator('path.context')).toHaveCount(1);
   await expect(line.locator('line.compact')).toHaveCount(1);
   await expect(line.locator('line.compact title')).toContainText('（18 万 → 3 万）');
-  expect(await page.locator('script').count()).toBe(0);
+  expect(await page.locator('body script').count()).toBe(0);
   expect(problems).toEqual([]);
 });

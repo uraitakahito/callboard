@@ -218,3 +218,44 @@ pub fn slow(wait: Duration, answer: fn() -> Response) -> Router {
         }),
     )
 }
+
+/// どの画面も `<head>` で読む、字の差し替えの script 4 つ（AI-50。i18next・訳 2 つ・i18n.js）を外した HTML。
+/// 4 つが `<head>` に、この順で 1 つずつ、属性は src だけで中身の無い tag（`<script src="…"></script>`）であることも見る
+/// （無ければ落とす）。画面の中の script を数える試験が使う。
+#[allow(dead_code)]
+pub fn without_i18n_scripts(body: &str) -> String {
+    let head = &body[..body.find("</head>").expect("</head> が無い")];
+    let mut out = body.to_owned();
+    let mut last = 0;
+    // (src の頭, ?v= の後に 12 桁の 16 進が続くか)
+    for (src, versioned) in [
+        ("/static/vendor/i18next-27.2.9.min.js", false),
+        ("/static/locales/ja.js?v=", true),
+        ("/static/locales/en.js?v=", true),
+        ("/static/i18n.js?v=", true),
+    ] {
+        let prefix = format!("<script src=\"{src}");
+        let at = head
+            .find(&prefix)
+            .unwrap_or_else(|| panic!("{prefix} が head に無い: {head}"));
+        assert!(at >= last, "{prefix} の順が違う: {head}");
+        last = at;
+        assert_eq!(body.matches(&prefix).count(), 1, "{prefix} が 1 つでない");
+        let rest = &head[at + prefix.len()..];
+        let digits = if versioned { 12 } else { 0 };
+        assert!(
+            rest[..digits].bytes().all(|b| b.is_ascii_hexdigit()),
+            "{}",
+            &rest[..digits]
+        );
+        assert!(
+            rest[digits..].starts_with("\"></script>"),
+            "{prefix} の tag が src だけの中身の無い形でない: {}",
+            &rest[..rest.len().min(80)]
+        );
+        let tag = format!("{prefix}{}\"></script>", &rest[..digits]);
+        let start = out.find(&tag).unwrap();
+        out.replace_range(start..start + tag.len(), "");
+    }
+    out
+}

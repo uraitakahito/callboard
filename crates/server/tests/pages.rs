@@ -418,7 +418,13 @@ async fn 選んだページを_本文の枠に出す() {
         )
     );
     // script は callboard が配る 1 つ。inline の script と style は無い。
-    assert_eq!(html.matches("<script").count(), 1, "{html}");
+    assert_eq!(
+        common::without_i18n_scripts(&html)
+            .matches("<script")
+            .count(),
+        1,
+        "{html}"
+    );
     assert!(
         html.contains(r#"<script src="/static/pages.js?v="#),
         "{html}"
@@ -519,7 +525,10 @@ async fn key_の画面は_file_の枠と上げる枠を出す() {
 async fn 画面の間の_link() {
     let app = start(json!({ "pages": [] })).await;
     let html = app.html("/pages/").await;
-    assert!(html.contains(r#"<a href="/pages/">ページ</a>"#), "{html}");
+    assert!(
+        html.contains(r#"<a href="/pages/" data-i18n="nav.pages">ページ</a>"#),
+        "{html}"
+    );
     let home = app.html("/").await;
     assert!(
         home.contains(r#"<a href="/pages/">ページの一覧</a>"#),

@@ -74,7 +74,7 @@ test('時刻ずれの印は、登録・出来事・model と effort のどれが
   }
 });
 
-test('プロフィールは script を使わず、console の誤りも CSP の違反も無い', async ({ page, request }) => {
+test('プロフィールは自分の script を使わず、console の誤りも CSP の違反も無い', async ({ page, request }) => {
   const problems: string[] = [];
   page.on('console', (m) => {
     if (m.type() === 'error') problems.push(`console: ${m.text()}`);
@@ -85,7 +85,9 @@ test('プロフィールは script を使わず、console の誤りも CSP の�
   });
   const se1 = await byName(request, 'se.1');
   await page.goto(`/actors/${se1.id}`);
-  await expect(page.locator('script')).toHaveCount(0);
+  // 画面の script は、どの画面も head で読む字の差し替えの 4 つ（AI-50）だけ。
+  await expect(page.locator('body script')).toHaveCount(0);
+  await expect(page.locator('head script[src]')).toHaveCount(4);
   await expect(page.locator('link[rel="stylesheet"]')).toHaveCount(1);
   expect(problems).toEqual([]);
 });

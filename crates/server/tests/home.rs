@@ -84,12 +84,12 @@ async fn 入口と頭の_link_は_どの画面も_callboard_の道で指す() {
     for page in [&body, &missing] {
         let nav = &page[page.find("<nav").unwrap()..page.find("</nav>").unwrap()];
         for link in [
-            "<a href=\"/actors/\">アクター</a>",
-            "<a href=\"/graph/timeline\">タイムライン</a>",
-            "<a href=\"/graph/network\">相関図</a>",
-            "<a href=\"/usage/\">使用量</a>",
-            "<a href=\"/pages/\">ページ</a>",
-            "<a href=\"/messages\">メッセージ</a>",
+            "<a href=\"/actors/\" data-i18n=\"nav.actors\">アクター</a>",
+            "<a href=\"/graph/timeline\" data-i18n=\"nav.timeline\">タイムライン</a>",
+            "<a href=\"/graph/network\" data-i18n=\"nav.network\">相関図</a>",
+            "<a href=\"/usage/\" data-i18n=\"nav.usage\">使用量</a>",
+            "<a href=\"/pages/\" data-i18n=\"nav.pages\">ページ</a>",
+            "<a href=\"/messages\" data-i18n=\"nav.messages\">メッセージ</a>",
         ] {
             assert!(nav.contains(link), "{link}: {nav}");
         }
@@ -178,7 +178,10 @@ async fn 呼ぶ先の字は_html_で逃がす() {
     )
     .await;
     let body = app.html("/").await;
-    assert!(!body.contains("<script"), "{body}");
+    assert!(
+        !common::without_i18n_scripts(&body).contains("<script"),
+        "{body}"
+    );
     // askama は、数字の形で逃がす。
     assert!(
         body.contains("&#60;script&#62;alert(1)&#60;/script&#62;&#38;&#34;"),
@@ -191,8 +194,9 @@ async fn 画面は_callboard_が配る_css_だけを読み_inline_の_script_と
     let app = App::start().await;
     let (_, _, missing) = app.send(get("/no/such")).await;
     for body in [app.html("/").await, missing] {
+        let page = common::without_i18n_scripts(&body);
         for inline in ["<script", "<style", "style="] {
-            assert!(!body.contains(inline), "{inline}: {body}");
+            assert!(!page.contains(inline), "{inline}: {body}");
         }
         // CSS の path には、中身の写しの頭が付く（中身が替われば path も替わる）。
         let at = body.find("<link rel=\"stylesheet\" href=\"").expect("CSS");

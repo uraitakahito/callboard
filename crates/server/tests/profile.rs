@@ -345,8 +345,9 @@ async fn 利用者の字は_html_で逃がす() {
     lineage["nodes"][1]["name"] = json!("<u>tpm</u>.1");
     let app = start_with(actor, lineage).await;
     let body = app.html(&format!("/actors/{SE1}")).await;
+    let page = common::without_i18n_scripts(&body);
     for raw in ["<script", "<b>", "<i>", "<u>", "<img"] {
-        assert!(!body.contains(raw), "{raw}: {body}");
+        assert!(!page.contains(raw), "{raw}: {body}");
     }
     assert!(body.contains("&#60;u&#62;se&#60;/u&#62;.1"), "{body}");
     assert!(
@@ -359,8 +360,9 @@ async fn 利用者の字は_html_で逃がす() {
 async fn プロフィールは_inline_の_script_と_style_が無く_頭の_link_を出す() {
     let app = start().await;
     let (_, headers, body) = app.send(get(&format!("/actors/{SE1}"))).await;
+    let page = common::without_i18n_scripts(&body);
     for inline in ["<script", "<style", "style="] {
-        assert!(!body.contains(inline), "{inline}");
+        assert!(!page.contains(inline), "{inline}");
     }
     assert!(headers.get(header::CONTENT_SECURITY_POLICY).is_some());
     assert!(body.contains("<a class=\"home\" href=\"/\">callboard</a>"));
@@ -635,7 +637,10 @@ async fn 使用量の節の線は_時ごとの本体のいちばん長い文脈�
         svg.contains("<title>要約 · 2026-11-22 12:00:00（18 万 → 3 万）</title>"),
         "{svg}"
     );
-    assert!(!body.contains("<script"), "{body}");
+    assert!(
+        !common::without_i18n_scripts(&body).contains("<script"),
+        "{body}"
+    );
 
     // detail に前と後の長さが無ければ、時刻だけ。
     let app = start_with_usage(se1_actor(), usage_answer_only_main()).await;

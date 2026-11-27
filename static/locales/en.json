@@ -1,0 +1,14 @@
+{
+  "nav": {
+    "label": "Screens",
+    "actors": "Actors",
+    "timeline": "Timeline",
+    "network": "Network",
+    "usage": "Usage",
+    "pages": "Pages",
+    "messages": "Messages"
+  },
+  "lang": {
+    "label": "Language"
+  }
+}

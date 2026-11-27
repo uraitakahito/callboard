@@ -439,7 +439,7 @@ async fn 画面の間の_link_と_script() {
     let app = start(json!({ "messages": [] }), facets()).await;
     let page = app.html("/messages").await;
     assert!(
-        page.contains(r#"<a href="/messages">メッセージ</a>"#),
+        page.contains(r#"<a href="/messages" data-i18n="nav.messages">メッセージ</a>"#),
         "{page}"
     );
     assert!(
@@ -450,13 +450,20 @@ async fn 画面の間の_link_と_script() {
         page.contains(r#"<h1><a href="/messages">メッセージの記録</a></h1>"#),
         "{page}"
     );
-    let src = page
+    let scripts = common::without_i18n_scripts(&page);
+    let src = scripts
         .split(r#"<script src=""#)
         .nth(1)
         .and_then(|rest| rest.split('"').next())
         .unwrap_or_else(|| panic!("script が無い: {page}"));
     assert!(src.starts_with("/static/messages.js?v="), "{src}");
-    assert_eq!(page.matches("<script").count(), 1, "{page}");
+    assert_eq!(
+        common::without_i18n_scripts(&page)
+            .matches("<script")
+            .count(),
+        1,
+        "{page}"
+    );
     assert!(!page.contains("<style"), "{page}");
     assert!(
         page.contains(r#"data-events="/api/pagetray/events""#),

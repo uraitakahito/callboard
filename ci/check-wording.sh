@@ -8,12 +8,12 @@
 # （CHANGELOG.md の前の節と、替えたことを書く節）に残るので CHANGELOG.md では見ず、画面の字を持つ Rust（crates/server/src）でも見る。
 # 見る形: 語の Mac（macOS は当てない）・/Users/<名>・札・上の前の字・費え
 # 1 つでも当たれば、file と行を出して exit 1。
-# 使い方: ci/check-wording.sh [path…]（既定は README.md・CHANGELOG.md・docs/src・templates。「費え」だけは crates/server/src も）
+# 使い方: ci/check-wording.sh [path…]（既定は README.md・CHANGELOG.md・docs/src・templates・画面の日本語の字 static/locales/ja.json。「費え」だけは crates/server/src も）
 set -euo pipefail
 
 if [ "$#" -eq 0 ]; then
   root=$(cd "$(dirname "$0")/.." && pwd)
-  set -- "$root/README.md" "$root/CHANGELOG.md" "$root/docs/src" "$root/templates"
+  set -- "$root/README.md" "$root/CHANGELOG.md" "$root/docs/src" "$root/templates" "$root/static/locales/ja.json"
   src="$root/crates/server/src"
 fi
 

@@ -434,8 +434,9 @@ async fn 一覧から_タイムラインと相関図へ行け_期間をすぐ選
             && href.contains("&active_to=20"),
         "{href}"
     );
+    let page = common::without_i18n_scripts(&body);
     for inline in ["<script", "<style", "style="] {
-        assert!(!body.contains(inline), "{inline}");
+        assert!(!page.contains(inline), "{inline}");
     }
 }
 
@@ -446,8 +447,9 @@ async fn 一覧も利用者の字を_html_で逃がす() {
     answer["actors"][1]["labels"]["tpm.key"] = json!("<i>k</i>");
     let app = start(answer).await;
     let body = app.html("/actors/?label=a:%3Cscript%3E").await;
+    let page = common::without_i18n_scripts(&body);
     for raw in ["<b>", "<i>", "<script>"] {
-        assert!(!body.contains(raw), "{raw}");
+        assert!(!page.contains(raw), "{raw}");
     }
     assert!(body.contains("&#60;b&#62;se&#60;/b&#62;.1"), "{body}");
 }

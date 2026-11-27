@@ -11,6 +11,7 @@ use axum::http::StatusCode;
 use axum::response::Response;
 use time::OffsetDateTime;
 
+use super::i18n::filters;
 use super::params::{self, GRAPH_PERIOD, GraphForm, PageError, Pairs};
 use super::{CSS_HREF, CYTOSCAPE_PATH, NETWORK_JS_HREF, Nav, error_page, render};
 use crate::App;

@@ -78,6 +78,23 @@ h2 { font-size: 1rem; margin: 0 0 8px; }
 .bar .home { font-weight: 700; color: var(--fg); }
 .bar .sub { color: var(--muted); font-size: 0.85rem; }
 .bar nav { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.9rem; }
+.bar .lang { margin-left: auto; display: flex; gap: 4px; font-size: 0.8rem; }
+.bar .lang[hidden] { display: none; }
+.bar .lang button {
+  font: inherit;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 6px;
+  cursor: pointer;
+}
+.bar .lang button[aria-pressed="true"] { color: var(--fg); border-color: var(--accent); cursor: default; }
+
+/* 画面の字の差し替え（AI-50。static/i18n.js）: 英語の時、差し替えるまで本文を隠す。
+   i18n.js が途中で止まっても、1.5 秒で見せる（CSS だけで効く守り。字は日本語のまま）。 */
+html.i18n-wait body { visibility: hidden; animation: i18n-reveal 0s 1.5s forwards; }
+@keyframes i18n-reveal { to { visibility: visible; } }
 
 main { padding: 16px; max-width: 1400px; }
 footer { padding: 8px 16px 24px; color: var(--muted); font-size: 0.8rem; }
