@@ -13,7 +13,7 @@ cargo test --locked
 cargo test --locked -p castlist_client -p pagetray_client          # 定義の例から作った、生成した crate の中の試験（protocol の試験）
 ci/check-wording.sh                                                # 公開する字と画面の字が、決めた字か
 ci/test-check-release-version.sh                                   # release の tag と版の突き合わせの試験
-ci/check-vendor.sh                                                 # 取り込んだ cytoscape が npm の物と同じか（static/vendor/SOURCES.md）
+ci/check-vendor.sh                                                 # 取り込んだ cytoscape・i18next が npm の物と同じか（static/vendor/SOURCES.md）
 (cd e2e && CALLBOARD_E2E_CASTLIST=<castlist-server の binary> CALLBOARD_E2E_PAGETRAY=<pagetray-server の binary> pnpm test)   # 画面を、本物の castlist と pagetray を相手に、本物の browser で見る（下の「browser の試験の相手」）
 CALLBOARD_LISTEN=127.0.0.1:18813 CALLBOARD_CASTLIST_URL=http://127.0.0.1:8802 CALLBOARD_PAGETRAY_URL=http://127.0.0.1:8801 cargo run --bin callboard-server   # 手元で起こす（動いている callboard の 8803 とは別の port。castlist と pagetray は読むだけ）
 mdbook build docs                                                  # この本を作る
@@ -38,7 +38,7 @@ ci/gen.sh --check                                                  # 取った�
 | `crates/server/` | server（package `callboard`・binary `callboard-server`）。`src/config.rs` 設定・`src/guard.rs` 入口の守り・`src/upstream/` castlist と pagetray を呼ぶ所・`src/ui.rs` と `src/ui/` 画面 |
 | `crates/castlist-client/`・`crates/pagetray-client/` | castlist と pagetray の定義から作った、呼ぶ側の crate。**手で直さない** |
 | `model/` | castlist と pagetray の release の tag から取った定義（`model/castlist/`・`model/pagetray/`）と、生成器の設定（`smithy-build.json`） |
-| `templates/`・`static/` | 画面の template（askama）と、配る CSS・script・取り込んだ cytoscape（`static/vendor/`）。binary に埋め込む |
+| `templates/`・`static/` | 画面の template（askama）と、配る CSS・script・取り込んだ cytoscape と i18next（`static/vendor/`）。binary に埋め込む |
 | `e2e/` | 画面の browser の試験（Playwright） |
 | `ci/` | 生成（`gen.sh`）と、出す image に入ってよい物だけが入っているか・動くかを見る script |
 | `docs/` | この本（mdBook。日本語だけ） |

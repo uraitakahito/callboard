@@ -219,17 +219,18 @@ CSP を緩めずに cytoscape を使うための、2 つの決まり（`static/n
 - cytoscape は、初めに `<style>` を head に差し込もうとする（CSP の `style-src 'self'` が断り、違反になる）。同じ id（`__________cytoscape_stylesheet`）の印を先に置くと差し込まないので、そうする。差し込むはずだった決まり（容れ物を `position: relative` に）は `site.css` に書く。
 - cytoscape は、絵の画面の中の位置を覚えておき、押した所の点を探す。覚え直すのは window の scroll と大きさの替わりの知らせが来た時だけなので、指が入った時と押す前に覚え直させる（`cy.resize()`）。
 
-### 取り込んだ cytoscape
+### 取り込んだ外の JavaScript
 
-- [cytoscape](https://js.cytoscape.org/) 3.35.0（MIT。The Cytoscape Consortium）。npm の tarball の `package/dist/cytoscape.min.js` を、そのまま `static/vendor/cytoscape-3.35.0.min.js` に置き、callboard が binary に埋め込んで配る（CDN からは読まない）。license の写しは `static/vendor/cytoscape-LICENSE`。
-- 出どころの記録は `static/vendor/SOURCES.md`。`ci/check-vendor.sh`（CI の job `test`）が、npm の registry の物と、commit した file とを突き合わせる（書き替えた写しを当てることも CI で見る）。
+- [cytoscape](https://js.cytoscape.org/) 3.35.0（MIT。The Cytoscape Consortium）。相関図が使う。npm の tarball の `package/dist/cytoscape.min.js` を、そのまま `static/vendor/cytoscape-3.35.0.min.js` に置く。license の写しは `static/vendor/cytoscape-LICENSE`。
+- [i18next](https://www.i18next.com/) 27.2.9（MIT）。画面の字を言語ごとに差し替える（AI-50）。npm の tarball の `package/dist/umd/i18next.min.js` を、そのまま `static/vendor/i18next-27.2.9.min.js` に置く。license の写しは `static/vendor/i18next-LICENSE`。
+- どちらも callboard が binary に埋め込んで配る（CDN からは読まない）。出どころの記録は `static/vendor/SOURCES.md`（package ごとに 1 節）。`ci/check-vendor.sh`（CI の job `test`）が、節ごとに、npm の registry の物と、commit した file とを突き合わせる（package ごとに書き替えた写しを当てること・2 つ目の節の壊れた記録を当てること・表を書き損じた節を当てることも、落ちた訳まで CI で見る）。表を書き損じた節・同じ package の節が 2 つ・どの節にも名指されない `static/vendor/` の file も落とす。
 
-版の上げ方:
+版の上げ方（`<名>` は cytoscape か i18next）:
 
-1. 新しい版が npm の `latest` で、公開から 2 日たっていることを見る（`curl -s https://registry.npmjs.org/cytoscape | jq '."dist-tags", .time["<版>"]'`）。
-2. 空の folder で tarball を落とし、`package/dist/cytoscape.min.js` を `static/vendor/cytoscape-<版>.min.js` に、`package/LICENSE` を `static/vendor/cytoscape-LICENSE` に写す。古い版の file は消す。
-3. `static/vendor/SOURCES.md` の version・tarball・integrity・file・sha256 を書き替える。
-4. 版の入った path を替える: `crates/server/src/ui.rs` の `CYTOSCAPE_JS`・`CYTOSCAPE_PATH`、`crates/server/tests/network.rs`、`ci/smoke-image.sh`、CI の「見張りが、書き替えた写しを当てるか」の file の名。
+1. 新しい版が npm の `latest` で、公開から 2 日たっていることを見る（`curl -s https://registry.npmjs.org/<名> | jq '."dist-tags", .time["<版>"]'`）。
+2. 空の folder で tarball を落とし、SOURCES.md の節の `path` の file を `static/vendor/<名>-<版>.min.js` に、`package/LICENSE` を `static/vendor/<名>-LICENSE` に写す。古い版の file は消す。
+3. `static/vendor/SOURCES.md` のその節の version・tarball・integrity・file・sha256 を書き替える。
+4. 版の入った path を替える: `crates/server/src/ui.rs` の `<名>` の `…_JS`・`…_PATH`、試験（cytoscape は `crates/server/tests/network.rs`、i18next は `crates/server/tests/i18n.rs`）、`ci/smoke-image.sh`。
 5. `ci/check-vendor.sh`・`cargo test --locked`・`cd e2e && pnpm test`（console の誤りと CSP の違反が 0 か）を流す。
 
 ## 出来事の名
@@ -256,9 +257,10 @@ id は英語のまま（castlist の API）。日本語の名は画面だけで�
 | `GET /static/site.css` | 画面の CSS（`text/css`） |
 | `GET /static/network.js` | 相関図の script（`application/javascript`） |
 | `GET /static/vendor/cytoscape-3.35.0.min.js` | 取り込んだ cytoscape |
+| `GET /static/vendor/i18next-27.2.9.min.js` | 取り込んだ i18next（画面の字の多言語化。AI-50。まだどの画面も読まない） |
 | `GET /static/icon.svg` | browser の tab に出す印（`image/svg+xml`） |
 
-どれも binary に埋め込む。画面は CSS と script を `?v=<中身の写しの頭>` を付けて読み、cytoscape は版が path に入るので、中身が替われば browser は読み直す。長く持たせてよい（`Cache-Control: public, max-age=31536000, immutable`）。印だけは 1 日。
+どれも binary に埋め込む。画面は CSS と script を `?v=<中身の写しの頭>` を付けて読み、取り込んだ物（cytoscape・i18next）は版が path に入るので、中身が替われば browser は読み直す。長く持たせてよい（`Cache-Control: public, max-age=31536000, immutable`）。印だけは 1 日。
 
 ## `GET /messages` メッセージの一覧
 

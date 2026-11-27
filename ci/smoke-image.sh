@@ -116,8 +116,8 @@ if [ "$scripts" != "$want_scripts" ]; then
   exit 1
 fi
 grep -qF 'data-src="/api/castlist/graph"' "$tmp/network.html"
-# 相関図の script と cytoscape: JavaScript の型で、cytoscape は static/vendor/ の物と同じ字。
-for path in static/network.js static/vendor/cytoscape-3.35.0.min.js; do
+# 相関図の script と、取り込んだ cytoscape・i18next: JavaScript の型で、static/ の物と同じ字。
+for path in static/network.js static/vendor/cytoscape-3.35.0.min.js static/vendor/i18next-27.2.9.min.js; do
   curl -fsS -D "$tmp/js-head.txt" -o "$tmp/got.js" "$url/$path"
   tr -d '\r' <"$tmp/js-head.txt" | grep -qi '^content-type: application/javascript'
   tr -d '\r' <"$tmp/js-head.txt" | grep -qix 'x-content-type-options: nosniff'
