@@ -8,6 +8,7 @@ use castlist_client::config::timeout::TimeoutConfig;
 use castlist_client::config::{BehaviorVersion, Config};
 use castlist_client::operation::get_actor::GetActorOutput;
 use castlist_client::operation::get_lineage::GetLineageOutput;
+use http_body_util::BodyExt;
 
 use super::{Failure, Health, Raw, TIMEOUT, http_client, raw_client, reason, unreadable, within};
 use crate::config::Base;
@@ -110,7 +111,8 @@ impl Castlist {
 
     /// 図の点と線（GetGraph。`GET /api/graph`）の答えを、そのまま返す（相関図の script が browser から引く）。
     /// `query` は、問い合わせの引数の字（`label=…&from=…`。castlist が確かめる）。渡すのは引数だけで、browser の header は渡さない。
-    /// 返すのは、状態・本文の型・誤りの型の名（`X-Amzn-Errortype`）・本文。聞けなければ 503 `Unavailable`。
+    /// 返すのは、状態・本文の型・誤りの型の名（`X-Amzn-Errortype`）・本文。聞けなければ（つながらない・本文を読み終えるまで
+    /// [`TIMEOUT`]）503 `Unavailable`。
     pub async fn graph(&self, query: Option<&str>) -> Response {
         let uri = match query {
             Some(query) => format!("{}/api/graph?{query}", self.api),
@@ -138,7 +140,20 @@ impl Castlist {
                 );
             }
         };
-        match tokio::time::timeout(TIMEOUT, self.raw.request(request)).await {
+        // 答えの頭だけでなく、本文を読み終えるまでを [`TIMEOUT`] で区切る（[`super`] の決まり）。図の答えは小さいので、
+        // 読み終えてから返す（頭を返した後に本文が止まっても、browser を待たせ続けない）。
+        let answer = tokio::time::timeout(TIMEOUT, async {
+            let (parts, body) = self
+                .raw
+                .request(request)
+                .await
+                .map_err(|e| e.to_string())?
+                .into_parts();
+            let body = body.collect().await.map_err(|e| e.to_string())?;
+            Ok::<_, String>((parts, body.to_bytes()))
+        })
+        .await;
+        match answer {
             Err(_) => {
                 tracing::warn!(
                     upstream = NAME,
@@ -148,13 +163,12 @@ impl Castlist {
                 );
                 unavailable("時間内に答えがありません")
             }
-            Ok(Err(e)) => {
-                tracing::warn!(upstream = NAME, api = self.api, error = %e, "呼ぶ先に聞けない");
+            Ok(Err(error)) => {
+                tracing::warn!(upstream = NAME, api = self.api, error, "呼ぶ先に聞けない");
                 unavailable("つながりません")
             }
-            Ok(Ok(answer)) => {
-                let (parts, body) = answer.into_parts();
-                let mut response = Response::new(Body::new(body));
+            Ok(Ok((parts, body))) => {
+                let mut response = Response::new(Body::from(body));
                 *response.status_mut() = parts.status;
                 for name in [header::CONTENT_TYPE.as_str(), "x-amzn-errortype"] {
                     if let Some(value) = parts.headers.get(name) {

@@ -88,7 +88,7 @@ castlist の `GetGraph`（`GET /api/graph`）の答えを、そのまま返す�
 
 - 渡すのは、問い合わせの引数の字だけ（castlist が確かめる）。browser の header（`Cookie`・`Referer` など）は渡さず、`Host: 127.0.0.1` で聞く。
 - 返すのは、castlist の答えの状態・本文の型・誤りの型の名（`X-Amzn-Errortype`）・本文。castlist の誤り（400 など）も、そのまま返る。
-- castlist に聞けない時（つながらない・答えの頭まで 4 秒）は、503 `Unavailable`（`{"message":"castlist に聞けません（…）"}`）。
+- castlist に聞けない時（つながらない・答えを読み終えるまで 4 秒）は、503 `Unavailable`（`{"message":"castlist に聞けません（…）"}`）。
 - 読むだけ（`GET`・`HEAD`）。castlist のほかの道は中継しない。
 
 CSP を緩めずに cytoscape を使うための、2 つの決まり（`static/network.js`）:

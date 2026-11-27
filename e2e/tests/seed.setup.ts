@@ -68,14 +68,10 @@ setup('見本の記録を置く', async ({ request }) => {
   await send(request, 'post', '/api/actors', seat('other', 's-other', 't-99', 'claude-haiku-5', 'low'));
   await send(request, 'put', '/api/links/l-tpm-other', line('launched', TPM, OTHER));
   await send(request, 'put', '/api/events/e-other-in', event(OTHER, 'entered'));
-  await send(request, 'put', '/api/settings/t-other-haiku', {
-    issuer: 'tpm',
-    by: OTHER,
-    model: 'claude-haiku-5',
-    effort: 'low',
-    source: 'observed',
-    sentAt: late(),
-  });
+  // castlist は、最新と同じ値の行を足さない。値を 1 度替えて（時刻ずれの行）、すぐ戻す（最新は haiku-5 · low のまま）。
+  const observed = (effort: string, sentAt: string) => ({ issuer: 'tpm', by: OTHER, model: 'claude-haiku-5', effort, source: 'observed', sentAt });
+  await send(request, 'put', '/api/settings/t-other-medium', observed('medium', late()));
+  await send(request, 'put', '/api/settings/t-other-low', observed('low', now()));
   // other.1 は、roster が落ちたと推して閉じた（推しの幕引き）。
   await send(request, 'put', '/api/events/e-other-out', {
     ...event(OTHER, 'closed'),
