@@ -1,4 +1,4 @@
-//! 偽の castlist の答え（アクター 1 つ・辿った先・図）。形は castlist の API（restJson1。欄は camelCase）の答えと同じ。
+//! 偽の castlist の答え（アクター 1 つ・辿った先・図・トークンの数と費え）。形は castlist の API（restJson1。欄は camelCase）の答えと同じ。
 //!
 //! 見本:
 //!   pm.1（人）─起動した→ tpm.1 ─起動した→ se.1 ─引き継いだ→ se.2

@@ -403,11 +403,11 @@ async fn 期間が無ければ_直近_7_日を_時の境に揃えて聞き_そ�
     assert!(body.contains("期間が無いので、直近 7 日"), "{body}");
     assert!(body.contains("name=\"from\" value=\"\""), "{body}");
 
-    // 片方だけなら: 始めだけなら今まで、終わりだけなら、その 7 日前から。
+    // 終わりだけなら、揃えた終わりの 7 日前から。
     let app = sample().await;
     app.html("/usage/?to=2026-11-22T12:10").await;
     let asked = self::asked(&app);
-    assert_eq!(all(&asked[0], "from"), ["2026-11-15T03:00:00Z"]);
+    assert_eq!(all(&asked[0], "from"), ["2026-11-15T04:00:00Z"]);
     assert_eq!(all(&asked[0], "to"), ["2026-11-22T04:00:00Z"]);
 }
 

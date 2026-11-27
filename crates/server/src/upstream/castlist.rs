@@ -1,4 +1,6 @@
 //! castlist を呼ぶ所（決まりは [`super`]）。
+use std::collections::HashSet;
+
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
 use axum::response::Response;
@@ -10,9 +12,13 @@ use castlist_client::operation::get_actor::GetActorOutput;
 use castlist_client::operation::get_lineage::GetLineageOutput;
 use castlist_client::operation::get_timeline::GetTimelineOutput;
 use castlist_client::operation::list_actors::ListActorsOutput;
+use castlist_client::operation::list_usage::ListUsageOutput;
+use castlist_client::types::{Usage, UsageActor};
 use http_body_util::BodyExt;
 
-use super::{Failure, Health, Raw, TIMEOUT, http_client, raw_client, reason, unreadable, within};
+use super::{
+    Failure, Health, Raw, SLOW, TIMEOUT, http_client, raw_client, reason, unreadable, within,
+};
 use crate::errors::reply;
 
 /// 記録に書く、呼ぶ先の名。
@@ -40,6 +46,32 @@ pub struct ActorSearch {
     /// 次の頁の印（前の答えの nextToken）。
     pub after: Option<String>,
 }
+
+/// トークンの数と費えの行を読む条件（ListUsage の引数。画面が確かめた物）。
+#[derive(Clone, Debug)]
+pub struct UsageSearch {
+    /// 区間の終わりの時刻の窓（`from <= toAt < to`）。時の境（UTC）に揃えた物。
+    pub from: aws_smithy_types::DateTime,
+    pub to: aws_smithy_types::DateTime,
+    /// `鍵:値`。重ねれば、どれも持つアクターの行。
+    pub labels: Vec<String>,
+}
+
+/// 窓の内の、トークンの数と費えの行（ListUsage の頁を、みな引いた物）。
+#[derive(Clone, Debug)]
+pub struct UsageAnswer {
+    /// castlist が、初めの頁を読み始めた時刻。
+    pub as_of: aws_smithy_types::DateTime,
+    pub rows: Vec<Usage>,
+    /// 行に出てきたアクター（頁をまたいで、id で 1 つにした物）。
+    pub actors: Vec<UsageActor>,
+    /// 頁が [`USAGE_MAX_PAGES`] を越えたので、途中で止めた（`rows` は、そこまでの分）。
+    pub truncated: bool,
+}
+
+/// ListUsage の 1 頁の数（castlist の上限）と、引く頁の上限。越えたら、そこで止める（[`UsageAnswer::truncated`]）。
+pub const USAGE_PAGE_SIZE: i32 = 1000;
+pub const USAGE_MAX_PAGES: usize = 50;
 
 /// castlist の居場所と、呼ぶ client。
 #[derive(Clone, Debug)]
@@ -193,6 +225,79 @@ impl Castlist {
                 Some(e) if e.is_validation_error() => {
                     Failure::Rejected(e.meta().message().unwrap_or_default().to_owned())
                 }
+                _ => Failure::Unavailable(reason(NAME, &self.api, &e)),
+            })
+    }
+
+    /// 窓の内の、トークンの数と費えの行（ListUsage。castlist 2.1.0 から）。次の頁の印で、行をみな引く（[`USAGE_MAX_PAGES`] 頁まで）。
+    /// 待つのは、全部の頁で [`TIMEOUT`]（頁ごとではない。callboard 自身の時間切れより先に、訳を書いた画面を返すため）。
+    /// castlist が引数を断れば [`Failure::Rejected`]。
+    pub async fn usage(&self, search: &UsageSearch) -> Result<UsageAnswer, Failure> {
+        match tokio::time::timeout(TIMEOUT, self.usage_pages(search)).await {
+            Ok(answer) => answer,
+            Err(_) => {
+                tracing::warn!(
+                    upstream = NAME,
+                    api = self.api,
+                    error = "usage timeout",
+                    "呼ぶ先に聞けない"
+                );
+                Err(Failure::Unavailable(SLOW.to_owned()))
+            }
+        }
+    }
+
+    async fn usage_pages(&self, search: &UsageSearch) -> Result<UsageAnswer, Failure> {
+        let mut page = self.usage_page(search, None).await?;
+        let mut answer = UsageAnswer {
+            as_of: page.as_of,
+            rows: Vec::new(),
+            actors: Vec::new(),
+            truncated: false,
+        };
+        let mut seen = HashSet::new();
+        for asked in 1.. {
+            answer.rows.extend(page.usage);
+            answer.actors.extend(
+                page.actors
+                    .into_iter()
+                    .filter(|a| seen.insert(a.id.clone())),
+            );
+            let Some(token) = page.next_token else { break };
+            if asked == USAGE_MAX_PAGES {
+                answer.truncated = true;
+                break;
+            }
+            page = self.usage_page(search, Some(token)).await?;
+        }
+        Ok(answer)
+    }
+
+    /// ListUsage の 1 頁。
+    async fn usage_page(
+        &self,
+        search: &UsageSearch,
+        next: Option<String>,
+    ) -> Result<ListUsageOutput, Failure> {
+        self.client
+            .list_usage()
+            .from(search.from)
+            .to(search.to)
+            .set_label((!search.labels.is_empty()).then(|| search.labels.clone()))
+            .max_results(USAGE_PAGE_SIZE)
+            .set_next_token(next)
+            .customize()
+            .mutate_request(|request| {
+                request.headers_mut().insert("host", "127.0.0.1");
+            })
+            .send()
+            .await
+            .map_err(|e| match e.as_service_error() {
+                // castlist が引数を断った。画面が確かめた物なので、ふつうは起きない（castlist が確かめを足した版に向けた時）。
+                Some(e) if e.is_validation_error() => {
+                    Failure::Rejected(e.meta().message().unwrap_or_default().to_owned())
+                }
+                // ListUsage を持たない古い castlist の 404 も、ここ（「404 が返りました」）。
                 _ => Failure::Unavailable(reason(NAME, &self.api, &e)),
             })
     }

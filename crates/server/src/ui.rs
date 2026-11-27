@@ -1,5 +1,5 @@
 //! 画面: 入口（`/`）・アクターの一覧（`/actors/`）・プロフィール（`/actors/{id}`）・タイムライン（`/graph/timeline`）・
-//! 相関図（`/graph/network`）・メッセージの一覧（`/messages`）・ページの一覧（`/pages/`）と、それが読む CSS
+//! 相関図（`/graph/network`）・費え（`/usage/`）・メッセージの一覧（`/messages`）・ページの一覧（`/pages/`）と、それが読む CSS
 //! （`/static/site.css`）と script（`/static/network.js` と取り込んだ cytoscape、`/static/messages.js`、`/static/pages.js`）。
 //!
 //! - サーバーが HTML を組んで返す（askama。`templates/`）。字はみな HTML として逃がす。
@@ -16,6 +16,7 @@ mod profile;
 mod time;
 mod timeline;
 mod timeline_layout;
+mod usage;
 mod usage_summary;
 
 use std::sync::{Arc, LazyLock};
@@ -131,6 +132,7 @@ pub struct Nav {
     actors: String,
     timeline: String,
     network: String,
+    usage: String,
     pages: String,
     messages: String,
 }
@@ -145,6 +147,8 @@ impl Nav {
             timeline: "/graph/timeline".to_owned(),
             // 相関図は callboard に移した。
             network: "/graph/network".to_owned(),
+            // 費え（トークンの数と額。castlist 2.1.0 の ListUsage から）。
+            usage: usage::PATH.to_owned(),
             // ページの一覧も callboard に移した。
             pages: pages::PATH.to_owned(),
             // メッセージの一覧は callboard に移した。
@@ -238,6 +242,7 @@ pub fn routes(app: Arc<App>) -> Router {
         .route("/graph/timeline", get(timeline::timeline))
         .route("/graph/network", get(network::network))
         .route(network::DATA_PATH, get(network::graph))
+        .route(usage::PATH, get(usage::usage))
         .route(messages::PATH, get(messages::messages))
         .route(messages::EVENTS_PATH, get(messages::events))
         .route(pages::PATH, get(pages::pages))
@@ -270,6 +275,7 @@ async fn home(State(app): State<Arc<App>>) -> Response {
                     ("アクターの一覧", &nav.actors),
                     ("タイムライン", &nav.timeline),
                     ("相関図", &nav.network),
+                    ("費え", &nav.usage),
                 ],
             ),
             Service::new(

@@ -243,14 +243,21 @@ pub fn to_local(value: &str) -> String {
 /// 引数のうち、期間の欄（`names`）の値を RFC 3339 にそろえる（[`from_local`]）。読めない値は、欄の見出しと
 /// 直し方を書いた 400（API の字「RFC 3339 の時刻」は、欄から打つ人には硬いので、画面では使わない）。
 pub fn period(pairs: &mut Pairs, names: [&str; 2]) -> Result<(), PageError> {
+    fn label(name: &str) -> &str {
+        PERIOD_LABELS
+            .iter()
+            .find(|(n, _)| *n == name)
+            .map_or(name, |(_, l)| l)
+    }
+    period_named(pairs, names.map(|name| (name, label(name))))
+}
+
+/// [`period`] と同じ。欄の見出しを、画面が渡す（同じ名の欄でも、画面ごとに見出しが違う時）。
+pub fn period_named(pairs: &mut Pairs, fields: [(&str, &str); 2]) -> Result<(), PageError> {
     for (name, value) in pairs.iter_mut() {
-        if names.contains(&name.as_str()) {
+        if let Some((_, label)) = fields.iter().find(|(n, _)| n == name) {
             *value = from_local(value);
             if OffsetDateTime::parse(value, &Rfc3339).is_err() {
-                let label = PERIOD_LABELS
-                    .iter()
-                    .find(|(n, _)| n == name)
-                    .map_or(name.as_str(), |(_, l)| l);
                 return Err(bad_request(format!(
                     "「{label}」の日時を読めません。日時の欄で選ぶか、2026-11-22T13:00 の形で入れてください。"
                 )));

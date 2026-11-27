@@ -5,13 +5,18 @@
 //! - 本体の回（`helper` が false）と、手伝い（subagent）の回を分ける。文脈の長さの数（中央・上から 1 割・いちばん長い文脈・
 //!   20 万を越えた回）は、本体の回だけで出す（手伝いは自分の短い文脈で動くので、混ぜると中央が下がる）。
 //! - 中央と上から 1 割は、段（2.5 万刻み）から出す近い値: 回を文脈の短い順に並べた時の、その順位の回が入る段の下の端。
-// 形だけを先に置いた（試験を先に書く）。実装の commit で外す。
-#![allow(dead_code)]
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use std::collections::HashMap;
+/// 役割と課題を読むラベルの鍵。課題は `tpm.subject` を先に見て、無ければ `tpm.key`。
+const ROLE: &str = "tpm.role";
+const SUBJECT: &str = "tpm.subject";
+const KEY: &str = "tpm.key";
 
 /// 段の幅（トークン）。段 n は、文脈の長さが n×25,000 以上 (n+1)×25,000 未満（40 は 1,000,000 以上）。
 pub const BUCKET_WIDTH: i64 = 25_000;
+
+/// 最後の段（1,000,000 以上）。
+pub const LAST_BUCKET: i32 = 40;
 
 /// 20 万を越えた回の、初めの段（8×25,000 = 200,000）。
 pub const OVER_BUCKET: i32 = 8;
@@ -103,9 +108,150 @@ pub struct Subject {
     pub max_context: i64,
 }
 
+/// 段ごとの回の数と額（段の番号の順）。
+type Buckets = BTreeMap<i32, (i64, i64)>;
+
+/// 役割ごとに足していく物。
+#[derive(Default)]
+struct RoleSum<'a> {
+    seats: BTreeSet<&'a str>,
+    turns: i64,
+    cost: i64,
+    max_context: i64,
+    helper_cost: i64,
+    /// 本体の回の段。
+    buckets: Buckets,
+}
+
+/// 課題ごとに足していく物。
+#[derive(Default)]
+struct SubjectSum<'a> {
+    seats: BTreeSet<&'a str>,
+    turns: i64,
+    cost: i64,
+    max_context: i64,
+}
+
+/// 回を文脈の短い順に並べた時の、下から `num / den` の所の回（順位は切り上げ）が入る段の、下の端（トークン）。回が 0 なら無い。
+fn quantile(buckets: &Buckets, num: i64, den: i64) -> Option<i64> {
+    let total = buckets
+        .values()
+        .fold(0i64, |sum, (turns, _)| sum.saturating_add(*turns));
+    if total <= 0 {
+        return None;
+    }
+    let rank = (total.saturating_mul(num).saturating_add(den - 1) / den).max(1);
+    let mut seen = 0i64;
+    for (bucket, (turns, _)) in buckets {
+        seen = seen.saturating_add(*turns);
+        if seen >= rank {
+            return Some(i64::from(*bucket) * BUCKET_WIDTH);
+        }
+    }
+    None
+}
+
+/// 額の大きい順。同じ額なら名の順で、名の無い物（「無し」）を後ろに。
+fn by_cost<T>(items: &mut [T], cost: impl Fn(&T) -> i64, name: impl Fn(&T) -> &Option<String>) {
+    items.sort_by(|a, b| {
+        cost(b)
+            .cmp(&cost(a))
+            .then_with(|| (name(a).is_none(), name(a)).cmp(&(name(b).is_none(), name(b))))
+    });
+}
+
 /// 行とアクターから、全体・役割ごと・課題ごとの数を出す。`actors` に無いアクターの行は、役割も課題も「無し」に入れる。
-pub fn summarize(_rows: &[Row], _actors: &[Actor]) -> Summary {
-    Summary::default()
+pub fn summarize(rows: &[Row], actors: &[Actor]) -> Summary {
+    let labels: HashMap<&str, &HashMap<String, String>> =
+        actors.iter().map(|a| (a.id.as_str(), &a.labels)).collect();
+    let mut seats = BTreeSet::new();
+    let mut total = Total::default();
+    let mut roles: BTreeMap<Option<&str>, RoleSum> = BTreeMap::new();
+    let mut subjects: BTreeMap<Option<&str>, SubjectSum> = BTreeMap::new();
+    for row in rows {
+        let id = row.actor_id.as_str();
+        let label = |key: &str| labels.get(id).and_then(|l| l.get(key)).map(String::as_str);
+        seats.insert(id);
+        total.turns = total.turns.saturating_add(row.turns);
+        total.cost = total.cost.saturating_add(row.cost);
+
+        let role = roles.entry(label(ROLE)).or_default();
+        role.seats.insert(id);
+        let subject = subjects
+            .entry(label(SUBJECT).or_else(|| label(KEY)))
+            .or_default();
+        subject.seats.insert(id);
+        subject.turns = subject.turns.saturating_add(row.turns);
+        subject.cost = subject.cost.saturating_add(row.cost);
+
+        if row.helper {
+            total.helper_turns = total.helper_turns.saturating_add(row.turns);
+            total.helper_cost = total.helper_cost.saturating_add(row.cost);
+            role.helper_cost = role.helper_cost.saturating_add(row.cost);
+            continue;
+        }
+        // 文脈の長さの数は、本体の回だけ。
+        role.turns = role.turns.saturating_add(row.turns);
+        role.cost = role.cost.saturating_add(row.cost);
+        role.max_context = role.max_context.max(row.max_context);
+        subject.max_context = subject.max_context.max(row.max_context);
+        for b in row
+            .buckets
+            .iter()
+            .filter(|b| (0..=LAST_BUCKET).contains(&b.bucket))
+        {
+            let sum = role.buckets.entry(b.bucket).or_default();
+            sum.0 = sum.0.saturating_add(b.turns);
+            sum.1 = sum.1.saturating_add(b.cost);
+        }
+    }
+    total.seats = seats.len();
+
+    let mut roles: Vec<Role> = roles
+        .into_iter()
+        .map(|(name, sum)| {
+            let add = |from: i32| {
+                sum.buckets
+                    .range(from..)
+                    .fold((0i64, 0i64), |(turns, cost), (_, b)| {
+                        (turns.saturating_add(b.0), cost.saturating_add(b.1))
+                    })
+            };
+            let (bucket_turns, bucket_cost) = add(0);
+            let (over_turns, over_cost) = add(OVER_BUCKET);
+            Role {
+                name: name.map(str::to_owned),
+                seats: sum.seats.len(),
+                turns: sum.turns,
+                cost: sum.cost,
+                median: quantile(&sum.buckets, 1, 2),
+                p90: quantile(&sum.buckets, 9, 10),
+                max_context: sum.max_context,
+                bucket_turns,
+                bucket_cost,
+                over_turns,
+                over_cost,
+                helper_cost: sum.helper_cost,
+            }
+        })
+        .collect();
+    by_cost(&mut roles, |r| r.cost, |r| &r.name);
+    let mut subjects: Vec<Subject> = subjects
+        .into_iter()
+        .map(|(name, sum)| Subject {
+            name: name.map(str::to_owned),
+            seats: sum.seats.len(),
+            turns: sum.turns,
+            cost: sum.cost,
+            max_context: sum.max_context,
+        })
+        .collect();
+    by_cost(&mut subjects, |s| s.cost, |s| &s.name);
+    Summary {
+        total,
+        roles,
+        subjects,
+    }
 }
 
 #[cfg(test)]
