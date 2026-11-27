@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}{{ status }}{% endblock %}
+{% block title %}{{ status }} ・ callboard{% endblock %}
 {% block main %}
 <h1>{{ status }}</h1>
 <p class="error">{{ message }}</p>
-<p><a href="/">入口へ</a></p>
+<p><a href="/" data-i18n="error.home">{{ "error.home"|t }}</a></p>
 {% endblock %}

@@ -1,33 +1,34 @@
 {% extends "base.html" %}
-{% block title %}{% if waiting > 0 %}まだ届いていない {{ waiting }} 件 ・ {% endif %}メッセージの記録{% endblock %}
+{% block title_attrs %}{% if waiting > 0 %} data-i18n="messages.titleWaiting" data-i18n-options="{{ "n"|opts1(waiting) }}"{% else %} data-i18n="messages.title"{% endif %}{% endblock %}
+{% block title %}{% if waiting > 0 %}{{ "messages.titleWaiting"|t1("n", waiting) }}{% else %}{{ "messages.title"|t }}{% endif %}{% endblock %}
 {% block body %} class="fill"{% endblock %}
 {% block main %}
 <div class="tray messages" data-events="{{ events }}">
-<div class="toolbar" id="toolbar" role="group" aria-label="操作の帯">
-<h1><a href="/messages">メッセージの記録</a></h1>
-<a class="btn" href="{{ nav.pages }}">ページ</a>
-<a class="btn{% if waiting_active %} on{% endif %}" id="undelivered" href="{{ waiting_href }}" title="まだ届いていないメッセージだけに絞る"{% if waiting_active %} aria-current="true"{% endif %}{% if waiting == 0 %} hidden{% endif %}>まだ届いていない {{ waiting }} 件</a>
-{% if filtered %}<a class="btn" href="{{ reset_href }}">絞り込みを外す</a>{% endif %}
-<a class="btn" id="fresh" href="{{ reload_href }}" hidden>● 新着</a>
+<div class="toolbar" id="toolbar" role="group" aria-label="{{ "common.tray.toolbar"|t }}" data-i18n-attr="aria-label:common.tray.toolbar">
+<h1><a href="/messages" data-i18n="messages.heading">{{ "messages.heading"|t }}</a></h1>
+<a class="btn" href="{{ nav.pages }}" data-i18n="nav.pages">{{ "nav.pages"|t }}</a>
+<a class="btn{% if waiting_active %} on{% endif %}" id="undelivered" href="{{ waiting_href }}" title="{{ "messages.undeliveredTitle"|t }}"{% if waiting_active %} aria-current="true"{% endif %}{% if waiting == 0 %} hidden{% endif %} data-i18n="messages.undelivered" data-i18n-options="{{ "n"|opts1(waiting) }}" data-i18n-attr="title:messages.undeliveredTitle">{{ "messages.undelivered"|t1("n", waiting) }}</a>
+{% if filtered %}<a class="btn" href="{{ reset_href }}" data-i18n="common.tray.reset">{{ "common.tray.reset"|t }}</a>{% endif %}
+<a class="btn" id="fresh" href="{{ reload_href }}" hidden data-i18n="common.tray.fresh">{{ "common.tray.fresh"|t }}</a>
 </div>
 <div class="columns">
-<nav id="filters" aria-label="絞り込みの列">
+<nav id="filters" aria-label="{{ "common.tray.filters"|t }}" data-i18n-attr="aria-label:common.tray.filters">
 {% for group in filters %}{% if !group.choices.is_empty() %}<h2>{{ group.title }}</h2>
 <ul>
 {% for c in group.choices %}<li><a href="{{ c.href }}"{% if c.active %} class="on" aria-current="true"{% endif %}><span>{{ c.label }}</span><span class="n">{{ c.count }}</span></a></li>
 {% endfor %}</ul>
 {% endif %}{% endfor %}</nav>
 <div class="middle">
-<div id="list" role="region" aria-label="一覧の列">
+<div id="list" role="region" aria-label="{{ "common.tray.list"|t }}" data-i18n-attr="aria-label:common.tray.list">
 <ul class="rows">
-{% for r in rows %}<li data-id="{{ r.project }}/{{ r.id }}" data-state="{{ r.state }}" data-at="{{ r.updated_at }}"><span class="top"><time datetime="{{ r.sent.iso }}" title="{{ r.sent.iso }}">{{ r.sent.local }}</time>{% if !r.key.is_empty() %}<span>{{ r.key }}</span>{% endif %}<span class="name">{{ r.heading }}</span><span class="state {{ r.state }}">{{ r.state_label }}</span></span><span class="route">{{ r.from }} → {{ r.to }}</span>{% if r.has_notes() %}<span class="who">{% if let Some(at) = r.delivered %}<span>届いた <time datetime="{{ at.iso }}" title="{{ at.iso }}">{{ at.local }}</time></span>{% endif %}{% if !r.via.is_empty() %}<span>渡した時: {{ r.via }}</span>{% endif %}{% if r.again > 0 %}<span>渡し直し {{ r.again }} 度</span>{% endif %}</span>{% endif %}{% if let Some(head) = r.head %}<details><summary>{{ head }}</summary><pre>{{ r.text }}</pre></details>{% else %}<pre>{{ r.text }}</pre>{% endif %}</li>
+{% for r in rows %}<li data-id="{{ r.project }}/{{ r.id }}" data-state="{{ r.state }}" data-at="{{ r.updated_at }}"><span class="top"><time datetime="{{ r.sent.iso }}" title="{{ r.sent.iso }}">{{ r.sent.local }}</time>{% if !r.key.is_empty() %}<span>{{ r.key }}</span>{% endif %}<span class="name">{{ r.heading }}</span><span class="state {{ r.state }}">{{ r.state_label }}</span></span><span class="route">{{ r.from }} → {{ r.to }}</span>{% if r.has_notes() %}<span class="who">{% if let Some(at) = r.delivered %}<span><span data-i18n="messages.delivered">{{ "messages.delivered"|t }}</span> <time datetime="{{ at.iso }}" title="{{ at.iso }}">{{ at.local }}</time></span>{% endif %}{% if !r.via.is_empty() %}<span data-i18n="messages.via" data-i18n-options="{{ "via"|opts1(r.via) }}">{{ "messages.via"|t1("via", r.via) }}</span>{% endif %}{% if r.again > 0 %}<span data-i18n="messages.again" data-i18n-options="{{ "n"|opts1(r.again) }}">{{ "messages.again"|t1("n", r.again) }}</span>{% endif %}</span>{% endif %}{% if let Some(head) = r.head %}<details><summary>{{ head }}</summary><pre>{{ r.text }}</pre></details>{% else %}<pre>{{ r.text }}</pre>{% endif %}</li>
 {% endfor %}</ul>
-{% if rows.is_empty() %}<span class="empty">合うメッセージは無い</span>{% endif %}
-{% if let Some(href) = more_href %}<a class="more" href="{{ href }}">続きを出す</a>{% endif %}
+{% if rows.is_empty() %}<span class="empty" data-i18n="messages.empty">{{ "messages.empty"|t }}</span>{% endif %}
+{% if let Some(href) = more_href %}<a class="more" href="{{ href }}" data-i18n="common.tray.more">{{ "common.tray.more"|t }}</a>{% endif %}
 </div>
 </div>
 </div>
 </div>
 <script src="{{ script }}"></script>
 {% endblock %}
-{% block foot %}時刻は日本時間（UTC+9）で、送り手が書いた時刻です。時刻にマウスを重ねると ISO 8601 の形で表示します。{% endblock %}
+{% block foot %}<span data-i18n="messages.foot">{{ "messages.foot"|t }}</span>{% endblock %}

@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>{% block title %}{% endblock %} ・ callboard</title>
+{#- 題は、鍵の字に「 ・ callboard」まで入れる（i18next が <title> の字をまるごと差し替えるので）。鍵の無い題（プロフィールの名・誤りの数）は差し替えない。 #}
+<title{% block title_attrs %}{% endblock %}>{% block title %}{% endblock %}</title>
 <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
 <link rel="stylesheet" href="{{ css }}">
 {#- 画面の字の差し替え（AI-50）。defer を付けずに読む（static/i18n.js の頭）。 #}

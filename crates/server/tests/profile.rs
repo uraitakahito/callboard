@@ -46,16 +46,18 @@ async fn プロフィールは_名_id_issuer_ラベル_今の状態を出す() {
     // AI には種類の印を付けない。
     assert!(body.contains("<h1>se.1</h1>"), "{body}");
     assert!(body.contains(&format!("<dt>id</dt><dd><code>{SE1}</code></dd>")));
-    assert!(body.contains("<dt>発行元（issuer）</dt><dd><code>tpm</code></dd>"));
+    assert!(body.contains(
+        "<dt data-i18n=\"profile.issuer\">発行元（issuer）</dt><dd><code>tpm</code></dd>"
+    ));
     // 時刻は castlist が受けた時刻を、日本の時刻で（ISO の字は UTC のミリ秒まで）。
     assert!(body.contains(&format!(
-        "<dt>登録した時刻</dt><dd>{}</dd>",
+        "<dt data-i18n=\"profile.registered\">登録した時刻</dt><dd>{}</dd>",
         time("2026-11-22T01:00:00.500Z", "2026-11-22 10:00:00")
     )));
 
     let state = section(&body, "state");
     assert!(
-        state.contains("<span class=\"state off\">停止</span>"),
+        state.contains("<span class=\"state off\" data-i18n=\"common.state.stopped\">停止</span>"),
         "{state}"
     );
     assert!(!state.contains("推し"), "{state}");
@@ -73,11 +75,11 @@ async fn プロフィールは_名_id_issuer_ラベル_今の状態を出す() {
         time("2026-11-22T02:30:00.000Z", "2026-11-22 11:30:00")
     )));
     assert!(state.contains(&format!(
-        "<dt>最初の登場</dt><dd>{}</dd>",
+        "<dt data-i18n=\"list.col.firstEntered\">最初の登場</dt><dd>{}</dd>",
         time("2026-11-22T01:00:01.000Z", "2026-11-22 10:00:01")
     )));
     assert!(state.contains(&format!(
-        "<dt>最後の退場</dt><dd>{}</dd>",
+        "<dt data-i18n=\"list.col.lastExited\">最後の退場</dt><dd>{}</dd>",
         time("2026-11-22T04:00:00.000Z", "2026-11-22 13:00:00")
     )));
     // 出来事に時刻ずれの行があるので、状態に印が付く。
@@ -101,7 +103,7 @@ async fn プロフィールは_名_id_issuer_ラベル_今の状態を出す() {
 
     // 表示した時刻は、castlist の答えの時刻。
     assert!(body.contains(&format!(
-        "表示した時刻: {}",
+        "<span data-i18n=\"common.asOf\">表示した時刻:</span> {}",
         time("2026-11-22T06:00:00.000Z", "2026-11-22 15:00:00")
     )));
 }
@@ -148,7 +150,7 @@ async fn プロフィールは_起動した人を人の起点まで_起動した
 
     let continued = section(&body, "continued");
     assert!(
-        continued.contains("<dt>引き継ぎ元</dt><dd><span class=\"none\">—</span></dd>"),
+        continued.contains("<dt data-i18n=\"profile.continued.before\">引き継ぎ元</dt><dd><span class=\"none\">—</span></dd>"),
         "{continued}"
     );
     assert!(
@@ -194,7 +196,7 @@ async fn 起点のアクターは_起動した人が無いと書き_人には種
         "{state}"
     );
     assert!(
-        state.contains("<dt>最初の登場</dt><dd><span class=\"none\">—</span></dd>"),
+        state.contains("<dt data-i18n=\"list.col.firstEntered\">最初の登場</dt><dd><span class=\"none\">—</span></dd>"),
         "{state}"
     );
     assert!(!state.contains("class=\"skew\""), "{state}");
@@ -297,7 +299,7 @@ async fn 推しの幕引きで終わった者は_停止_推しと書く() {
     let body = app.html(&format!("/actors/{SE1}")).await;
     let state = section(&body, "state");
     assert!(
-        state.contains("<span class=\"state off\">停止（推し）</span>"),
+        state.contains("<span class=\"state off\" data-i18n=\"common.state.stoppedInferred\">停止（推し）</span>"),
         "{state}"
     );
     assert!(
@@ -314,7 +316,10 @@ async fn 稼働中の者は_稼働中と書く() {
     lineage["nodes"][2]["present"] = json!(true);
     let app = start_with(actor, lineage).await;
     let body = app.html(&format!("/actors/{SE1}")).await;
-    assert!(section(&body, "state").contains("<span class=\"state on\">稼働中</span>"));
+    assert!(
+        section(&body, "state")
+            .contains("<span class=\"state on\" data-i18n=\"common.state.running\">稼働中</span>")
+    );
 }
 
 #[tokio::test]
@@ -541,9 +546,9 @@ async fn start_with_usage(actor: serde_json::Value, usage: serde_json::Value) ->
     .await
 }
 
-/// `<dt>名</dt><dd>値</dd>` の値。
+/// `<dt>名</dt><dd>値</dd>` の値（`<dt>` には字の鍵の属性が付く）。
 fn fact<'a>(section: &'a str, name: &str) -> &'a str {
-    let open = format!("<dt>{name}</dt><dd>");
+    let open = format!("\">{name}</dt><dd>");
     let start = section
         .find(&open)
         .unwrap_or_else(|| panic!("{name} が無い: {section}"))
@@ -556,9 +561,18 @@ async fn 使用量の節は_直近_31_日の_そのアクターの額と回と_�
     let app = start_with_usage(compacted_actor(), usage()).await;
     let body = app.html(&format!("/actors/{SE1}")).await;
     let usage = section(&body, "usage");
-    assert!(usage.contains("<h2>使用量（直近 31 日）</h2>"), "{usage}");
-    assert_eq!(fact(usage, "額"), "$3.25（本体 $3.00・手伝い $0.25）");
-    assert_eq!(fact(usage, "回"), "10（手伝い 4）");
+    assert!(
+        usage.contains("<h2 data-i18n=\"profile.usage.heading\">使用量（直近 31 日）</h2>"),
+        "{usage}"
+    );
+    assert_eq!(
+        fact(usage, "額"),
+        r#"$3.25<span data-i18n="profile.usage.costSplit" data-i18n-options="{&#34;helper&#34;:&#34;$0.25&#34;,&#34;main&#34;:&#34;$3.00&#34;}">（本体 $3.00・手伝い $0.25）</span>"#
+    );
+    assert_eq!(
+        fact(usage, "回"),
+        r#"10<span data-i18n="profile.usage.helperTurns" data-i18n-options="{&#34;n&#34;:4}">（手伝い 4）</span>"#
+    );
     assert_eq!(fact(usage, "いちばん長い文脈"), "23 万");
     // castlist には、そのアクターの行を、今を時の境に切り上げた時刻までの 31 日で聞く。
     let seen = app.castlist.seen();
@@ -672,7 +686,7 @@ async fn 使用量の節は_行が無ければ_そう書く() {
     let body = app.html(&format!("/actors/{SE1}")).await;
     let usage = section(&body, "usage");
     assert!(
-        usage.contains("<p class=\"empty\">この 31 日に、数の記録はありません。</p>"),
+        usage.contains("<p class=\"empty\" data-i18n=\"profile.usage.empty\">この 31 日に、数の記録はありません。</p>"),
         "{usage}"
     );
     assert!(!usage.contains("<svg"), "{usage}");
@@ -685,7 +699,7 @@ async fn 数を聞けなくても_頁は_200_で出し_使用量の節だけに�
     let body = app.html(&format!("/actors/{SE1}")).await;
     let usage = section(&body, "usage");
     assert!(
-        usage.contains("<p class=\"error\">数を読めません（404 が返りました）。</p>"),
+        usage.contains("<p class=\"error\" data-i18n=\"profile.usage.error\" data-i18n-options=\"{&#34;why&#34;:&#34;404 が返りました&#34;}\">数を読めません（404 が返りました）。</p>"),
         "{usage}"
     );
     // ほかの節は、今までどおり。

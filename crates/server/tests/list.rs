@@ -125,7 +125,7 @@ async fn 一覧は_条件が無ければ_この_7_日に稼働した者を新し
     let app = start(rows()).await;
     let body = app.html("/actors/").await;
     assert!(
-        body.contains("<title>アクターの一覧 ・ callboard</title>"),
+        body.contains("<title data-i18n=\"list.title\">アクターの一覧 ・ callboard</title>"),
         "{body}"
     );
     assert!(
@@ -161,7 +161,7 @@ async fn 一覧の行は_名_種類_状態_最後の出来事_課題の_key_と�
         "{pm}"
     );
     assert!(pm.contains("<td>人</td>"), "{pm}");
-    assert!(pm.contains("<span class=\"state on\">稼働中</span> <span class=\"event\" title=\"entered\">登場</span>"), "{pm}");
+    assert!(pm.contains("<span class=\"state on\" data-i18n=\"common.state.running\">稼働中</span> <span class=\"event\" title=\"entered\">登場</span>"), "{pm}");
     assert!(pm.contains("2026-11-22 09:30:00"), "{pm}");
     assert!(
         !pm.contains("class=\"chip") && !pm.contains("class=\"skew\""),
@@ -170,7 +170,7 @@ async fn 一覧の行は_名_種類_状態_最後の出来事_課題の_key_と�
     let se = tr(&body, SE1);
     // AI には種類の印を付けない。
     assert!(se.contains("<td></td>"), "{se}");
-    assert!(se.contains("<span class=\"state off\">停止（推し）</span> <span class=\"event\" title=\"closed\">幕引き</span>"), "{se}");
+    assert!(se.contains("<span class=\"state off\" data-i18n=\"common.state.stoppedInferred\">停止（推し）</span> <span class=\"event\" title=\"closed\">幕引き</span>"), "{se}");
     assert!(
         se.contains(
             "<span class=\"chip\">t-23zs</span> <span class=\"chip role\">software-engineer</span>"
@@ -189,7 +189,7 @@ async fn 一覧の行は_名_種類_状態_最後の出来事_課題の_key_と�
     // 答えの順のまま。
     assert!(body.find(PM).unwrap() < body.find(SE1).unwrap());
     assert!(
-        body.contains("表示した時刻: <time datetime=\"2026-11-22T06:00:00.000Z\""),
+        body.contains("<span data-i18n=\"common.asOf\">表示した時刻:</span> <time datetime=\"2026-11-22T06:00:00.000Z\""),
         "{body}"
     );
 }
@@ -228,15 +228,24 @@ async fn 一覧の絞りは_画面の引数を_castlist_の_api_の引数にし�
     assert_eq!(one(&asked, "nextToken"), None);
     // form: ラベルは付けた数と、空の 1 つ。期間は日本時間の字。欄の無い引数は hidden で送り直す。
     assert_eq!(
-        body.matches("<label>ラベル <input name=\"label\"").count(),
+        body.matches(
+            "<label><span data-i18n=\"filters.label\">ラベル</span> <input name=\"label\""
+        )
+        .count(),
         3
     );
     assert!(
         body.contains("name=\"label\" value=\"tpm.role:se\""),
         "{body}"
     );
-    assert!(body.contains("<option value=\"true\" selected>稼働中</option>"));
-    assert!(body.contains("<option value=\"human\" selected>人</option>"));
+    assert!(body.contains(
+        "<option value=\"true\" selected data-i18n=\"common.state.running\">稼働中</option>"
+    ));
+    assert!(
+        body.contains(
+            "<option value=\"human\" selected data-i18n=\"common.kind.human\">人</option>"
+        )
+    );
     assert!(body.contains("name=\"active_from\" value=\"2026-11-22T13:00\""));
     assert!(body.contains("name=\"active_to\" value=\"2026-11-23T09:00\""));
     assert!(body.contains("name=\"skewed\" value=\"true\" checked"));
@@ -255,7 +264,7 @@ async fn 一覧の絞りは_画面の引数を_castlist_の_api_の引数にし�
         );
     }
     assert!(body.contains("<form class=\"filters\" method=\"get\" action=\"/actors/\">"));
-    assert!(body.contains("<a href=\"/actors/\">条件を消す</a>"));
+    assert!(body.contains("<a href=\"/actors/\" data-i18n=\"filters.clear\">条件を消す</a>"));
 }
 
 #[tokio::test]
@@ -410,7 +419,9 @@ async fn 条件に合うアクターがいなければ_そう書き_表を出さ
     let app = start(json!({"asOf": "2026-11-22T06:00:00Z", "actors": []})).await;
     let body = app.html("/actors/?label=a:b").await;
     assert!(
-        body.contains("<p class=\"empty\">条件に合うアクターはいません。</p>"),
+        body.contains(
+            "<p class=\"empty\" data-i18n=\"list.empty\">条件に合うアクターはいません。</p>"
+        ),
         "{body}"
     );
     assert!(!body.contains("<table"), "{body}");
@@ -422,7 +433,7 @@ async fn 一覧から_タイムラインと相関図へ行け_期間をすぐ選
     let body = app.html("/actors/?label=project:x").await;
     assert!(
         body.contains(
-            "<a href=\"/graph/timeline\">タイムライン</a> ・ <a href=\"/graph/network\">相関図</a>"
+            "<a href=\"/graph/timeline\" data-i18n=\"nav.timeline\">タイムライン</a> ・ <a href=\"/graph/network\" data-i18n=\"nav.network\">相関図</a>"
         ),
         "{body}"
     );
@@ -567,7 +578,7 @@ async fn 一覧の行に_一覧の期間の_席の額と_いちばん長い文�
         .html("/actors/?label=project:x&active_from=2026-11-22T10:30&active_to=2026-11-22T12:10")
         .await;
     assert!(
-        body.contains("<th class=\"num\">額</th><th class=\"num\">いちばん長い文脈</th>"),
+        body.contains("<th class=\"num\" data-i18n=\"list.col.cost\">額</th><th class=\"num\" data-i18n=\"list.col.context\">いちばん長い文脈</th>"),
         "{body}"
     );
     // se.1: 額は本体と手伝いの計（$1.75）、いちばん長い文脈は本体の回の大きい方（23 万。手伝いの 90 万は数えない）。

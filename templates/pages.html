@@ -1,63 +1,64 @@
 {% extends "base.html" %}
-{% block title %}{% if waiting > 0 %}返事待ち {{ waiting }} 件 ・ {% endif %}ページの置き場{% endblock %}
+{% block title_attrs %}{% if waiting > 0 %} data-i18n="pages.titleWaiting" data-i18n-options="{{ "n"|opts1(waiting) }}"{% else %} data-i18n="pages.title"{% endif %}{% endblock %}
+{% block title %}{% if waiting > 0 %}{{ "pages.titleWaiting"|t1("n", waiting) }}{% else %}{{ "pages.title"|t }}{% endif %}{% endblock %}
 {% block body %} class="fill"{% if let Some(path) = viewer %} data-viewer="{{ path }}"{% endif %}{% endblock %}
 {% block main %}
 <div class="tray pages" data-events="{{ events }}">
-<div class="toolbar" id="toolbar" role="group" aria-label="操作の帯">
-<h1><a href="/pages/">ページの置き場</a></h1>
-<a class="btn" href="{{ nav.messages }}">メッセージ</a>
+<div class="toolbar" id="toolbar" role="group" aria-label="{{ "common.tray.toolbar"|t }}" data-i18n-attr="aria-label:common.tray.toolbar">
+<h1><a href="/pages/" data-i18n="pages.heading">{{ "pages.heading"|t }}</a></h1>
+<a class="btn" href="{{ nav.messages }}" data-i18n="nav.messages">{{ "nav.messages"|t }}</a>
 <form action="/pages/" method="get">
 {% for (name, value) in hidden %}<input type="hidden" name="{{ name }}" value="{{ value }}">
-{% endfor %}<input type="search" name="q" value="{{ q }}" placeholder="題と本文を探す" aria-label="題と本文を探す">
-<button>探す</button>
+{% endfor %}<input type="search" name="q" value="{{ q }}" placeholder="{{ "pages.search.placeholder"|t }}" aria-label="{{ "pages.search.placeholder"|t }}" data-i18n-attr="placeholder:pages.search.placeholder;aria-label:pages.search.placeholder">
+<button data-i18n="pages.search.submit">{{ "pages.search.submit"|t }}</button>
 </form>
-<a class="btn" href="{{ sort_href }}" title="並びを替える">並び: {{ sort_label }}</a>
-{% for c in counters %}<a class="btn{% if c.active %} on{% endif %}" id="{{ c.id }}" href="{{ c.href }}" title="{{ c.title }}"{% if c.active %} aria-current="true"{% endif %}{% if c.count == 0 %} hidden{% endif %}>{{ c.label }} {{ c.count }} 件</a>
+<a class="btn" href="{{ sort_href }}" title="{{ "pages.sort.title"|t }}" data-i18n="pages.sort.label" data-i18n-options="{{ "sort"|opts1(sort_label) }}" data-i18n-attr="title:pages.sort.title">{{ "pages.sort.label"|t1("sort", sort_label) }}</a>
+{% for c in counters %}<a class="btn{% if c.active %} on{% endif %}" id="{{ c.id }}" href="{{ c.href }}" title="{{ c.title }}"{% if c.active %} aria-current="true"{% endif %}{% if c.count == 0 %} hidden{% endif %}>{{ c.label }} <span data-i18n="pages.count" data-i18n-options="{{ "n"|opts1(c.count) }}">{{ "pages.count"|t1("n", c.count) }}</span></a>
 {% endfor %}
-{% if filtered %}<a class="btn" href="{{ reset_href }}">絞り込みを外す</a>{% endif %}
-<a class="btn" id="fresh" href="{{ reload_href }}" hidden>● 新着</a>
+{% if filtered %}<a class="btn" href="{{ reset_href }}" data-i18n="common.tray.reset">{{ "common.tray.reset"|t }}</a>{% endif %}
+<a class="btn" id="fresh" href="{{ reload_href }}" hidden data-i18n="common.tray.fresh">{{ "common.tray.fresh"|t }}</a>
 </div>
 <div class="columns">
-<nav id="filters" aria-label="絞り込みの列">
+<nav id="filters" aria-label="{{ "common.tray.filters"|t }}" data-i18n-attr="aria-label:common.tray.filters">
 {% for group in filters %}{% if !group.choices.is_empty() %}<h2>{{ group.title }}</h2>
 <ul>
 {% for c in group.choices %}<li><a href="{{ c.href }}"{% if c.active %} class="on" aria-current="true"{% endif %}><span>{{ c.label }}{% if !c.note.is_empty() %}<small>{{ c.note }}</small>{% endif %}</span><span class="n">{{ c.count }}</span></a></li>
 {% endfor %}</ul>
 {% endif %}{% endfor %}</nav>
 <div class="middle">
-<div id="list" role="region" aria-label="一覧の列">
+<div id="list" role="region" aria-label="{{ "common.tray.list"|t }}" data-i18n-attr="aria-label:common.tray.list">
 <ul class="rows">
-{% for r in rows %}<li data-path="{{ r.path }}" data-at="{{ r.created.iso }}"{% if !r.reply.is_empty() %} data-reply="{{ r.reply }}"{% endif %}{% if !r.on.is_empty() %} data-on="{{ r.on }}"{% endif %}{% if !r.verdict.is_empty() %} data-verdict="{{ r.verdict }}"{% endif %}><a href="{{ r.href }}"{% if r.active %} class="on" aria-current="true"{% endif %}><span class="top"><time datetime="{{ r.created.iso }}" title="{{ r.created.iso }}">{{ r.created.local }}</time><span>{{ r.key }}</span><span class="name">{{ r.name }}</span>{% if !r.verdict.is_empty() %}<span class="verdict {{ r.verdict }}">{{ r.verdict_label }}</span>{% endif %}{% if !r.reply.is_empty() %}<span class="reply {{ r.reply }}{% if !r.on.is_empty() %} {{ r.on }}{% endif %}">{{ r.reply_label }}</span>{% endif %}</span><span class="title">{% if r.title.is_empty() %}（題なし）{% else %}{{ r.title }}{% endif %}</span><span class="who">{{ r.role }}{% if !r.workspace.is_empty() %} ・ {{ r.workspace }}{% endif %}</span></a>{% if !r.targets.is_empty() %}<span class="links targets">{{ r.targets_label }}:{% for t in r.targets %} <a href="{{ t.href }}"{% if t.external %} target="_blank" rel="noopener"{% endif %}>{{ t.label }}</a>{% endfor %}</span>{% endif %}{% if !r.reviews.is_empty() %}<span class="links reviews">レビュー:{% for v in r.reviews %} <a href="{{ v.link.href }}">{{ v.link.label }}</a>{% if !v.verdict.is_empty() %}<span class="verdict {{ v.verdict }}">{{ v.verdict_label }}</span>{% endif %}{% endfor %}</span>{% endif %}{% if let Some(s) = r.sender %}<span class="sender">{% if let Some(href) = s.href %}<a class="actor" href="{{ href }}" target="_blank" rel="noopener">{{ s.name }}</a>{% else %}{{ s.name }}{% endif %}<small>{{ s.reference }}</small></span>{% endif %}</li>
+{% for r in rows %}<li data-path="{{ r.path }}" data-at="{{ r.created.iso }}"{% if !r.reply.is_empty() %} data-reply="{{ r.reply }}"{% endif %}{% if !r.on.is_empty() %} data-on="{{ r.on }}"{% endif %}{% if !r.verdict.is_empty() %} data-verdict="{{ r.verdict }}"{% endif %}><a href="{{ r.href }}"{% if r.active %} class="on" aria-current="true"{% endif %}><span class="top"><time datetime="{{ r.created.iso }}" title="{{ r.created.iso }}">{{ r.created.local }}</time><span>{{ r.key }}</span><span class="name">{{ r.name }}</span>{% if !r.verdict.is_empty() %}<span class="verdict {{ r.verdict }}">{{ r.verdict_label }}</span>{% endif %}{% if !r.reply.is_empty() %}<span class="reply {{ r.reply }}{% if !r.on.is_empty() %} {{ r.on }}{% endif %}">{{ r.reply_label }}</span>{% endif %}</span>{% if r.title.is_empty() %}<span class="title" data-i18n="pages.untitled">{{ "pages.untitled"|t }}</span>{% else %}<span class="title">{{ r.title }}</span>{% endif %}<span class="who">{{ r.role }}{% if !r.workspace.is_empty() %} ・ {{ r.workspace }}{% endif %}</span></a>{% if !r.targets.is_empty() %}<span class="links targets">{{ r.targets_label }}:{% for t in r.targets %} <a href="{{ t.href }}"{% if t.external %} target="_blank" rel="noopener"{% endif %}>{{ t.label }}</a>{% endfor %}</span>{% endif %}{% if !r.reviews.is_empty() %}<span class="links reviews"><span data-i18n="pages.reviews">{{ "pages.reviews"|t }}</span>{% for v in r.reviews %} <a href="{{ v.link.href }}">{{ v.link.label }}</a>{% if !v.verdict.is_empty() %}<span class="verdict {{ v.verdict }}">{{ v.verdict_label }}</span>{% endif %}{% endfor %}</span>{% endif %}{% if let Some(s) = r.sender %}<span class="sender">{% if let Some(href) = s.href %}<a class="actor" href="{{ href }}" target="_blank" rel="noopener">{{ s.name }}</a>{% else %}{{ s.name }}{% endif %}<small>{{ s.reference }}</small></span>{% endif %}</li>
 {% endfor %}</ul>
-{% if rows.is_empty() %}<span class="empty">合うページは無い</span>{% endif %}
-{% if let Some(href) = more_href %}<a class="more" href="{{ href }}">続きを出す</a>{% endif %}
+{% if rows.is_empty() %}<span class="empty" data-i18n="pages.empty">{{ "pages.empty"|t }}</span>{% endif %}
+{% if let Some(href) = more_href %}<a class="more" href="{{ href }}" data-i18n="common.tray.more">{{ "common.tray.more"|t }}</a>{% endif %}
 </div>
-{% if let Some(k) = key_view %}<div id="files" class="box" role="region" aria-label="file の枠">
-<h2>この Key の file</h2>
+{% if let Some(k) = key_view %}<div id="files" class="box" role="region" aria-label="{{ "pages.files.label"|t }}" data-i18n-attr="aria-label:pages.files.label">
+<h2 data-i18n="pages.files.heading">{{ "pages.files.heading"|t }}</h2>
 <ul class="files">
 {% for f in k.files %}<li data-file="{{ f.path }}"><a class="thumb" href="{{ store }}{{ f.path }}" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true">{% if f.image %}<img src="{{ store }}{{ f.path }}" loading="lazy" alt="">{% else %}{{ f.ext }}{% endif %}</a><span class="meta"><a class="name" href="{{ store }}{{ f.path }}" target="_blank" rel="noopener">{{ f.name }}</a><span class="who">{{ f.size }} ・ {{ f.role }} ・ <time datetime="{{ f.created.iso }}" title="{{ f.created.iso }}">{{ f.created.local }}</time></span><code class="ref">{{ f.reference }}</code>{% if let Some(s) = f.sender %}<span class="sender">{% if let Some(href) = s.href %}<a class="actor" href="{{ href }}" target="_blank" rel="noopener">{{ s.name }}</a>{% else %}{{ s.name }}{% endif %}<small>{{ s.reference }}</small></span>{% endif %}</span></li>
 {% endfor %}</ul>
-{% if k.files.is_empty() %}<span class="empty">この Key の file は無い</span>{% endif %}
+{% if k.files.is_empty() %}<span class="empty" data-i18n="pages.files.empty">{{ "pages.files.empty"|t }}</span>{% endif %}
 </div>
-<div id="upload" class="box" role="region" aria-label="上げる枠" data-project="{{ k.project }}" data-key="{{ k.key }}" data-types="{{ k.types }}" data-max="{{ k.max }}" data-upload="{{ k.upload }}">
-<h2>file を上げる</h2>
-<p class="say nojs">上げるには script が要る。</p>
+<div id="upload" class="box" role="region" aria-label="{{ "pages.upload.label"|t }}" data-i18n-attr="aria-label:pages.upload.label" data-project="{{ k.project }}" data-key="{{ k.key }}" data-types="{{ k.types }}" data-max="{{ k.max }}" data-upload="{{ k.upload }}">
+<h2 data-i18n="pages.upload.heading">{{ "pages.upload.heading"|t }}</h2>
+<p class="say nojs" data-i18n="pages.upload.noscript">{{ "pages.upload.noscript"|t }}</p>
 <form hidden>
-<label class="drop">file を選ぶか、ここに落とす<input type="file" accept="{{ k.accept }}"></label>
+<label class="drop"><span data-i18n="pages.upload.drop">{{ "pages.upload.drop"|t }}</span><input type="file" accept="{{ k.accept }}"></label>
 <div class="preview" hidden></div>
-<label><input type="checkbox" name="reviewed" required> 秘密（token・鍵・個人の情報・ほかの人の画面）が写っていないか見た</label>
-<button type="submit" disabled>送る</button>
+<label><input type="checkbox" name="reviewed" required> <span data-i18n="pages.upload.reviewed">{{ "pages.upload.reviewed"|t }}</span></label>
+<button type="submit" disabled data-i18n="pages.upload.submit">{{ "pages.upload.submit"|t }}</button>
 <p class="say" role="status"></p>
 </form>
 </div>
 {% endif %}</div>
-<section id="viewer" aria-label="本文の枠">
-{% if let Some(path) = viewer %}<p><span>{{ path }}</span><a href="{{ store }}{{ path }}" target="_blank" rel="noopener">別の tab で開く</a></p>
-<iframe src="{{ store }}{{ path }}" sandbox="allow-scripts" title="選んだページ"></iframe>
-{% else %}<p>ページを選ぶと、ここに 1 枚だけ出る</p><div></div>
+<section id="viewer" aria-label="{{ "pages.viewer.label"|t }}" data-i18n-attr="aria-label:pages.viewer.label">
+{% if let Some(path) = viewer %}<p><span>{{ path }}</span><a href="{{ store }}{{ path }}" target="_blank" rel="noopener" data-i18n="pages.viewer.open">{{ "pages.viewer.open"|t }}</a></p>
+<iframe src="{{ store }}{{ path }}" sandbox="allow-scripts" title="{{ "pages.viewer.frame"|t }}" data-i18n-attr="title:pages.viewer.frame"></iframe>
+{% else %}<p data-i18n="pages.viewer.empty">{{ "pages.viewer.empty"|t }}</p><div></div>
 {% endif %}</section>
 </div>
 </div>
 <script src="{{ script }}"></script>
 {% endblock %}
-{% block foot %}時刻は日本時間（UTC+9）で、pagetray が受け取った時刻です。時刻にマウスを重ねると ISO 8601 の形で表示します。{% endblock %}
+{% block foot %}<span data-i18n="pages.foot">{{ "pages.foot"|t }}</span>{% endblock %}

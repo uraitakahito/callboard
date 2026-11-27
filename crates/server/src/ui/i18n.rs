@@ -58,6 +58,30 @@ pub(crate) fn text(key: &str) -> &str {
         .map_or(key, String::as_str)
 }
 
+/// 字の `{{名}}` に値を入れる（i18next の差し込みのうち、訳の file に使ってよい形はこれだけ）。
+fn fill(text: &str, values: &[(&str, String)]) -> String {
+    let mut out = text.to_owned();
+    for (name, value) in values {
+        out = out.replace(&format!("{{{{{name}}}}}"), value);
+    }
+    out
+}
+
+/// `data-i18n-options` に書く値（JSON。ブラウザーの i18next が同じ値で字を組む）。数の形の値は数で書く（i18next が `count` で
+/// 英語の言い分けを選ぶため）。
+fn options(values: &[(&str, String)]) -> String {
+    let map: serde_json::Map<String, Value> = values
+        .iter()
+        .map(|(name, value)| {
+            let value = value
+                .parse::<i64>()
+                .map_or_else(|_| Value::String(value.clone()), Value::from);
+            ((*name).to_owned(), value)
+        })
+        .collect();
+    Value::Object(map).to_string()
+}
+
 /// ブラウザーへ配る訳の script の中身（`(window.callboardLocales ??= {}).<言語> = {…};`）。
 fn script(lang: &str, json: &str) -> String {
     let value: Value = serde_json::from_str(json).expect("訳の file が JSON でない");
@@ -88,12 +112,73 @@ pub(crate) const I18NEXT_PATH: &str = "/static/vendor/i18next-27.2.9.min.js";
 
 /// template の filter。`{{ "nav.actors"|t }}` で、鍵の日本語の字を書く（字は HTML として逃がす）。
 /// 画面の template を持つ module は、`use super::i18n::filters;` で取り込む。
+///
+/// 値を差し込む字は、`t1`・`t2` で名と値を渡し、同じ名と値を `opts1`・`opts2` で `data-i18n-options` に書く:
+/// `<p data-i18n="list.defaulted" data-i18n-options="{{ "days"|opts1(days) }}">{{ "list.defaulted"|t1("days", days) }}</p>`
 pub(crate) mod filters {
     use std::fmt::Display;
 
     #[askama::filter_fn]
     pub fn t(key: impl Display, _: &dyn askama::Values) -> askama::Result<String> {
         Ok(super::text(&key.to_string()).to_owned())
+    }
+
+    /// 値 1 つを差し込む字。
+    #[askama::filter_fn]
+    pub fn t1<N: Display, V: Display>(
+        key: impl Display,
+        _: &dyn askama::Values,
+        name: N,
+        value: V,
+    ) -> askama::Result<String> {
+        Ok(super::fill(
+            super::text(&key.to_string()),
+            &[(&name.to_string(), value.to_string())],
+        ))
+    }
+
+    /// 値 2 つを差し込む字。
+    #[askama::filter_fn]
+    pub fn t2<N1: Display, V1: Display, N2: Display, V2: Display>(
+        key: impl Display,
+        _: &dyn askama::Values,
+        name1: N1,
+        value1: V1,
+        name2: N2,
+        value2: V2,
+    ) -> askama::Result<String> {
+        Ok(super::fill(
+            super::text(&key.to_string()),
+            &[
+                (&name1.to_string(), value1.to_string()),
+                (&name2.to_string(), value2.to_string()),
+            ],
+        ))
+    }
+
+    /// 値 1 つの `data-i18n-options`（`{{ "days"|opts1(days) }}`）。
+    #[askama::filter_fn]
+    pub fn opts1<V: Display>(
+        name: impl Display,
+        _: &dyn askama::Values,
+        value: V,
+    ) -> askama::Result<String> {
+        Ok(super::options(&[(&name.to_string(), value.to_string())]))
+    }
+
+    /// 値 2 つの `data-i18n-options`（`{{ "n"|opts2(n, "m", m) }}`）。
+    #[askama::filter_fn]
+    pub fn opts2<V1: Display, N2: Display, V2: Display>(
+        name1: impl Display,
+        _: &dyn askama::Values,
+        value1: V1,
+        name2: N2,
+        value2: V2,
+    ) -> askama::Result<String> {
+        Ok(super::options(&[
+            (&name1.to_string(), value1.to_string()),
+            (&name2.to_string(), value2.to_string()),
+        ]))
     }
 }
 
@@ -105,6 +190,14 @@ mod tests {
     fn 入れ子の鍵を平らにして引く() {
         assert_eq!(text("nav.actors"), "アクター");
         assert_eq!(text("無い.鍵"), "無い.鍵");
+    }
+
+    #[test]
+    fn 値を名で入れ_同じ値を_options_に書く() {
+        let values = [("n", "3".to_owned()), ("who", "se.1".to_owned())];
+        assert_eq!(fill("{{who}} の {{n}} 件", &values), "se.1 の 3 件");
+        assert_eq!(fill("{{n}} 件", &[("m", "3".to_owned())]), "{{n}} 件");
+        assert_eq!(options(&values), r#"{"n":3,"who":"se.1"}"#);
     }
 
     #[test]

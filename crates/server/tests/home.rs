@@ -272,7 +272,10 @@ async fn 無い道は_404_の画面で_入口への_link_を出す() {
         );
         assert!(body.contains("<h1>404</h1>"), "{body}");
         assert!(body.contains("その画面はありません"), "{body}");
-        assert!(body.contains("<a href=\"/\">入口へ</a>"), "{body}");
+        assert!(
+            body.contains("<a href=\"/\" data-i18n=\"error.home\">入口へ</a>"),
+            "{body}"
+        );
     }
     // 無い道では、呼ぶ先に聞かない。
     assert!(app.castlist.seen().is_empty());
