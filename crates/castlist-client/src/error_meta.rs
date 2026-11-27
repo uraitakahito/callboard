@@ -581,6 +581,57 @@ impl From<crate::operation::list_settings::ListSettingsError> for Error {
 impl<R>
     From<
         ::aws_smithy_runtime_api::client::result::SdkError<
+            crate::operation::list_usage::ListUsageError,
+            R,
+        >,
+    > for Error
+where
+    R: Send + Sync + std::fmt::Debug + 'static,
+{
+    fn from(
+        err: ::aws_smithy_runtime_api::client::result::SdkError<
+            crate::operation::list_usage::ListUsageError,
+            R,
+        >,
+    ) -> Self {
+        match err {
+            ::aws_smithy_runtime_api::client::result::SdkError::ServiceError(context) => {
+                Self::from(context.into_err())
+            }
+            _ => Error::Unhandled(crate::error::sealed_unhandled::Unhandled {
+                meta: ::aws_smithy_types::error::metadata::ProvideErrorMetadata::meta(&err).clone(),
+                source: err.into(),
+            }),
+        }
+    }
+}
+impl From<crate::operation::list_usage::ListUsageError> for Error {
+    fn from(err: crate::operation::list_usage::ListUsageError) -> Self {
+        match err {
+            crate::operation::list_usage::ListUsageError::ValidationError(inner) => {
+                Error::ValidationError(inner)
+            }
+            crate::operation::list_usage::ListUsageError::Unavailable(inner) => {
+                Error::Unavailable(inner)
+            }
+            crate::operation::list_usage::ListUsageError::InternalError(inner) => {
+                Error::InternalError(inner)
+            }
+            crate::operation::list_usage::ListUsageError::Forbidden(inner) => {
+                Error::Forbidden(inner)
+            }
+            crate::operation::list_usage::ListUsageError::PayloadTooLarge(inner) => {
+                Error::PayloadTooLarge(inner)
+            }
+            crate::operation::list_usage::ListUsageError::Unhandled(inner) => {
+                Error::Unhandled(inner)
+            }
+        }
+    }
+}
+impl<R>
+    From<
+        ::aws_smithy_runtime_api::client::result::SdkError<
             crate::operation::put_event::PutEventError,
             R,
         >,
@@ -725,6 +776,54 @@ impl From<crate::operation::put_setting::PutSettingError> for Error {
             crate::operation::put_setting::PutSettingError::Unhandled(inner) => {
                 Error::Unhandled(inner)
             }
+        }
+    }
+}
+impl<R>
+    From<
+        ::aws_smithy_runtime_api::client::result::SdkError<
+            crate::operation::put_usage::PutUsageError,
+            R,
+        >,
+    > for Error
+where
+    R: Send + Sync + std::fmt::Debug + 'static,
+{
+    fn from(
+        err: ::aws_smithy_runtime_api::client::result::SdkError<
+            crate::operation::put_usage::PutUsageError,
+            R,
+        >,
+    ) -> Self {
+        match err {
+            ::aws_smithy_runtime_api::client::result::SdkError::ServiceError(context) => {
+                Self::from(context.into_err())
+            }
+            _ => Error::Unhandled(crate::error::sealed_unhandled::Unhandled {
+                meta: ::aws_smithy_types::error::metadata::ProvideErrorMetadata::meta(&err).clone(),
+                source: err.into(),
+            }),
+        }
+    }
+}
+impl From<crate::operation::put_usage::PutUsageError> for Error {
+    fn from(err: crate::operation::put_usage::PutUsageError) -> Self {
+        match err {
+            crate::operation::put_usage::PutUsageError::ValidationError(inner) => {
+                Error::ValidationError(inner)
+            }
+            crate::operation::put_usage::PutUsageError::Conflict(inner) => Error::Conflict(inner),
+            crate::operation::put_usage::PutUsageError::Unavailable(inner) => {
+                Error::Unavailable(inner)
+            }
+            crate::operation::put_usage::PutUsageError::InternalError(inner) => {
+                Error::InternalError(inner)
+            }
+            crate::operation::put_usage::PutUsageError::Forbidden(inner) => Error::Forbidden(inner),
+            crate::operation::put_usage::PutUsageError::PayloadTooLarge(inner) => {
+                Error::PayloadTooLarge(inner)
+            }
+            crate::operation::put_usage::PutUsageError::Unhandled(inner) => Error::Unhandled(inner),
         }
     }
 }

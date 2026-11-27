@@ -28,3 +28,9 @@ pub use crate::types::_setting_row::SettingRowBuilder;
 pub use crate::types::_graph_node::GraphNodeBuilder;
 
 pub use crate::types::_timeline_event::TimelineEventBuilder;
+
+pub use crate::types::_usage_bucket::UsageBucketBuilder;
+
+pub use crate::types::_usage::UsageBuilder;
+
+pub use crate::types::_usage_actor::UsageActorBuilder;

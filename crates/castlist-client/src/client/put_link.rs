@@ -10,7 +10,7 @@ impl super::Client {
     ///   - [`to(impl Into<String>)`](crate::operation::put_link::builders::PutLinkFluentBuilder::to) / [`set_to(Option<String>)`](crate::operation::put_link::builders::PutLinkFluentBuilder::set_to):<br>required: **true**<br>起こされた・後を継いだアクター（鍵の付随する id）。<br>
     ///   - [`sent_at(DateTime)`](crate::operation::put_link::builders::PutLinkFluentBuilder::sent_at) / [`set_sent_at(Option<DateTime>)`](crate::operation::put_link::builders::PutLinkFluentBuilder::set_sent_at):<br>required: **true**<br>送り手の時刻。<br>
     /// - On success, responds with [`PutLinkOutput`](crate::operation::put_link::PutLinkOutput) with field(s):
-    ///   - [`id(String)`](crate::operation::put_link::PutLinkOutput::id): 送り手が付ける id（出来事・線・model と effort）: 空白の無い ASCII の印字できる字で 128 字まで。
+    ///   - [`id(String)`](crate::operation::put_link::PutLinkOutput::id): 送り手が付ける id（出来事・線・model と effort・トークンの数と費え）: 空白の無い ASCII の印字できる字で 128 字まで。
     ///   - [`r#type(String)`](crate::operation::put_link::PutLinkOutput::type): 線の種類: 起こした（`launched`）・後を継いだ（`continued`）。
     ///   - [`from(String)`](crate::operation::put_link::PutLinkOutput::from): アクターの id（castlist が出す UUID v7 の字。小文字の 16 進）。
     ///   - [`to(String)`](crate::operation::put_link::PutLinkOutput::to): アクターの id（castlist が出す UUID v7 の字。小文字の 16 進）。

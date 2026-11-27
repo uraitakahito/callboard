@@ -29,6 +29,12 @@ pub use crate::types::_graph_node::GraphNode;
 
 pub use crate::types::_timeline_event::TimelineEvent;
 
+pub use crate::types::_usage_bucket::UsageBucket;
+
+pub use crate::types::_usage::Usage;
+
+pub use crate::types::_usage_actor::UsageActor;
+
 mod _actor_binding;
 
 mod _actor_row;
@@ -56,6 +62,12 @@ mod _setting;
 mod _setting_row;
 
 mod _timeline_event;
+
+mod _usage;
+
+mod _usage_actor;
+
+mod _usage_bucket;
 
 mod _validation_exception_field;
 

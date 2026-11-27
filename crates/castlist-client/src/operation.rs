@@ -30,6 +30,9 @@ pub mod list_events;
 /// Types for the `ListSettings` operation.
 pub mod list_settings;
 
+/// Types for the `ListUsage` operation.
+pub mod list_usage;
+
 /// Types for the `PutEvent` operation.
 pub mod put_event;
 
@@ -38,6 +41,9 @@ pub mod put_link;
 
 /// Types for the `PutSetting` operation.
 pub mod put_setting;
+
+/// Types for the `PutUsage` operation.
+pub mod put_usage;
 
 /// Types for the `RegisterActor` operation.
 pub mod register_actor;

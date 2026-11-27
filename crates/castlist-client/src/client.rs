@@ -153,11 +153,15 @@ mod list_events;
 
 mod list_settings;
 
+mod list_usage;
+
 mod put_event;
 
 mod put_link;
 
 mod put_setting;
+
+mod put_usage;
 
 mod register_actor;
 

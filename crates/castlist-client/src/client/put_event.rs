@@ -10,7 +10,7 @@ impl super::Client {
     ///   - [`detail(Document)`](crate::operation::put_event::builders::PutEventFluentBuilder::detail) / [`set_detail(Option<Document>)`](crate::operation::put_event::builders::PutEventFluentBuilder::set_detail):<br>required: **false**<br>JSON の物（無ければ `{}`）。 無い時の要求の例は書かない: smithy-rs（codegen-server 0.1.40）は、例の params に無い Document を、 無い物（None）でなく JSON の null（Some(Null)）として比べる試験を作り、読んだ物（None）と合わずに落ちるため。 無い時の振る舞いは、server の試験（crates/server/tests/events.rs）が見る。<br>
     ///   - [`sent_at(DateTime)`](crate::operation::put_event::builders::PutEventFluentBuilder::sent_at) / [`set_sent_at(Option<DateTime>)`](crate::operation::put_event::builders::PutEventFluentBuilder::set_sent_at):<br>required: **true**<br>送り手の時刻。<br>
     /// - On success, responds with [`PutEventOutput`](crate::operation::put_event::PutEventOutput) with field(s):
-    ///   - [`id(String)`](crate::operation::put_event::PutEventOutput::id): 送り手が付ける id（出来事・線・model と effort）: 空白の無い ASCII の印字できる字で 128 字まで。
+    ///   - [`id(String)`](crate::operation::put_event::PutEventOutput::id): 送り手が付ける id（出来事・線・model と effort・トークンの数と費え）: 空白の無い ASCII の印字できる字で 128 字まで。
     ///   - [`actor_id(String)`](crate::operation::put_event::PutEventOutput::actor_id): アクターの id（castlist が出す UUID v7 の字。小文字の 16 進）。
     ///   - [`r#type(String)`](crate::operation::put_event::PutEventOutput::type): 出来事の種類（10 種）。 居る・居ないを替えるのは entered・reentered・forked（居る）と cleared・exited・closed（居ない）。
     ///   - [`detail(Document)`](crate::operation::put_event::PutEventOutput::detail): 送られた JSON の物と同じ中身（無ければ空の物）。鍵の順と字の並びは、送られた物と同じとは限らない。

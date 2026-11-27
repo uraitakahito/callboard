@@ -64,6 +64,7 @@ async fn 入口と頭の_link_は_どの画面も_callboard_の道で指す() {
         ("アクターの一覧", "/actors/"),
         ("タイムライン", "/graph/timeline"),
         ("相関図", "/graph/network"),
+        ("費え", "/usage/"),
     ] {
         let link = format!("<a href=\"{path}\">{name}</a>");
         assert!(castlist.contains(&link), "{link}: {castlist}");
@@ -86,6 +87,7 @@ async fn 入口と頭の_link_は_どの画面も_callboard_の道で指す() {
             "<a href=\"/actors/\">アクター</a>",
             "<a href=\"/graph/timeline\">タイムライン</a>",
             "<a href=\"/graph/network\">相関図</a>",
+            "<a href=\"/usage/\">費え</a>",
             "<a href=\"/pages/\">ページ</a>",
             "<a href=\"/messages\">メッセージ</a>",
         ] {

@@ -38,7 +38,7 @@ container run -d --name callboard -p 127.0.0.1:8803:8080 -m 200M -c 1 -e CALLBOA
 
 - castlist は container の名 `castlist.box` で、pagetray は `pagetray.box` で届く（既定の network では、Apple Container の DNS が domain `box` の名を答える）。
 - pagetray の container の名が、domain の付かない `pagetray`（pagetray 1.1.x までの docs の名）のままだと、**名では届かない**（Apple Container の DNS は、domain（`box`）の付いた名だけを答える。0.1.0 を起こした時に確かめた: `Name does not resolve`）。届かない間、入口の画面は pagetray を「届きません」と出し、メッセージの一覧は 503 の画面になる（callboard は起き、castlist の画面はみな使える）。pagetray の container を `pagetray.box` の名で作り直す（pagetray の docs の「動かす」）。
-- **castlist は 1.1.0 から**（一覧とタイムラインが、1.1.0 で足した欄と操作を使う）。古い castlist に向けると、タイムラインは「castlist に聞けません（404 が返りました）」の画面になり、一覧とプロフィールの「時刻ずれ」の印と、状態の横の出来事の名が出ない。castlist 2.0.0（画面を外した版。API は 1.1.0 と同じ）でも、そのまま動く。
+- **castlist は 1.1.0 から**（一覧とタイムラインが、1.1.0 で足した欄と操作を使う）。古い castlist に向けると、タイムラインは「castlist に聞けません（404 が返りました）」の画面になり、一覧とプロフィールの「時刻ずれ」の印と、状態の横の出来事の名が出ない。castlist 2.0.0（画面を外した版。API は 1.1.0 と同じ）でも、そのまま動く。**費えの画面（`/usage/`）だけは、castlist 2.1.0 から**（2.1.0 で足した `ListUsage` を使う）。それより古い castlist に向けると、費えの画面だけが「castlist に聞けません（404 が返りました）」になる。
 - **pagetray は 1.3.0 から**（0.3.0 のメッセージの一覧は 1.2.0 で、0.4.0 のページの一覧は 1.3.0 で足した操作を使う）。古い pagetray に向けると、その画面は「pagetray に聞けません（404 が返りました）」の画面になる。
 
 > [!WARNING]

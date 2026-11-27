@@ -247,6 +247,21 @@ pub(crate) fn list_settings_output_output_correct_errors(
     builder
 }
 
+pub(crate) fn list_usage_output_output_correct_errors(
+    mut builder: crate::operation::list_usage::builders::ListUsageOutputBuilder,
+) -> crate::operation::list_usage::builders::ListUsageOutputBuilder {
+    if builder.as_of.is_none() {
+        builder.as_of = Some(::aws_smithy_types::DateTime::from_fractional_secs(0, 0_f64))
+    }
+    if builder.usage.is_none() {
+        builder.usage = Some(Default::default())
+    }
+    if builder.actors.is_none() {
+        builder.actors = Some(Default::default())
+    }
+    builder
+}
+
 pub(crate) fn conflict_correct_errors(
     mut builder: crate::types::error::builders::ConflictBuilder,
 ) -> crate::types::error::builders::ConflictBuilder {
@@ -330,6 +345,78 @@ pub(crate) fn put_setting_output_output_correct_errors(
     }
     if builder.source.is_none() {
         builder.source = Some(Default::default())
+    }
+    if builder.sent_at.is_none() {
+        builder.sent_at = Some(::aws_smithy_types::DateTime::from_fractional_secs(0, 0_f64))
+    }
+    if builder.received_at.is_none() {
+        builder.received_at = Some(::aws_smithy_types::DateTime::from_fractional_secs(0, 0_f64))
+    }
+    if builder.clock_skew.is_none() {
+        builder.clock_skew = Some(Default::default())
+    }
+    if builder.status.is_none() {
+        builder.status = Some(Default::default())
+    }
+    builder
+}
+
+pub(crate) fn put_usage_output_output_correct_errors(
+    mut builder: crate::operation::put_usage::builders::PutUsageOutputBuilder,
+) -> crate::operation::put_usage::builders::PutUsageOutputBuilder {
+    if builder.id.is_none() {
+        builder.id = Some(Default::default())
+    }
+    if builder.actor_id.is_none() {
+        builder.actor_id = Some(Default::default())
+    }
+    if builder.model.is_none() {
+        builder.model = Some(Default::default())
+    }
+    if builder.speed.is_none() {
+        builder.speed = Some(Default::default())
+    }
+    if builder.service_tier.is_none() {
+        builder.service_tier = Some(Default::default())
+    }
+    if builder.from_at.is_none() {
+        builder.from_at = Some(::aws_smithy_types::DateTime::from_fractional_secs(0, 0_f64))
+    }
+    if builder.to_at.is_none() {
+        builder.to_at = Some(::aws_smithy_types::DateTime::from_fractional_secs(0, 0_f64))
+    }
+    if builder.turns.is_none() {
+        builder.turns = Some(Default::default())
+    }
+    if builder.input_tokens.is_none() {
+        builder.input_tokens = Some(Default::default())
+    }
+    if builder.output_tokens.is_none() {
+        builder.output_tokens = Some(Default::default())
+    }
+    if builder.cache_read_tokens.is_none() {
+        builder.cache_read_tokens = Some(Default::default())
+    }
+    if builder.cache_write5m_tokens.is_none() {
+        builder.cache_write5m_tokens = Some(Default::default())
+    }
+    if builder.cache_write1h_tokens.is_none() {
+        builder.cache_write1h_tokens = Some(Default::default())
+    }
+    if builder.web_search_requests.is_none() {
+        builder.web_search_requests = Some(Default::default())
+    }
+    if builder.web_fetch_requests.is_none() {
+        builder.web_fetch_requests = Some(Default::default())
+    }
+    if builder.cost_micro_usd.is_none() {
+        builder.cost_micro_usd = Some(Default::default())
+    }
+    if builder.max_context.is_none() {
+        builder.max_context = Some(Default::default())
+    }
+    if builder.buckets.is_none() {
+        builder.buckets = Some(Default::default())
     }
     if builder.sent_at.is_none() {
         builder.sent_at = Some(::aws_smithy_types::DateTime::from_fractional_secs(0, 0_f64))
@@ -667,6 +754,105 @@ pub(crate) fn timeline_event_correct_errors(
     }
     if builder.inferred.is_none() {
         builder.inferred = Some(Default::default())
+    }
+    builder
+}
+
+pub(crate) fn usage_correct_errors(
+    mut builder: crate::types::builders::UsageBuilder,
+) -> crate::types::builders::UsageBuilder {
+    if builder.id.is_none() {
+        builder.id = Some(Default::default())
+    }
+    if builder.actor_id.is_none() {
+        builder.actor_id = Some(Default::default())
+    }
+    if builder.model.is_none() {
+        builder.model = Some(Default::default())
+    }
+    if builder.speed.is_none() {
+        builder.speed = Some(Default::default())
+    }
+    if builder.service_tier.is_none() {
+        builder.service_tier = Some(Default::default())
+    }
+    if builder.from_at.is_none() {
+        builder.from_at = Some(::aws_smithy_types::DateTime::from_fractional_secs(0, 0_f64))
+    }
+    if builder.to_at.is_none() {
+        builder.to_at = Some(::aws_smithy_types::DateTime::from_fractional_secs(0, 0_f64))
+    }
+    if builder.turns.is_none() {
+        builder.turns = Some(Default::default())
+    }
+    if builder.input_tokens.is_none() {
+        builder.input_tokens = Some(Default::default())
+    }
+    if builder.output_tokens.is_none() {
+        builder.output_tokens = Some(Default::default())
+    }
+    if builder.cache_read_tokens.is_none() {
+        builder.cache_read_tokens = Some(Default::default())
+    }
+    if builder.cache_write5m_tokens.is_none() {
+        builder.cache_write5m_tokens = Some(Default::default())
+    }
+    if builder.cache_write1h_tokens.is_none() {
+        builder.cache_write1h_tokens = Some(Default::default())
+    }
+    if builder.web_search_requests.is_none() {
+        builder.web_search_requests = Some(Default::default())
+    }
+    if builder.web_fetch_requests.is_none() {
+        builder.web_fetch_requests = Some(Default::default())
+    }
+    if builder.cost_micro_usd.is_none() {
+        builder.cost_micro_usd = Some(Default::default())
+    }
+    if builder.max_context.is_none() {
+        builder.max_context = Some(Default::default())
+    }
+    if builder.buckets.is_none() {
+        builder.buckets = Some(Default::default())
+    }
+    if builder.sent_at.is_none() {
+        builder.sent_at = Some(::aws_smithy_types::DateTime::from_fractional_secs(0, 0_f64))
+    }
+    if builder.received_at.is_none() {
+        builder.received_at = Some(::aws_smithy_types::DateTime::from_fractional_secs(0, 0_f64))
+    }
+    if builder.clock_skew.is_none() {
+        builder.clock_skew = Some(Default::default())
+    }
+    builder
+}
+
+pub(crate) fn usage_actor_correct_errors(
+    mut builder: crate::types::builders::UsageActorBuilder,
+) -> crate::types::builders::UsageActorBuilder {
+    if builder.id.is_none() {
+        builder.id = Some(Default::default())
+    }
+    if builder.name.is_none() {
+        builder.name = Some(Default::default())
+    }
+    if builder.labels.is_none() {
+        builder.labels = Some(Default::default())
+    }
+    builder
+}
+
+pub(crate) fn usage_bucket_correct_errors(
+    mut builder: crate::types::builders::UsageBucketBuilder,
+) -> crate::types::builders::UsageBucketBuilder {
+    if builder.bucket.is_none() {
+        builder.bucket = Some(Default::default())
+    }
+    if builder.turns.is_none() {
+        builder.turns = Some(Default::default())
+    }
+    if builder.cost_micro_usd.is_none() {
+        builder.cost_micro_usd = Some(Default::default())
     }
     builder
 }
