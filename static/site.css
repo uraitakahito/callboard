@@ -134,6 +134,8 @@ table { width: 100%; border-collapse: collapse; background: var(--card); }
 .actors, .usage { border: 1px solid var(--line); border-radius: 8px; }
 /* 数の欄（費えの表）: 右に寄せ、桁を揃える。 */
 th.num, td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* 費えの表は列が多いので、名の欄（役割・課題）を折らない（狭い画面では、表ごと横に送る: .scroll）。 */
+.usage th, .usage td:first-child { white-space: nowrap; }
 th, td { padding: 5px 10px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
 th { background: var(--head); color: var(--muted); font-weight: 600; font-size: 0.8rem; white-space: nowrap; }
 td time { white-space: nowrap; font-variant-numeric: tabular-nums; }
