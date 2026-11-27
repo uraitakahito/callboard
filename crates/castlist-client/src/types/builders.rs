@@ -26,3 +26,5 @@ pub use crate::types::_event_row::EventRowBuilder;
 pub use crate::types::_setting_row::SettingRowBuilder;
 
 pub use crate::types::_graph_node::GraphNodeBuilder;
+
+pub use crate::types::_timeline_event::TimelineEventBuilder;

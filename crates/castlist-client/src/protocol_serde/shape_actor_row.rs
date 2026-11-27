@@ -127,6 +127,22 @@ where
                                     )?,
                                 );
                             }
+                            "presence" => {
+                                builder = builder.set_presence(
+                                    ::aws_smithy_json::deserialize::token::expect_string_or_null(
+                                        tokens.next(),
+                                    )?
+                                    .map(|s| s.to_unescaped().map(|u| u.into_owned()))
+                                    .transpose()?,
+                                );
+                            }
+                            "skewed" => {
+                                builder = builder.set_skewed(
+                                    ::aws_smithy_json::deserialize::token::expect_bool_or_null(
+                                        tokens.next(),
+                                    )?,
+                                );
+                            }
                             "model" => {
                                 builder = builder.set_model(
                                     ::aws_smithy_json::deserialize::token::expect_string_or_null(

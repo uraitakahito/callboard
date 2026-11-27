@@ -30,6 +30,10 @@ pub struct ActorRow {
     pub present: bool,
     /// 今の停止が推しか（GetActor の `state.inferred` と同じ）。
     pub inferred: bool,
+    /// 稼働を替える出来事（6 種）の最新の種類（GetActor の `state.presence` と同じ）。1 つも無ければ無い。 1.1.0 で足した欄（前の版の答えには無い）。
+    pub presence: ::std::option::Option<::std::string::String>,
+    /// 時刻ずれの行（登録・出来事・model と effort のどれか）を持つか（ListActors の絞りの `skewed` と同じ意味。線は見ない）。 `clockSkew` は登録だけの印で、これとは別。1.1.0 で足した欄（前の版の答えには無い）。
+    pub skewed: ::std::option::Option<bool>,
     /// 最新の model（受けた順で）。
     pub model: ::std::option::Option<::std::string::String>,
     /// 最新の effort（受けた順で）。
@@ -96,6 +100,14 @@ impl ActorRow {
     pub fn inferred(&self) -> bool {
         self.inferred
     }
+    /// 稼働を替える出来事（6 種）の最新の種類（GetActor の `state.presence` と同じ）。1 つも無ければ無い。 1.1.0 で足した欄（前の版の答えには無い）。
+    pub fn presence(&self) -> ::std::option::Option<&str> {
+        self.presence.as_deref()
+    }
+    /// 時刻ずれの行（登録・出来事・model と effort のどれか）を持つか（ListActors の絞りの `skewed` と同じ意味。線は見ない）。 `clockSkew` は登録だけの印で、これとは別。1.1.0 で足した欄（前の版の答えには無い）。
+    pub fn skewed(&self) -> ::std::option::Option<bool> {
+        self.skewed
+    }
     /// 最新の model（受けた順で）。
     pub fn model(&self) -> ::std::option::Option<&str> {
         self.model.as_deref()
@@ -138,6 +150,8 @@ pub struct ActorRowBuilder {
     pub(crate) last_exit_type: ::std::option::Option<::std::string::String>,
     pub(crate) present: ::std::option::Option<bool>,
     pub(crate) inferred: ::std::option::Option<bool>,
+    pub(crate) presence: ::std::option::Option<::std::string::String>,
+    pub(crate) skewed: ::std::option::Option<bool>,
     pub(crate) model: ::std::option::Option<::std::string::String>,
     pub(crate) effort: ::std::option::Option<::std::string::String>,
     pub(crate) url: ::std::option::Option<::std::string::String>,
@@ -371,6 +385,34 @@ impl ActorRowBuilder {
     pub fn get_inferred(&self) -> &::std::option::Option<bool> {
         &self.inferred
     }
+    /// 稼働を替える出来事（6 種）の最新の種類（GetActor の `state.presence` と同じ）。1 つも無ければ無い。 1.1.0 で足した欄（前の版の答えには無い）。
+    pub fn presence(mut self, input: impl ::std::convert::Into<::std::string::String>) -> Self {
+        self.presence = ::std::option::Option::Some(input.into());
+        self
+    }
+    /// 稼働を替える出来事（6 種）の最新の種類（GetActor の `state.presence` と同じ）。1 つも無ければ無い。 1.1.0 で足した欄（前の版の答えには無い）。
+    pub fn set_presence(mut self, input: ::std::option::Option<::std::string::String>) -> Self {
+        self.presence = input;
+        self
+    }
+    /// 稼働を替える出来事（6 種）の最新の種類（GetActor の `state.presence` と同じ）。1 つも無ければ無い。 1.1.0 で足した欄（前の版の答えには無い）。
+    pub fn get_presence(&self) -> &::std::option::Option<::std::string::String> {
+        &self.presence
+    }
+    /// 時刻ずれの行（登録・出来事・model と effort のどれか）を持つか（ListActors の絞りの `skewed` と同じ意味。線は見ない）。 `clockSkew` は登録だけの印で、これとは別。1.1.0 で足した欄（前の版の答えには無い）。
+    pub fn skewed(mut self, input: bool) -> Self {
+        self.skewed = ::std::option::Option::Some(input);
+        self
+    }
+    /// 時刻ずれの行（登録・出来事・model と effort のどれか）を持つか（ListActors の絞りの `skewed` と同じ意味。線は見ない）。 `clockSkew` は登録だけの印で、これとは別。1.1.0 で足した欄（前の版の答えには無い）。
+    pub fn set_skewed(mut self, input: ::std::option::Option<bool>) -> Self {
+        self.skewed = input;
+        self
+    }
+    /// 時刻ずれの行（登録・出来事・model と effort のどれか）を持つか（ListActors の絞りの `skewed` と同じ意味。線は見ない）。 `clockSkew` は登録だけの印で、これとは別。1.1.0 で足した欄（前の版の答えには無い）。
+    pub fn get_skewed(&self) -> &::std::option::Option<bool> {
+        &self.skewed
+    }
     /// 最新の model（受けた順で）。
     pub fn model(mut self, input: impl ::std::convert::Into<::std::string::String>) -> Self {
         self.model = ::std::option::Option::Some(input.into());
@@ -497,6 +539,8 @@ impl ActorRowBuilder {
                     "inferred was not specified but it is required when building ActorRow",
                 )
             })?,
+            presence: self.presence,
+            skewed: self.skewed,
             model: self.model,
             effort: self.effort,
             url: self.url.ok_or_else(|| {

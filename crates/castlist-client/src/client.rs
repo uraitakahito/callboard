@@ -143,6 +143,8 @@ mod get_health;
 
 mod get_lineage;
 
+mod get_timeline;
+
 mod list_actor_settings;
 
 mod list_actors;

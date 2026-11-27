@@ -27,6 +27,8 @@ pub use crate::types::_setting_row::SettingRow;
 
 pub use crate::types::_graph_node::GraphNode;
 
+pub use crate::types::_timeline_event::TimelineEvent;
+
 mod _actor_binding;
 
 mod _actor_row;
@@ -52,6 +54,8 @@ mod _resolution;
 mod _setting;
 
 mod _setting_row;
+
+mod _timeline_event;
 
 mod _validation_exception_field;
 

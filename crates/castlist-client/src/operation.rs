@@ -15,6 +15,9 @@ pub mod get_health;
 /// Types for the `GetLineage` operation.
 pub mod get_lineage;
 
+/// Types for the `GetTimeline` operation.
+pub mod get_timeline;
+
 /// Types for the `ListActorSettings` operation.
 pub mod list_actor_settings;
 
