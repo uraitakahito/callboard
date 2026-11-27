@@ -5,6 +5,7 @@
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
 use std::process::{Child, Command, ExitStatus, Stdio};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 /// 起こす binary。
@@ -33,6 +34,8 @@ struct Server {
     port: u16,
     /// 起きた時の 1 行（`callboard <版> listen=… castlist=… pagetray=…`）。
     line: String,
+    /// その後に stdout に出た行。
+    lines: Arc<Mutex<Vec<String>>>,
 }
 
 impl Drop for Server {
@@ -63,9 +66,20 @@ impl Server {
             .find_map(|word| word.strip_prefix("listen=127.0.0.1:"))
             .and_then(|port| port.parse().ok())
             .unwrap_or_else(|| panic!("待ち受けの行に port が無い: {line}"));
-        // 残りの行は読み捨てる（pipe を詰まらせない）。
-        std::thread::spawn(move || lines.for_each(drop));
-        Self { child, port, line }
+        // 残りの行は読み続けて残す（pipe を詰まらせない）。
+        let rest: Arc<Mutex<Vec<String>>> = Arc::default();
+        let sink = rest.clone();
+        std::thread::spawn(move || {
+            for line in lines.map_while(Result::ok) {
+                sink.lock().unwrap().push(line);
+            }
+        });
+        Self {
+            child,
+            port,
+            line,
+            lines: rest,
+        }
     }
 
     /// 生の要求を送り、状態と、答えの全部（頭と本文）を読む。
@@ -89,6 +103,22 @@ impl Server {
         self.send(&format!(
             "GET {path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n"
         ))
+    }
+
+    /// stdout に、`words` をみな含む行が出るまで待つ（2 秒まで）。出なければ、出た行を付けて落とす。
+    fn logged(&self, words: &[&str]) -> String {
+        let started = Instant::now();
+        loop {
+            let lines = self.lines.lock().unwrap().clone();
+            if let Some(line) = lines.iter().find(|l| words.iter().all(|w| l.contains(w))) {
+                return line.clone();
+            }
+            assert!(
+                started.elapsed() < Duration::from_secs(2),
+                "{words:?} の行が記録に無い: {lines:#?}"
+            );
+            std::thread::sleep(Duration::from_millis(20));
+        }
     }
 
     /// 止める合図（SIGTERM）を送り、終わるのを待つ。
@@ -161,6 +191,36 @@ fn 起きて_healthz_に答え_外の_host_を断り_止める合図で自分か
 
     let status = server.terminate();
     assert_eq!(status.code(), Some(0), "{status:?}");
+}
+
+#[test]
+fn 呼ぶ先に聞けなかった訳と_守りが断った要求を_記録に残す() {
+    let server = Server::start();
+    // 呼ぶ先に聞けない時は、どの呼ぶ先か・聞く先・訳を 1 行に残す（画面には聞く先を出さないので、記録から引けるようにする）。
+    let (status, _) = server.get("/", "127.0.0.1");
+    assert_eq!(status, 200);
+    for upstream in ["castlist", "pagetray"] {
+        let line = server.logged(&["WARN", &format!("upstream=\"{upstream}\"")]);
+        assert!(line.contains("呼ぶ先に聞けない"), "{line}");
+        assert!(line.contains("127.0.0.1:9"), "{line}");
+    }
+    // 守りが断った要求は、訳と Host と道を 1 行に残す。
+    let (status, _) = server.get("/actors/x", "evil.example");
+    assert_eq!(status, 403);
+    let line = server.logged(&["refused", "evil.example"]);
+    assert!(line.contains("reason=\"host\""), "{line}");
+    assert!(line.contains("/actors/x"), "{line}");
+    let (status, _) = server.send(
+        "POST / HTTP/1.1\r\nHost: 127.0.0.1\r\nOrigin: http://evil.example\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+    );
+    assert_eq!(status, 403);
+    let line = server.logged(&["refused", "reason=\"origin\""]);
+    assert!(line.contains("http://evil.example"), "{line}");
+    // 断らない要求は、行を残さない。
+    let (status, _) = server.get("/healthz", "127.0.0.1");
+    assert_eq!(status, 200);
+    let lines = server.lines.lock().unwrap().clone();
+    assert!(!lines.iter().any(|l| l.contains("/healthz")), "{lines:#?}");
 }
 
 #[test]
