@@ -35,6 +35,21 @@
 <dt>手伝い（subagent）の回</dt><dd>{{ t.total.helper_turns }}（額 {{ t.total.helper_cost }}{% if let Some(share) = t.total.helper_share %}。全体の額の {{ share }}{% endif %}）</dd>
 </dl>
 </section>
+<section id="by-context">
+<h2>文脈の長さの段ごとの費え（本体の回）</h2>
+{% if let Some(c) = t.charts.by_context %}
+<div class="scroll">{% call m::chart(c) %}{% endcall %}</div>
+<p class="legend">横は文脈の長さ（{{ width }}刻みの段。目盛りは段の下の端）、縦はその段の回の額です。点線は 20 万。棒にマウスを重ねると、段と額と回の数を表示します。</p>
+{% else %}
+<p class="empty">この期間に、本体の回の記録はありません。</p>
+{% endif %}
+</section>
+<section id="by-day">
+<h2>{{ t.charts.unit }}ごとの費え（日本時間）</h2>
+<div class="scroll">{% call m::chart(t.charts.by_slot) %}{% endcall %}</div>
+<ul class="legend keys"><li><span class="swatch main"></span>本体</li><li><span class="swatch helper"></span>手伝い（subagent。本体の上に積む）</li></ul>
+<p class="legend">行の{{ t.charts.unit }}は、記録の区間の終わりの時刻で決めます。集めた期間が 1 日までなら時ごと、1 日より長ければ日ごと（日本時間の 0 時で区切る）にします。</p>
+</section>
 <section id="roles">
 <h2>役割ごと</h2>
 <div class="scroll">

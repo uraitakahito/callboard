@@ -222,6 +222,28 @@ svg.timeline { display: block; font-family: system-ui, "Hiragino Sans", "Noto Sa
 .timeline .link.continued { stroke-dasharray: 5 4; }
 .timeline .arrow { fill: var(--muted); }
 
+/* 費えの図（/usage/ の棒と、プロフィールの文脈の長さの線。サーバーが座標を出した SVG）。色はここで決める（明るい色と暗い色）。
+   本体と手伝いの色は、タイムラインの model の色を借りる（暗い色の時は、その暗い色の値になる）。 */
+:root { --chart-main: var(--m-opus); --chart-helper: var(--m-sonnet); }
+svg.chart { display: block; max-width: none; font-family: system-ui, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+.chart text { fill: var(--fg); }
+.chart .tick { font-size: 11px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .base { stroke: var(--muted); stroke-width: 1; }
+.chart .bar.main { fill: var(--chart-main); }
+.chart .bar.helper { fill: var(--chart-helper); }
+.chart .limit { stroke: var(--warn); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.chart .limit-label { font-size: 11px; fill: var(--warn); }
+.chart .context { fill: none; stroke: var(--chart-main); stroke-width: 2; }
+.chart .hit { fill: transparent; }
+.chart .hit:hover { fill: var(--row-alt); fill-opacity: 0.6; }
+.chart .compact { stroke: var(--fg); stroke-width: 2; stroke-dasharray: 2 2; }
+.legend.keys { margin: 4px 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.legend.keys li { display: flex; align-items: center; gap: 4px; }
+.legend .swatch.main { border-color: var(--chart-main); background: var(--chart-main); }
+.legend .swatch.helper { border-color: var(--chart-helper); background: var(--chart-helper); }
+.legend .compact-key { display: inline-block; width: 0; height: 14px; border-left: 2px dashed var(--fg); }
+
 /* 相関図（/graph/network）。点と線は static/network.js が canvas に描き、色はこの file の色を読む。 */
 .network {
   height: 70vh;

@@ -3,6 +3,7 @@
 //! 絞り込みは、castlist の API の `ListActors`（監査の検索）と同じ条件を、画面の引数の名（snake_case。`activeFrom` は
 //! `active_from`、`launchedBy` は `launched_by`、`maxResults` は `limit`、`nextToken` は `after`）で URL に置く。
 //! 引数は画面が確かめ（誤りは、引数の名を書いた 400 の画面。castlist の画面と同じ字）、確かめた物を API に渡す。
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use askama::Template;
@@ -17,7 +18,9 @@ use time::OffsetDateTime;
 
 use super::params::{self, LIST_PERIOD, PageError, Pairs, Params, bad_request};
 use super::profile::event_name;
-use super::time::{Time, stamp, time};
+use super::time::{Time, local, stamp, time};
+use super::usage::{self, MAX_DAYS, Misfit};
+use super::usage_summary::{self as summary, Seat};
 use super::{CSS_HREF, Nav, error_page, kind_name, render};
 use crate::App;
 use crate::upstream::Failure;
@@ -184,9 +187,13 @@ struct Row {
     first_entered: Option<Time>,
     last_exited: Option<Time>,
     skewed: bool,
+    /// 一覧の期間の、席の額（本体と手伝いの計）と、いちばん長い文脈（本体）。数が無ければ無い（「—」）。
+    cost: Option<String>,
+    context: Option<String>,
 }
 
-fn row(item: &ActorRow) -> Row {
+fn row(item: &ActorRow, seats: &BTreeMap<String, Seat>) -> Row {
+    let seat = seats.get(&item.id);
     Row {
         href: format!("/actors/{}", item.id),
         name: item.name.clone(),
@@ -203,6 +210,74 @@ fn row(item: &ActorRow) -> Row {
         first_entered: item.first_entered_at.as_ref().map(time),
         last_exited: item.last_exited_at.as_ref().map(time),
         skewed: item.skewed.unwrap_or(false),
+        cost: seat.map(|s| usage::dollars(s.cost)),
+        context: seat.and_then(|s| usage::longest(s.max_context)),
+    }
+}
+
+/// 一覧の額の列: 数を聞いた期間（時の境に揃えた物）と、席ごとの数か、出さない訳。
+struct Costs {
+    window: Option<(Time, Time)>,
+    seats: BTreeMap<String, Seat>,
+    /// 列を空けた訳（表の下の注）。
+    note: Option<String>,
+}
+
+fn time_of(t: OffsetDateTime) -> Time {
+    Time {
+        iso: stamp(t),
+        local: local(t),
+    }
+}
+
+/// 一覧の期間（castlist に渡す `active_from`・`active_to`）を時の境に揃え、席ごとの額を聞く（ListUsage を 1 度。頁はみな引く）。
+/// 聞けない・期間が長すぎる時は、列を空ける（一覧は出す）。
+async fn costs(app: &App, search: &ActorSearch, now: OffsetDateTime) -> Costs {
+    let at = |t: Option<DateTime>| {
+        t.and_then(|t| OffsetDateTime::from_unix_timestamp_nanos(t.as_nanos()).ok())
+    };
+    let empty = |note: Option<String>| Costs {
+        window: None,
+        seats: BTreeMap::new(),
+        note,
+    };
+    let window = match usage::align(at(search.active_from), at(search.active_to), now) {
+        Ok(window) => window,
+        // 終わりが始めより後でない・始めだけが先の時刻の期間（一覧にも、だれも出ない）。
+        Err(Misfit::NotAfter | Misfit::StartsLater) => return empty(None),
+        Err(Misfit::TooLong) => {
+            return empty(Some(format!(
+                "一覧の期間が {MAX_DAYS} 日を越えるので、額といちばん長い文脈は出しません（費えの数は {MAX_DAYS} 日ずつ読みます）。"
+            )));
+        }
+    };
+    let found = app
+        .castlist
+        .usage(&usage::search(window, search.labels.clone(), None))
+        .await;
+    let shown = Some((time_of(window.0), time_of(window.1)));
+    match found {
+        Ok(answer) if usage::cut(&answer) => Costs {
+            window: shown,
+            seats: BTreeMap::new(),
+            note: Some(
+                "記録が多すぎて、額といちばん長い文脈を出せません。期間を狭めてください。"
+                    .to_owned(),
+            ),
+        },
+        Ok(answer) => Costs {
+            window: shown,
+            seats: summary::by_seat(&usage::rows_of(answer.rows)),
+            note: None,
+        },
+        Err(e) => Costs {
+            window: shown,
+            seats: BTreeMap::new(),
+            note: Some(format!(
+                "額といちばん長い文脈を読めません（{}）。一覧は、そのまま出しています。",
+                usage::unreadable(e)
+            )),
+        },
     }
 }
 
@@ -219,6 +294,9 @@ struct ListPage<'a> {
     /// 期間をすぐ選ぶ link（名と URL）。
     quick: Vec<(&'static str, String)>,
     next: Option<String>,
+    /// 額の列を出した期間（時の境に揃えた物）と、列を空けた訳。
+    cost_window: Option<(Time, Time)>,
+    cost_note: Option<String>,
     as_of: Time,
 }
 
@@ -297,7 +375,9 @@ async fn list_page(
         // 次の頁も、同じ窓で続ける。
         effective.push(("active_from".to_owned(), from));
     }
-    let answer = app.castlist.actors(&search).await.map_err(|e| match e {
+    // 一覧と、席ごとの額を、一緒に聞く。
+    let (answer, costs) = tokio::join!(app.castlist.actors(&search), costs(app, &search, now));
+    let answer = answer.map_err(|e| match e {
         // castlist が引数を断った（callboard の確かめを通った物なので、ふつうは起きない）。castlist の訳を、そのまま書く。
         Failure::Rejected(message) => {
             params::bad_request(format!("castlist が引数を断りました: {message}"))
@@ -321,12 +401,14 @@ async fn list_page(
     Ok(ListPage {
         css: &CSS_HREF,
         nav: &app.nav,
-        rows: answer.actors.iter().map(row).collect(),
+        rows: answer.actors.iter().map(|a| row(a, &costs.seats)).collect(),
         defaulted,
         days: DEFAULT_DAYS,
         form,
         quick,
         next,
+        cost_window: costs.window,
+        cost_note: costs.note,
         as_of: time(&answer.as_of),
     })
 }

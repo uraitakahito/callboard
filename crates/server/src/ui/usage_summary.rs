@@ -257,14 +257,33 @@ pub fn summarize(rows: &[Row], actors: &[Actor]) -> Summary {
 }
 
 /// 段ごとの、本体の回の数と額（添字が段の番号。0 から [`LAST_BUCKET`] までの 41 個）。手伝いの回は混ぜない（文脈の長さの数は本体だけ）。
-pub fn by_bucket(_rows: &[Row]) -> Vec<(i64, i64)> {
-    Vec::new()
+pub fn by_bucket(rows: &[Row]) -> Vec<(i64, i64)> {
+    let mut out = vec![(0i64, 0i64); usize::try_from(LAST_BUCKET).unwrap_or(0) + 1];
+    for b in rows.iter().filter(|r| !r.helper).flat_map(|r| &r.buckets) {
+        if let Some(sum) = usize::try_from(b.bucket).ok().and_then(|i| out.get_mut(i)) {
+            sum.0 = sum.0.saturating_add(b.turns);
+            sum.1 = sum.1.saturating_add(b.cost);
+        }
+    }
+    out
 }
 
 /// 区切り（日・時）ごとの、本体の額と手伝いの額。`starts` は区切りの初めの時刻（秒。昇順）、`end` は最後の区切りの終わり。
 /// 行は、区間の終わりの時刻（`to_at`）が入る区切りに入れる。区切りの外の行は数えない。
-pub fn by_slot(_rows: &[Row], _starts: &[i64], _end: i64) -> Vec<(i64, i64)> {
-    Vec::new()
+pub fn by_slot(rows: &[Row], starts: &[i64], end: i64) -> Vec<(i64, i64)> {
+    let mut out = vec![(0i64, 0i64); starts.len()];
+    for row in rows.iter().filter(|r| r.to_at < end) {
+        let Some(i) = starts.partition_point(|s| *s <= row.to_at).checked_sub(1) else {
+            continue;
+        };
+        let sum = &mut out[i];
+        if row.helper {
+            sum.1 = sum.1.saturating_add(row.cost);
+        } else {
+            sum.0 = sum.0.saturating_add(row.cost);
+        }
+    }
+    out
 }
 
 /// 席（アクター）1 つの数。
@@ -277,13 +296,27 @@ pub struct Seat {
 }
 
 /// 席ごとの、額（本体と手伝いの計）といちばん長い文脈（本体の回だけ）。
-pub fn by_seat(_rows: &[Row]) -> BTreeMap<String, Seat> {
-    BTreeMap::new()
+pub fn by_seat(rows: &[Row]) -> BTreeMap<String, Seat> {
+    let mut out: BTreeMap<String, Seat> = BTreeMap::new();
+    for row in rows {
+        let seat = out.entry(row.actor_id.clone()).or_default();
+        seat.cost = seat.cost.saturating_add(row.cost);
+        if !row.helper {
+            seat.max_context = seat.max_context.max(row.max_context);
+        }
+    }
+    out
 }
 
 /// 時（`to_at` を時の初めに切り下げた時刻。秒）ごとの、本体の回のいちばん長い文脈（時の順）。本体の回の無い時は入れない。
-pub fn context_by_hour(_rows: &[Row]) -> Vec<(i64, i64)> {
-    Vec::new()
+pub fn context_by_hour(rows: &[Row]) -> Vec<(i64, i64)> {
+    let mut hours: BTreeMap<i64, i64> = BTreeMap::new();
+    for row in rows.iter().filter(|r| !r.helper) {
+        let hour = row.to_at - row.to_at.rem_euclid(3600);
+        let max = hours.entry(hour).or_default();
+        *max = (*max).max(row.max_context);
+    }
+    hours.into_iter().collect()
 }
 
 #[cfg(test)]

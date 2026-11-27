@@ -33,19 +33,56 @@ pub struct Axis {
 impl Axis {
     /// 目盛りの値（0 から、いちばん上まで）と、その y。
     pub fn ticks(&self) -> Vec<(i64, u32)> {
-        Vec::new()
+        let n = self.top / self.step.max(1);
+        (0..=n)
+            .map(|i| (i * self.step, self.y(i * self.step)))
+            .collect()
     }
 
     /// 値の y（0 は [`BASE`]、いちばん上は [`TOP`]。外の値は端に寄せる。切り捨て）。
-    pub fn y(&self, _value: i64) -> u32 {
-        0
+    pub fn y(&self, value: i64) -> u32 {
+        let top = self.top.max(1);
+        let up = i128::from(value.clamp(0, top)) * i128::from(PLOT_H) / i128::from(top);
+        BASE - u32::try_from(up).unwrap_or(PLOT_H)
     }
 }
 
 /// いちばん大きい値 `max` から、縦の目盛りを決める。刻みは 1・2・5 × 10 の冪で、`max` の 4 分の 1 以上の
 /// いちばん小さい物（`min_step` より細かくしない。`min_step` は 10 の冪）。値が 0 なら、0 から `min_step` まで。
-pub fn axis(_max: i64, _min_step: i64) -> Axis {
-    Axis { step: 1, top: 1 }
+pub fn axis(max: i64, min_step: i64) -> Axis {
+    let min_step = min_step.max(1);
+    if max <= 0 {
+        return Axis {
+            step: min_step,
+            top: min_step,
+        };
+    }
+    // 目盛りを 4 つほどに（刻みは max の 4 分の 1 以上）。
+    let want = ceil_div(max, 4).max(min_step);
+    let mut unit = 1i64;
+    loop {
+        for m in [1, 2, 5] {
+            let step = unit.saturating_mul(m);
+            if step >= want {
+                return Axis {
+                    step,
+                    top: ceil_div(max, step).saturating_mul(step),
+                };
+            }
+        }
+        if unit > i64::MAX / 10 {
+            return Axis {
+                step: max,
+                top: max,
+            };
+        }
+        unit *= 10;
+    }
+}
+
+/// 正の数の割り算の切り上げ（i64 の `div_ceil` は、まだ使えない）。
+fn ceil_div(a: i64, b: i64) -> i64 {
+    a / b + i64::from(a % b != 0)
 }
 
 /// 横を等しく分けた枠 1 つ（左の端と幅）。
@@ -63,8 +100,18 @@ impl Slot {
 }
 
 /// 描く所の幅を `n` の枠に分ける（左から。端は切り捨てで揃え、枠の間に隙間を作らない）。
-pub fn slots(_n: usize) -> Vec<Slot> {
-    Vec::new()
+pub fn slots(n: usize) -> Vec<Slot> {
+    let Ok(count) = u64::try_from(n) else {
+        return Vec::new();
+    };
+    let edge =
+        |i: u64| LEFT + u32::try_from(i * u64::from(PLOT_W) / count.max(1)).unwrap_or(PLOT_W);
+    (0..count)
+        .map(|i| Slot {
+            left: edge(i),
+            width: edge(i + 1) - edge(i),
+        })
+        .collect()
 }
 
 /// 棒 1 本の置き場。
@@ -78,35 +125,79 @@ pub struct Bar {
 
 /// 枠の中の、`base` から `base + value` までの棒（積む棒は、下の棒の値を `base` に渡す）。左右に枠の幅の 6 分の 1 ずつ空ける。
 /// `value` が 0 以下なら無い。0 でなければ、低くても 1 px。
-pub fn bar(_axis: Axis, _slot: &Slot, _base: i64, _value: i64) -> Option<Bar> {
-    None
+pub fn bar(axis: Axis, slot: &Slot, base: i64, value: i64) -> Option<Bar> {
+    if value <= 0 {
+        return None;
+    }
+    let bottom = axis.y(base);
+    let h = (bottom - axis.y(base.saturating_add(value))).max(1);
+    let pad = slot.width / 6;
+    Some(Bar {
+        x: slot.left + pad,
+        y: bottom.saturating_sub(h),
+        w: (slot.width - 2 * pad).max(1),
+        h,
+    })
 }
 
 /// `n` の枠に横の目盛りの字を置く時の間引き: 字の間を `min_px` より狭くしない、いちばん小さい間（枠の数）。
-pub fn label_every(_n: usize, _min_px: u32) -> usize {
-    0
+pub fn label_every(n: usize, min_px: u32) -> usize {
+    let width = u32::try_from(n)
+        .ok()
+        .filter(|n| *n > 0)
+        .map_or(PLOT_W, |n| PLOT_W / n)
+        .max(1);
+    usize::try_from(min_px.div_ceil(width)).unwrap_or(1).max(1)
 }
 
 /// 時刻の窓 [`from`, `to`) を、日（`offset_s` だけずらした時刻の 0 時の境。日本時間なら 9 時間）で区切った、区切りの初め。
 /// 初めは `from`（日の途中でも）。
-pub fn day_starts(_from: i64, _to: i64, _offset_s: i64) -> Vec<i64> {
-    Vec::new()
+pub fn day_starts(from: i64, to: i64, offset_s: i64) -> Vec<i64> {
+    let mut out = Vec::new();
+    if from >= to {
+        return out;
+    }
+    out.push(from);
+    // 初めの次の、日の境。
+    let mut t = (from + offset_s).div_euclid(DAY) * DAY - offset_s + DAY;
+    while t < to {
+        out.push(t);
+        t += DAY;
+    }
+    out
 }
 
 /// 時刻の窓 [`from`, `to`) を、1 時間ごとに区切った、区切りの初め（`from` は時の境に揃えた物）。
-pub fn hour_starts(_from: i64, _to: i64) -> Vec<i64> {
-    Vec::new()
+pub fn hour_starts(from: i64, to: i64) -> Vec<i64> {
+    (0..)
+        .map(|i| from + i * HOUR)
+        .take_while(|t| *t < to)
+        .collect()
 }
 
 /// 時刻の窓 [`start`, `end`] の中の時刻の x（外は端に寄せる。切り捨て）。
-pub fn x_at(_start: i64, _end: i64, _t: i64) -> u32 {
-    0
+pub fn x_at(start: i64, end: i64, t: i64) -> u32 {
+    let span = i128::from((end - start).max(1));
+    let off = i128::from(t.clamp(start, end.max(start)) - start) * i128::from(PLOT_W) / span;
+    LEFT + u32::try_from(off).unwrap_or(PLOT_W)
 }
 
 /// 時ごとの値（時の初めの時刻と値。時の順）の、段々の線の SVG の path（`d`）。時の初めから 1 時間の横の線にし、
 /// 前の時に続く時は縦の線でつなぐ。記録の無い時は、線を切る。
-pub fn steps(_points: &[(i64, i64)], _start: i64, _end: i64, _axis: Axis) -> String {
-    String::new()
+pub fn steps(points: &[(i64, i64)], start: i64, end: i64, axis: Axis) -> String {
+    let mut d = String::new();
+    let mut last: Option<i64> = None;
+    for &(t, value) in points {
+        let y = axis.y(value);
+        let x1 = x_at(start, end, t + HOUR);
+        if last == Some(t) {
+            d.push_str(&format!("V{y}H{x1}"));
+        } else {
+            d.push_str(&format!("M{},{y}H{x1}", x_at(start, end, t)));
+        }
+        last = Some(t + HOUR);
+    }
+    d
 }
 
 #[cfg(test)]

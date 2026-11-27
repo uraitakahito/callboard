@@ -310,6 +310,7 @@ impl Castlist {
             .from(search.from)
             .to(search.to)
             .set_label((!search.labels.is_empty()).then(|| search.labels.clone()))
+            .set_actor_id(search.actor_id.clone())
             .max_results(USAGE_PAGE_SIZE)
             .set_next_token(next)
             .customize()
