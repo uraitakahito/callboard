@@ -121,16 +121,12 @@ pub fn pagetray_routes() -> Router {
 }
 
 /// link の頭（試験の値。聞く先と違う所にして、取り違えを見分ける）。
-pub const CASTLIST_LINK: &str = "http://127.0.0.1:18802";
 pub const PAGETRAY_LINK: &str = "http://127.0.0.1:18801";
 
 pub fn settings(castlist: &str, pagetray: &str) -> Settings {
     Settings {
         listen: "127.0.0.1:0".to_owned(),
-        castlist: Base {
-            api: castlist.to_owned(),
-            link: CASTLIST_LINK.to_owned(),
-        },
+        castlist: castlist.to_owned(),
         pagetray: Base {
             api: pagetray.to_owned(),
             link: PAGETRAY_LINK.to_owned(),

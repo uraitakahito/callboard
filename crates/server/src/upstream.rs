@@ -35,6 +35,8 @@ pub struct Health {
 pub enum Failure {
     /// 名指した物が無い（呼ぶ先の 404 `NotFound`）。
     NotFound,
+    /// 呼ぶ先が、引数を断った（400 `ValidationException`。中は、呼ぶ先の訳の字）。送り直しても直らない。
+    Rejected(String),
     /// 聞けなかった（訳は [`reason`] の字）。
     Unavailable(String),
 }

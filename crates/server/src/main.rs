@@ -26,7 +26,7 @@ async fn main() -> ExitCode {
     }
 }
 
-const USAGE: &str = "使い方: callboard-server（環境変数 CALLBOARD_LISTEN・CALLBOARD_CASTLIST_URL・CALLBOARD_CASTLIST_LINK_URL・CALLBOARD_PAGETRAY_URL・CALLBOARD_PAGETRAY_LINK_URL で起きる）";
+const USAGE: &str = "使い方: callboard-server（環境変数 CALLBOARD_LISTEN・CALLBOARD_CASTLIST_URL・CALLBOARD_PAGETRAY_URL・CALLBOARD_PAGETRAY_LINK_URL で起きる）";
 
 /// 起きて、止める合図まで受け続ける。
 async fn serve() -> Result<(), Box<dyn std::error::Error>> {
@@ -37,7 +37,7 @@ async fn serve() -> Result<(), Box<dyn std::error::Error>> {
         "callboard {} listen={} castlist={} pagetray={}",
         env!("CARGO_PKG_VERSION"),
         listener.local_addr()?,
-        settings.castlist.api,
+        settings.castlist,
         settings.pagetray.api,
     );
 

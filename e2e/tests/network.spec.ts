@@ -242,11 +242,17 @@ test('点と線は callboard の中継の道から引き、browser は castlist 
 
 test('相関図から、頭の link と一覧へ・タイムラインへの link で行き来できる', async ({ page }) => {
   await open(page);
-  // 頭の link: 相関図は callboard の中、まだ移していない画面は castlist。
+  // 頭の link: castlist の 4 つの画面は、みな callboard の中。
   const nav = page.locator('header nav');
   await expect(nav.getByRole('link', { name: '相関図' })).toHaveAttribute('href', '/graph/network');
-  await expect(nav.getByRole('link', { name: 'アクター' })).toHaveAttribute('href', `${CASTLIST}/`);
-  await expect(page.getByRole('link', { name: 'タイムラインへ' })).toHaveAttribute('href', `${CASTLIST}/graph/timeline`);
+  await expect(nav.getByRole('link', { name: 'アクター' })).toHaveAttribute('href', '/actors/');
+  await page.getByRole('link', { name: 'タイムラインへ' }).click();
+  await expect(page).toHaveURL('/graph/timeline');
+  await expect(page.locator('svg.timeline')).toBeVisible();
+  await page.getByRole('link', { name: '一覧へ' }).click();
+  await expect(page).toHaveURL('/actors/');
+  await page.locator('table.actors').getByRole('link', { name: 'se.2' }).click();
+  await expect(page.locator('h1')).toHaveText('se.2');
   await page.getByRole('link', { name: 'callboard', exact: true }).click();
   await expect(page).toHaveURL('/');
   await expect(page.locator('#castlist')).toContainText('つながっています');
@@ -275,8 +281,7 @@ test.describe('JavaScript を切った browser', () => {
     const note = page.locator('.noscript');
     await expect(note).toBeVisible();
     await expect(note).toContainText('JavaScript');
-    // タイムラインは、まだ castlist の画面（link の頭で指す）。
-    await expect(note.locator(`a[href="${CASTLIST}/graph/timeline?label=tpm.key:t-23zs"]`)).toBeVisible();
+    await expect(note.locator('a[href="/graph/timeline?label=tpm.key:t-23zs"]')).toBeVisible();
     await expect(page.locator('#network-controls')).toBeHidden();
   });
 });

@@ -170,9 +170,11 @@ async fn 起点のアクターは_起動した人が無いと書き_人には種
     actor.as_object_mut().unwrap().remove("currentSettings");
     actor["events"] = json!([]);
     actor["state"] = json!({"present": false, "inferred": false});
+    let mut me = common::castlist::row(SE1, "pm.1", "human");
+    me["present"] = json!(false);
+    me.as_object_mut().unwrap().remove("presence");
     let lineage = json!({
-        "asOf": "2026-11-22T06:00:00Z", "actorId": SE1,
-        "nodes": [common::castlist::row(SE1, "pm.1", "human")], "edges": [],
+        "asOf": "2026-11-22T06:00:00Z", "actorId": SE1, "nodes": [me], "edges": [],
     });
     let app = start_with(actor, lineage).await;
     let body = app.html(&format!("/actors/{SE1}")).await;
@@ -248,31 +250,40 @@ async fn プロフィールの出来事は_日本語の名と理由ときっか�
 }
 
 #[tokio::test]
-async fn 時刻ずれの印は_登録_出来事_model_と_effort_のどれか_1_つがずれていれば付く() {
-    // 見本の se.1 から、時刻ずれの行を無くした物。
-    let clean = || {
-        let mut actor = se1_actor();
-        actor["events"][2]["clockSkew"] = json!(false);
-        actor
-    };
-    let skewed = |actor: serde_json::Value| async move {
-        let app = start_with(actor, se1_lineage()).await;
+async fn 時刻ずれの印と_稼働を替えた出来事は_辿った先の自分の行から読む() {
+    // castlist 1.1.0 から、辿った先の行（ActorRow）に skewed と presence がある（一覧の行と同じ値）。
+    let state = |lineage: serde_json::Value| async move {
+        let app = start_with(se1_actor(), lineage).await;
         let body = app.html(&format!("/actors/{SE1}")).await;
-        section(&body, "state").contains("class=\"skew\"")
+        section(&body, "state").to_owned()
     };
-    assert!(!skewed(clean()).await);
-    // 登録だけ。
-    let mut actor = clean();
-    actor["clockSkew"] = json!(true);
-    assert!(skewed(actor).await);
-    // 出来事だけ。
-    let mut actor = clean();
-    actor["events"][0]["clockSkew"] = json!(true);
-    assert!(skewed(actor).await);
-    // model と effort だけ。
-    let mut actor = clean();
-    actor["settings"][3]["clockSkew"] = json!(true);
-    assert!(skewed(actor).await);
+    let with = |skewed: Option<bool>, presence: Option<&str>| {
+        let mut lineage = se1_lineage();
+        let me = lineage["nodes"][2].as_object_mut().unwrap();
+        match skewed {
+            Some(v) => me.insert("skewed".to_owned(), json!(v)),
+            None => me.remove("skewed"),
+        };
+        match presence {
+            Some(v) => me.insert("presence".to_owned(), json!(v)),
+            None => me.remove("presence"),
+        };
+        lineage
+    };
+    let on = state(with(Some(true), Some("exited"))).await;
+    assert!(on.contains("class=\"skew\""), "{on}");
+    assert!(
+        on.contains("<span class=\"event\" title=\"exited\">退場</span>"),
+        "{on}"
+    );
+    let off = state(with(Some(false), Some("cleared"))).await;
+    assert!(!off.contains("class=\"skew\""), "{off}");
+    // 欄が無い答え（castlist が 1.1.0 より古い）では、印も出来事も出さない（出来事の行にずれがあっても）。
+    let old = state(with(None, None)).await;
+    assert!(
+        !old.contains("class=\"skew\"") && !old.contains("class=\"event\""),
+        "{old}"
+    );
 }
 
 #[tokio::test]
@@ -281,6 +292,7 @@ async fn 推しの幕引きで終わった者は_停止_推しと書く() {
     actor["state"] = json!({"presence": "closed", "present": false, "inferred": true});
     let mut lineage = se1_lineage();
     lineage["nodes"][2]["inferred"] = json!(true);
+    lineage["nodes"][2]["presence"] = json!("closed");
     let app = start_with(actor, lineage).await;
     let body = app.html(&format!("/actors/{SE1}")).await;
     let state = section(&body, "state");

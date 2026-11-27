@@ -323,6 +323,57 @@ impl From<crate::operation::get_lineage::GetLineageError> for Error {
 impl<R>
     From<
         ::aws_smithy_runtime_api::client::result::SdkError<
+            crate::operation::get_timeline::GetTimelineError,
+            R,
+        >,
+    > for Error
+where
+    R: Send + Sync + std::fmt::Debug + 'static,
+{
+    fn from(
+        err: ::aws_smithy_runtime_api::client::result::SdkError<
+            crate::operation::get_timeline::GetTimelineError,
+            R,
+        >,
+    ) -> Self {
+        match err {
+            ::aws_smithy_runtime_api::client::result::SdkError::ServiceError(context) => {
+                Self::from(context.into_err())
+            }
+            _ => Error::Unhandled(crate::error::sealed_unhandled::Unhandled {
+                meta: ::aws_smithy_types::error::metadata::ProvideErrorMetadata::meta(&err).clone(),
+                source: err.into(),
+            }),
+        }
+    }
+}
+impl From<crate::operation::get_timeline::GetTimelineError> for Error {
+    fn from(err: crate::operation::get_timeline::GetTimelineError) -> Self {
+        match err {
+            crate::operation::get_timeline::GetTimelineError::ValidationError(inner) => {
+                Error::ValidationError(inner)
+            }
+            crate::operation::get_timeline::GetTimelineError::Unavailable(inner) => {
+                Error::Unavailable(inner)
+            }
+            crate::operation::get_timeline::GetTimelineError::InternalError(inner) => {
+                Error::InternalError(inner)
+            }
+            crate::operation::get_timeline::GetTimelineError::Forbidden(inner) => {
+                Error::Forbidden(inner)
+            }
+            crate::operation::get_timeline::GetTimelineError::PayloadTooLarge(inner) => {
+                Error::PayloadTooLarge(inner)
+            }
+            crate::operation::get_timeline::GetTimelineError::Unhandled(inner) => {
+                Error::Unhandled(inner)
+            }
+        }
+    }
+}
+impl<R>
+    From<
+        ::aws_smithy_runtime_api::client::result::SdkError<
             crate::operation::list_actors::ListActorsError,
             R,
         >,

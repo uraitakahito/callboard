@@ -22,7 +22,7 @@ impl crate::operation::list_actor_settings::builders::ListActorSettingsInputBuil
 }
 /// Fluent builder constructing a request to `ListActorSettings`.
 ///
-/// あるアクターの model と effort の行の全部（受けた順）。頁は分けない（1 つのアクターの行は少ない。今の server と同じ）。
+/// あるアクターの model と effort の行の全部（受けた順）。頁は分けない（1 つのアクターの行は少ない）。
 #[derive(::std::clone::Clone, ::std::fmt::Debug)]
 pub struct ListActorSettingsFluentBuilder {
     handle: ::std::sync::Arc<crate::client::Handle>,

@@ -42,6 +42,8 @@ pub(crate) mod shape_get_health;
 
 pub(crate) mod shape_get_lineage;
 
+pub(crate) mod shape_get_timeline;
+
 pub(crate) mod shape_list_actor_settings;
 
 pub(crate) mod shape_list_actors;
@@ -122,6 +124,8 @@ pub(crate) mod shape_setting_rows;
 
 pub(crate) mod shape_settings;
 
+pub(crate) mod shape_timeline_events;
+
 pub(crate) mod shape_validation_exception_field_list;
 
 pub(crate) mod shape_actor_binding;
@@ -139,5 +143,7 @@ pub(crate) mod shape_link;
 pub(crate) mod shape_resolution;
 
 pub(crate) mod shape_setting_row;
+
+pub(crate) mod shape_timeline_event;
 
 pub(crate) mod shape_validation_exception_field;

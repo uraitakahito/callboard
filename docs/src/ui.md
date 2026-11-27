@@ -11,21 +11,57 @@ callboard が HTML を組んで返す画面（askama。`templates/`）。callboa
 
 ## 移した画面と、まだ移していない画面
 
-castlist と pagetray の画面を、1 つずつ callboard に移している。まだ移していない画面への link は、castlist・pagetray の画面を指す（link の頭は設定の `CALLBOARD_CASTLIST_LINK_URL`・`CALLBOARD_PAGETRAY_LINK_URL`。[動かす](run.md)）。
+castlist と pagetray の画面を、1 つずつ callboard に移している。castlist の 4 つの画面は、みな移した（0.2.0）。まだ移していない pagetray の画面への link は、pagetray の画面を指す（link の頭は設定の `CALLBOARD_PAGETRAY_LINK_URL`。[動かす](run.md)）。
 
-| 画面 | 今ある所 | callboard の道 |
-|---|---|---|
-| 入口 | callboard | `/` |
-| プロフィール | callboard | `/actors/{id}` |
-| 相関図 | callboard | `/graph/network` |
-| アクターの一覧 | castlist（`/`） | これから（`/actors/`） |
-| タイムライン | castlist（`/graph/timeline`） | これから（`/graph/timeline`） |
-| ページの一覧 | pagetray（`/`） | これから（`/pages/`） |
-| メッセージ | pagetray（`/messages`） | これから（`/messages`） |
+| 画面 | 今ある所 | callboard の道 | castlist・pagetray での道 |
+|---|---|---|---|
+| 入口 | callboard | `/` | — |
+| アクターの一覧 | callboard（0.2.0 から） | `/actors/` | castlist の `/` |
+| プロフィール | callboard（0.1.0 から） | `/actors/{id}` | castlist の `/actors/{id}` |
+| タイムライン | callboard（0.2.0 から） | `/graph/timeline` | castlist の `/graph/timeline` |
+| 相関図 | callboard（0.1.0 から） | `/graph/network` | castlist の `/graph/network` |
+| ページの一覧 | pagetray | これから（`/pages/`） | pagetray の `/` |
+| メッセージ | pagetray | これから（`/messages`） | pagetray の `/messages` |
+
+castlist の画面との違い（画面の中身。頭の帯の下）は 2 つだけ: 送り手の時刻の ISO の字をミリ秒までにそろえることと、誤りの画面の戻りの link（「一覧へ」でなく「入口へ」）。CI の browser の試験（`e2e/tests/compare.spec.ts`・`profile.spec.ts`）が、同じ castlist を相手に、castlist の画面と比べている。
 
 ## `GET /` 入口
 
 castlist と pagetray が生きているか（「つながっています」と版。聞けなければ「届きません」と訳）と、それぞれの画面への link。呼ぶ先が答えなくても 200 で返す。生きているかは、開くたびに聞く（1 秒まで待つ）。
+
+## 期間の欄
+
+一覧の稼働した期間（`active_from`・`active_to`）と、2 つの図（タイムライン・相関図）の登録した期間（`from`・`to`）の欄は、browser の日時の欄（`<input type="datetime-local" step="any">`。script は使わない）。
+
+- browser が送る `YYYY-MM-DDTHH:MM`（`:SS`・`:SS.sss` も）は日本時間（UTC+9）として、RFC 3339（`2026-11-22T11:00:00+09:00`）にしてから、今までと同じ検索をする。URL に RFC 3339 の値（`Z` や別のずれの付いた前の link）を書けば、そのまま効く。どちらでもない値は 400 の画面で、欄の見出しと直し方を書く（「「稼働した期間（から）」の日時を読めません。日時の欄で選ぶか、2026-11-22T13:00 の形で入れてください。」。API の訳「RFC 3339 の時刻」は画面に出さない）。
+- 期間を付けて開いた画面では、欄にその期間を日本時間の字（`2026-11-22T11:00`。秒やミリ秒があれば `:07`・`:07.120` まで）で出す。form を送り直しても同じ時刻。`step="any"` は、秒やミリ秒の付いた値でも browser が送るのを断らないため。
+- 欄の下に「期間（今の条件のまま、期間だけを替えます）」の link: 直近 1 時間・今日・昨日・直近 7 日。今の画面の URL のまま、期間の 2 つの引数だけを替える（ほかの条件は残し、次のページの `after` は落とす）。期間は callboard が今の時刻から決め、RFC 3339（`+09:00`。秒まで）で URL に置くので、開いた URL をそのまま証拠に貼れる。直近 1 時間・直近 7 日は今まで（今の秒を切り上げる）、今日・昨日は日本時間の 0 時から次の 0 時まで。
+- 日本時間の字にするのは画面だけ。castlist の API には、UTC の字（`Z`）にして渡す。
+
+## `GET /actors/` アクターの一覧
+
+アクターを、最初の登場の新しい順に表示する。
+
+| 列 | 中身 |
+|---|---|
+| 名前 | プロフィールへの link |
+| 種類 | 人（Product Manager）にだけ「人」。AI には何も出さない（アクターはほとんど AI なので） |
+| 状態 | 稼働中・停止（推しの幕引きで停止した者は「停止（推し）」）と、状態を替える出来事の最新（日本語の名） |
+| 課題の Key・役割 | ラベル `tpm.key`・`tpm.role` |
+| model · effort | 最新の model と effort |
+| 最初の登場・最後の退場 | 受け取った時刻 |
+| 時刻ずれ | アクター・出来事・model と effort のどれかに、送り手の時計がずれた行がある |
+
+絞り込みは、castlist の監査の検索 `ListActors`（`GET /api/actors`）と同じ条件を、画面の引数の名（snake_case。`activeFrom` は `active_from`、`launchedBy` は `launched_by`、`maxResults` は `limit`、`nextToken` は `after`）で URL に置く。引数は callboard が確かめ（`crates/server/src/ui/list.rs`・`ui/params.rs`）、確かめた物を castlist の API に渡す。form には `label`（何度でも）・`active`（状態: すべて・稼働中・停止）・`kind`（種類: すべて・人。人を探す道として残す。AI だけに絞る選び肢は無いが、URL の `kind=ai` は今と同じく AI だけに絞る）・`model`・`effort`・`active_from`・`active_to`（稼働した期間（から）・（まで）。上の「期間の欄」）・`skewed`（時刻ずれあり）の欄がある。ほかの引数（`binding`・`at`・`launched_by`・`sort`・`order`・`limit`）も URL に書けば効き、form を送り直しても残る。
+
+- 絞り込みは、すべての条件に合うアクターを表示する（AND）。枠の見出しは「絞り込み」だけで、この訳は画面に書かない。
+- form は空の欄も送るので、空の値は付けなかったのと同じにする。
+- `order` が無ければ `desc`（新しい順）、`limit` が無ければ 100。
+- 条件が無ければ、`active_from` を今から 7 日前にして表示し、そう書く（「この 7 日に稼働したアクター」。castlist の API は条件の無い検索を断るので）。登場の記録の無いアクターは、この既定では表示されない。ラベルなどで絞り込むと表示される。
+- 次のページは「次のページ」の link（`rel="next"`）。条件はそのままで、検索の次の頁の印を `after` に付ける。
+- 引数の誤り（知らない名・1 つだけの名の重なり・読めない値）は、引数の名を書いた 400 の画面（期間の欄の読めない値だけは、[期間の欄](#期間の欄)の字）。castlist には聞かない。
+- 行の「状態」の横の出来事の名と、「時刻ずれ」の印は、castlist 1.1.0 で足した欄（`presence`・`skewed`）から出す。
+- castlist に聞けない時は 503 の画面で、訳を書く。
 
 ## `GET /actors/{id}` プロフィール
 
@@ -52,11 +88,39 @@ castlist の API の 2 つの答えから組む: アクター 1 つ（`GetActor`
 
 画面の中身（頭の帯の下）の、castlist の画面との違いは 1 つ: 送り手の時刻の ISO の字を、ミリ秒までにそろえる（castlist の画面は、送られた字のまま出す。同じ時刻）。頭の帯（題・画面の間の link・tab の印）は、callboard の物。
 
+「今の状態」の出来事の名と時刻ずれの印は、辿った先の自分の行の欄（`presence`・`skewed`。castlist 1.1.0 から）から読む（一覧の行と同じ値）。
+
+## `GET /graph/timeline` タイムライン
+
+アクターが稼働していた期間を、横を時刻にした帯で表示する。callboard が、castlist の `GetTimeline`（`GET /api/timeline`。castlist 1.1.0 から）の答えから SVG を組んでページに埋め込む（script は使わない）。
+
+- 絞りは castlist の `GetTimeline` と同じ引数（`label`・`from`・`to`。どれも 1 つだけ。`from`・`to` は「期間の欄」）。絞った組に触れる線と、その線の向こうの端のアクター（一歩だけ）も出す（人の根が切れないように）。form は空の欄も送るので、空の値は付けなかったのと同じにする。条件が無ければ、全部のアクターを出す。
+- 引数の誤りは、引数の名を書いた 400 の画面（期間の欄の読めない値だけは、[期間の欄](#期間の欄)の字）。条件に合うアクターがいなければ、SVG を出さずにそう書く（「条件に合うアクターはいません。」）。
+- 横は castlist が受け取った時刻（`received_at`）を日本時間で。`from`・`to`（登録した期間）を付ければ、横もその期間にする（期間の外は切る）。無ければ、稼働した期間・印・線の時刻の初めから終わりまで（稼働中のアクターがいれば今まで。1 分より短ければ 1 分に延ばす）。
+
+| 物 | 描き方 |
+|---|---|
+| 行 | 1 つのアクターに 1 行。人を上に、ほかは最初の登場の受け取った時刻の順（登場の無いアクターは登録した時刻）。左に名（プロフィールへの link）と、人には「人」 |
+| 帯 | 稼働にする出来事（`entered`・`reentered`・`forked`）から、停止にする出来事（`cleared`・`exited`・`closed`）まで（どれも seq の順。稼働中の登場・停止中の退場は何もしない）。停止の後にまた来れば、帯は別になる。稼働中のままなら今（か表示する期間の右端）まで描き、右端を尖らせる（「まだ稼働中」）。期間の左端で切った帯は、左端を尖らせる |
+| 推しの帯 | 推しの幕引き（`closed` で `detail.inferred` が JSON の true）で終わる帯は、最後の便り（その行の稼働・停止の出来事・印・model と effort の替わり目の最新。終わりの出来事そのものは数えない）で切り、そこから終わりまでを点線の縁と薄い塗りで描く（class `inferred`）。終わりは roster が気づいた時刻（受け取った時刻）で、止まった本当の時刻ではない。マウスを重ねると、終わりの時刻の後に訳を「（推し: 居場所が消えた）」（`detail.reason` が `workspace_gone`）・「（推し: 居場所に別の session が入った）」（`superseded`）・「（推し: roster が落ちたと推した）」（ほか）の形で表示する。推しの幕引きが表示する期間の右端より後なら、右端を尖らせ「続く（表示する期間の後に推しの幕引き: …）」と表示する。帯の字は、推しの切れで切っても 1 度だけ（続く切れを合わせた幅に収まる時に、初めの切れに）書く。どの帯が推しで終わったかは、一覧などの「停止（推し）」と同じ決め方（castlist の `state.inferred`）。凡例に「点線の帯」 |
+| 帯の切れ | model と effort の替わり目（`settings` の行を seq の順に。送り手の時刻 `sent_at` は見ない）で切る。同じ値が続けば切らない。登場の前に指定した物は、帯の初めから効く。切れに `opus-5-5 · high` の形の字を、幅に収まる時だけ書く（はみ出さない。字の幅は字の数から見積もる: ASCII は字の大きさの 0.62、ほかは 1 字分）。矢印の線が切れを通る所は避け（線から 3 px 空ける）、線の横の空いた所に書く。空いた所に収まらなければ書かない。マウスを重ねると（SVG の `<title>`）、名前・値・指定 / 実際（実際の値が、その前に指定した値と違えば「指定と違う」）・初めと終わりの時刻を表示する |
+| 切れの色 | model の名で決める class（`m-opus`・`m-sonnet`・`m-haiku`。ほかの model はみな `m-other`。記録が無ければ `m-none`）。凡例に、出てくる model を並べる |
+| 実線の矢印 | 起動した（`launched`）。起動したアクターの行の、線を受け取った時刻から、起動されたアクターの最初の帯の始まりへ |
+| 点線の矢印 | 引き継いだ（`continued`）。引き継ぎ元の帯の終わり（引き継ぎ先の始まりより前の、最後の物）から、引き継ぎ先の最初の帯の始まりへ |
+| 印 | 帯を縦に切る短い線。要約（`compacted`）・名乗り（`reported_in`）・model 不明（`model_unreadable`）。マウスを重ねると、出来事の名と時刻を表示する |
+| 目盛り | 表示する期間の長さで、10 秒〜1 年の切りのよい間（日本時間で揃える）を選ぶ。目盛りの間は 100 px より狭くしない。字は `時:分`（秒の間なら `時:分:秒`）で、初めと日が替わった目盛りに `月-日` を前に付ける。1 日より長い間は `月-日` |
+| 今 | 表示する期間の中なら、今（表示した時刻。castlist が読み始めた時刻）に点線の縦の線 |
+
+並べ方（`crates/server/src/ui/timeline_layout.rs`。castlist の `timeline.rs` をそのまま移した、外に触らない純な計算で、単体の試験を持つ）は、行ごとの稼働・停止の出来事と替わり目と印の時刻（ミリ秒）、線、期間を受けて、帯の切れ・矢印・印・目盛りの置き場を返す。同じ入力からは、いつも同じ図。並べる計算と HTML を組むのは `tokio::task::spawn_blocking` の糸で行う。色は `site.css` の class で決める（明るい色と暗い色）。矢印は帯の下に、帯の字は印の上に（縁取りを付けて）描く。
+
+- castlist に聞けない時は 503 の画面で、訳を書く。castlist が 1.1.0 より古いと、「castlist に聞けません（404 が返りました）」になる。
+- 答えの大きさ: castlist は頁を分けずに、組のアクターの出来事の全部を返す。測った値（release の build。手元の機械）: 動いている台帳の写し（アクター 108 人。2026-11-27）で、castlist の答えは 257 KB。アクター 500 人の見本（1 人に出来事 4〜5 つと model と effort 2 行・線 499 本）で、castlist の答えは 869 KB・17 ms、callboard の画面は 504 KB・26 ms。callboard が castlist を待つ 4 秒には遠い。もっと広い組は、ラベルか期間で絞る。
+
 ## `GET /graph/network` 相関図
 
 誰が誰を起動し、誰が誰から引き継いだかを、点と線の相関図で表示する。script を使う唯一の画面。
 
-- 絞りは castlist の `GetGraph`（`GET /api/graph`）と同じ引数（`label`・`from`・`to`。どれも 1 つだけ）。form は空の欄も送るので、空の値は付けなかったのと同じにする。
+- 絞りは castlist の `GetGraph`（`GET /api/graph`）と同じ引数（`label`・`from`・`to`。どれも 1 つだけ。`from`・`to` は「期間の欄」）。form は空の欄も送るので、空の値は付けなかったのと同じにする。
 - callboard は引数を確かめるだけで（誤りは、引数の名を書いた 400 の画面）、点と線は描かない。同じ絞りの中継の道（下の `GET /api/castlist/graph`）の URL を、絵の場所の `data-src` に置く（期間は UTC・ミリ秒までの字に直す。castlist の API は時差の付いた時刻を受けないため）。
 - `static/network.js` が、その URL から点と線を引き、cytoscape で canvas に描く。字は DOM の `textContent` でだけ置く。
 - JavaScript を切った browser には、同じ条件のタイムラインを勧める字を表示する（`<noscript>`）。
@@ -73,14 +137,6 @@ castlist の API の 2 つの答えから組む: アクター 1 つ（`GetActor`
 - 点を押すと、そのアクターのプロフィールを表示する。名前にマウスを重ねると、名前・種類・model · effort・状態を表示する。
 - 「表示する点を選ぶ」の model（短い名）と effort は、ページの中だけで、合わない点と、その点に付く線を隠す（聞き直さない）。
 - 絵の下に、アクターと線の数と、castlist が答えた時刻（日本時間）を書く。条件に合うアクターがいなければ、そう書く。castlist に聞けなければ「相関図を表示できません: 503 castlist に聞けません（…）」と書く。
-
-### 期間の欄
-
-登録した期間（`from`・`to`）の欄は、browser の日時の欄（`<input type="datetime-local" step="any">`）。
-
-- browser が送る `YYYY-MM-DDTHH:MM`（`:SS`・`:SS.sss` も）は日本時間（UTC+9）として、RFC 3339 にしてから読む。URL に RFC 3339 の値を書けば、そのまま効く。どちらでもない値は 400 の画面で、欄の見出しと直し方を書く。
-- 期間を付けて開いた画面では、欄にその期間を日本時間の字で出す。form を送り直しても同じ時刻。
-- 欄の下に「期間（今の条件のまま、期間だけを替えます）」の link: 直近 1 時間・今日・昨日・直近 7 日。
 
 ### `GET /api/castlist/graph` 図の点と線（中継）
 

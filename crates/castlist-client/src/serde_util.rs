@@ -175,6 +175,27 @@ pub(crate) fn get_lineage_output_output_correct_errors(
     builder
 }
 
+pub(crate) fn get_timeline_output_output_correct_errors(
+    mut builder: crate::operation::get_timeline::builders::GetTimelineOutputBuilder,
+) -> crate::operation::get_timeline::builders::GetTimelineOutputBuilder {
+    if builder.as_of.is_none() {
+        builder.as_of = Some(::aws_smithy_types::DateTime::from_fractional_secs(0, 0_f64))
+    }
+    if builder.nodes.is_none() {
+        builder.nodes = Some(Default::default())
+    }
+    if builder.edges.is_none() {
+        builder.edges = Some(Default::default())
+    }
+    if builder.events.is_none() {
+        builder.events = Some(Default::default())
+    }
+    if builder.settings.is_none() {
+        builder.settings = Some(Default::default())
+    }
+    builder
+}
+
 pub(crate) fn list_actor_settings_output_output_correct_errors(
     mut builder: crate::operation::list_actor_settings::builders::ListActorSettingsOutputBuilder,
 ) -> crate::operation::list_actor_settings::builders::ListActorSettingsOutputBuilder {
@@ -628,6 +649,24 @@ pub(crate) fn setting_row_correct_errors(
     }
     if builder.actor_name.is_none() {
         builder.actor_name = Some(Default::default())
+    }
+    builder
+}
+
+pub(crate) fn timeline_event_correct_errors(
+    mut builder: crate::types::builders::TimelineEventBuilder,
+) -> crate::types::builders::TimelineEventBuilder {
+    if builder.actor_id.is_none() {
+        builder.actor_id = Some(Default::default())
+    }
+    if builder.r#type.is_none() {
+        builder.r#type = Some(Default::default())
+    }
+    if builder.received_at.is_none() {
+        builder.received_at = Some(::aws_smithy_types::DateTime::from_fractional_secs(0, 0_f64))
+    }
+    if builder.inferred.is_none() {
+        builder.inferred = Some(Default::default())
     }
     builder
 }

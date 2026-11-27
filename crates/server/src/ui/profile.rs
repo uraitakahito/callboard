@@ -17,7 +17,7 @@ use castlist_client::types::{ActorRow, Link};
 use serde_json::Value;
 
 use super::time::{Time, time};
-use super::{CSS_HREF, Nav, error_page, render};
+use super::{CSS_HREF, Nav, error_page, kind_name, render};
 use crate::App;
 use crate::upstream::Failure;
 
@@ -39,16 +39,11 @@ const EVENT_NAMES: [(&str, &str); 10] = [
 ];
 
 /// 出来事の種類の、画面に出す日本語の名。知らない種類は id のまま。
-fn event_name(kind: &str) -> &str {
+pub fn event_name(kind: &str) -> &str {
     EVENT_NAMES
         .iter()
         .find(|(id, _)| *id == kind)
         .map_or(kind, |(_, name)| name)
-}
-
-/// 種類の印。人（Product Manager）にだけ「人」を付け、AI には付けない（アクターはほとんど AI なので。Product Manager の頼み）。
-fn kind_name(kind: &str) -> &'static str {
-    if kind == "human" { "人" } else { "" }
 }
 
 /// アクターを指す link（名と種類）。
@@ -142,7 +137,7 @@ struct EventRow {
     skewed: bool,
 }
 
-fn source_name(source: &str) -> &'static str {
+pub fn source_name(source: &str) -> &'static str {
     if source == "requested" {
         "指定"
     } else {
@@ -173,7 +168,9 @@ pub async fn profile(State(app): State<Arc<App>>, Path(id): Path<String>) -> Res
             Some(page) => render(StatusCode::OK, &page),
             None => not_found(),
         },
-        (Err(Failure::NotFound), _) | (_, Err(Failure::NotFound)) => not_found(),
+        // castlist が id を断った時（形は先に見てあるので、ふつうは起きない）も、無いアクターと同じに見せる。
+        (Err(Failure::NotFound | Failure::Rejected(_)), _)
+        | (_, Err(Failure::NotFound | Failure::Rejected(_))) => not_found(),
         (Err(Failure::Unavailable(why)), _) | (_, Err(Failure::Unavailable(why))) => error_page(
             nav,
             StatusCode::SERVICE_UNAVAILABLE,
@@ -295,10 +292,8 @@ fn profile_page<'a>(
             kind: kind_name(&me.kind),
             present: me.present,
             inferred: me.inferred,
-            // 稼働を替える出来事の最新と、時刻ずれの印は、辿った先の行（ActorRow）にまだ無いので、アクター 1 つの答えから出す
-            // （castlist の一覧の行と同じ決め方: 登録・出来事・model と effort のどれかが時刻ずれ）。
-            presence: actor
-                .state
+            // 稼働を替える出来事の最新と、時刻ずれの印は、辿った先の行（ActorRow。castlist 1.1.0 から）から読む（一覧の行と同じ値）。
+            presence: me
                 .presence
                 .as_deref()
                 .map(|p| (event_name(p).to_owned(), p.to_owned())),
@@ -306,9 +301,7 @@ fn profile_page<'a>(
             setting: me.model.clone().zip(me.effort.clone()),
             first_entered: me.first_entered_at.as_ref().map(time),
             last_exited: me.last_exited_at.as_ref().map(time),
-            skewed: actor.clock_skew
-                || actor.events.iter().any(|e| e.clock_skew)
-                || actor.settings.iter().any(|s| s.clock_skew),
+            skewed: me.skewed.unwrap_or(false),
         },
         current: actor.current_settings.as_ref().map(|c| CurrentSetting {
             source: source_name(&c.source),

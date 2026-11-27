@@ -26,7 +26,8 @@ pub fn row(id: &str, name: &str, kind: &str) -> Value {
     json!({
         "id": id, "name": name, "kind": kind, "issuer": "tpm",
         "sentAt": "2026-11-22T00:00:00Z", "receivedAt": "2026-11-22T00:00:00Z", "clockSkew": false,
-        "labels": {}, "present": true, "inferred": false, "url": format!("/actors/{id}"),
+        "labels": {}, "present": true, "inferred": false, "presence": "entered", "skewed": false,
+        "url": format!("/actors/{id}"),
     })
 }
 
@@ -105,6 +106,9 @@ pub fn se1_lineage() -> Value {
     let mut me = row(SE1, "se.1", "ai");
     me["labels"] = json!({"tpm.role": "se", "tpm.key": "t-23zs", "note": "<b>太字</b> & \"引用\""});
     me["present"] = json!(false);
+    me["presence"] = json!("cleared");
+    // 出来事に時刻ずれの行がある。
+    me["skewed"] = json!(true);
     me["firstEnteredAt"] = json!("2026-11-22T01:00:01Z");
     me["lastExitedAt"] = json!("2026-11-22T04:00:00Z");
     me["lastExitType"] = json!("cleared");

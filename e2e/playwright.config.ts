@@ -4,7 +4,7 @@
 //   CALLBOARD_E2E_SERVER    起こす callboard-server の binary（既定は ../target/debug/callboard-server を cargo build してから）
 //   CALLBOARD_E2E_CHANNEL   この機械に入っている browser を使う時の名（chrome など）。無ければ Playwright の Chromium
 // castlist は一時の DB で起こし、見本の記録は tests/seed.setup.ts が castlist の API で置く（ほかの試験より先に 1 度だけ）。
-// pagetray は起こさない（この段の画面は castlist だけを呼ぶ。聞く先は、だれも待っていない所にする）。
+// pagetray は起こさない（今ある画面は castlist だけを呼ぶ。聞く先は、だれも待っていない所にする）。
 import { defineConfig } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
@@ -66,8 +66,6 @@ export default defineConfig({
       env: {
         CALLBOARD_LISTEN: `127.0.0.1:${port}`,
         CALLBOARD_CASTLIST_URL: `http://127.0.0.1:${castlistPort}`,
-        // 画面の link の頭も、試験の castlist にする（まだ移していない画面への link を辿れる）。
-        CALLBOARD_CASTLIST_LINK_URL: `http://127.0.0.1:${castlistPort}`,
         CALLBOARD_PAGETRAY_URL: 'http://127.0.0.1:9',
       },
       url: `http://127.0.0.1:${port}/healthz`,
