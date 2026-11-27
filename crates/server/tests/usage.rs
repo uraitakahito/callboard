@@ -593,8 +593,9 @@ async fn 費えは_script_も_inline_の_style_も使わず_利用者の字を_h
         headers.get(header::CONTENT_SECURITY_POLICY).unwrap(),
         "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
     );
+    let page = common::without_i18n_scripts(&body);
     for raw in ["<script", "<style", "style=", "<b>", "<i>", "<u>"] {
-        assert!(!body.contains(raw), "{raw}: {body}");
+        assert!(!page.contains(raw), "{raw}: {body}");
     }
     assert!(
         body.contains("<span class=\"chip role\">&#60;i&#62;role&#60;/i&#62;</span>"),
@@ -616,7 +617,10 @@ async fn 頭の帯に_費えの_link_が在る() {
     let (_, _, missing) = app.send(get("/no/such")).await;
     for page in [app.html("/").await, app.html(WINDOW).await, missing] {
         let nav = &page[page.find("<nav").unwrap()..page.find("</nav>").unwrap()];
-        assert!(nav.contains("<a href=\"/usage/\">費え</a>"), "{nav}");
+        assert!(
+            nav.contains("<a href=\"/usage/\" data-i18n=\"nav.usage\">費え</a>"),
+            "{nav}"
+        );
     }
 }
 
@@ -819,7 +823,10 @@ async fn 図は_script_を使わず_行が無ければ出さない() {
     let app = sample().await;
     let body = app.html(WINDOW).await;
     assert_eq!(body.matches("<svg class=\"chart\"").count(), 2, "{body}");
-    assert!(!body.contains("<script"), "{body}");
+    assert!(
+        !common::without_i18n_scripts(&body).contains("<script"),
+        "{body}"
+    );
     assert!(!body.contains("style="), "{body}");
 
     let app = start(vec![usage_page(vec![], vec![], None)]).await;

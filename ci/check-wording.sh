@@ -6,12 +6,12 @@
 # 送り手の時計のずれは「時刻ずれ」、絞りの枠は「絞り込み」。
 # 見る形: 語の Mac（macOS は当てない）・/Users/<名>・札・上の前の字
 # 1 つでも当たれば、file と行を出して exit 1。
-# 使い方: ci/check-wording.sh [path…]（既定は README.md・CHANGELOG.md・docs/src・templates）
+# 使い方: ci/check-wording.sh [path…]（既定は README.md・CHANGELOG.md・docs/src・templates・画面の日本語の字 static/locales/ja.json）
 set -euo pipefail
 
 if [ "$#" -eq 0 ]; then
   root=$(cd "$(dirname "$0")/.." && pwd)
-  set -- "$root/README.md" "$root/CHANGELOG.md" "$root/docs/src" "$root/templates"
+  set -- "$root/README.md" "$root/CHANGELOG.md" "$root/docs/src" "$root/templates" "$root/static/locales/ja.json"
 fi
 
 files=$(find "$@" -type f | LC_ALL=C sort)

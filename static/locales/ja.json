@@ -1,0 +1,14 @@
+{
+  "nav": {
+    "label": "画面",
+    "actors": "アクター",
+    "timeline": "タイムライン",
+    "network": "相関図",
+    "usage": "費え",
+    "pages": "ページ",
+    "messages": "メッセージ"
+  },
+  "lang": {
+    "label": "言語"
+  }
+}

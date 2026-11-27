@@ -77,9 +77,10 @@ async fn 相関図は_callboard_が配る_script_だけを読み_inline_の_scri
         assert!(!body.contains(inline), "{inline}");
     }
     // script は src で読む 2 つだけ（cytoscape と network.js。network.js の path には中身の写しの頭が付く）。
-    let scripts: Vec<&str> = body
+    let page = common::without_i18n_scripts(&body);
+    let scripts: Vec<&str> = page
         .match_indices("<script")
-        .map(|(at, _)| &body[at..at + body[at..].find('>').unwrap() + 1])
+        .map(|(at, _)| &page[at..at + page[at..].find('>').unwrap() + 1])
         .collect();
     assert_eq!(scripts.len(), 2, "{scripts:?}");
     assert_eq!(
@@ -91,7 +92,7 @@ async fn 相関図は_callboard_が配る_script_だけを読み_inline_の_scri
         "{}",
         scripts[1]
     );
-    assert_eq!(body.matches("</script>").count(), 2);
+    assert_eq!(page.matches("</script>").count(), 2);
     // 点と線は、callboard の中継の道から引く。
     assert_eq!(data_src(&body), "/api/castlist/graph");
     // 画面を組む時には、castlist に聞かない（点と線は script が後で引く）。

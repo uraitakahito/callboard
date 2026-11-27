@@ -7,18 +7,27 @@
 <title>{% block title %}{% endblock %} ・ callboard</title>
 <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
 <link rel="stylesheet" href="{{ css }}">
+{#- 画面の字の差し替え（AI-50）。defer を付けずに読む（static/i18n.js の頭）。 #}
+<script src="{{ crate::ui::i18n::I18NEXT_PATH }}"></script>
+<script src="{{ crate::ui::i18n::JA_JS_HREF.as_str() }}"></script>
+<script src="{{ crate::ui::i18n::EN_JS_HREF.as_str() }}"></script>
+<script src="{{ crate::ui::i18n::I18N_JS_HREF.as_str() }}"></script>
 </head>
 <body{% block body %}{% endblock %}>
 <header class="bar">
 <a class="home" href="/">callboard</a>
-<nav aria-label="画面">
-<a href="{{ nav.actors }}">アクター</a>
-<a href="{{ nav.timeline }}">タイムライン</a>
-<a href="{{ nav.network }}">相関図</a>
-<a href="{{ nav.usage }}">費え</a>
-<a href="{{ nav.pages }}">ページ</a>
-<a href="{{ nav.messages }}">メッセージ</a>
+<nav aria-label="{{ "nav.label"|t }}" data-i18n-attr="aria-label:nav.label">
+<a href="{{ nav.actors }}" data-i18n="nav.actors">{{ "nav.actors"|t }}</a>
+<a href="{{ nav.timeline }}" data-i18n="nav.timeline">{{ "nav.timeline"|t }}</a>
+<a href="{{ nav.network }}" data-i18n="nav.network">{{ "nav.network"|t }}</a>
+<a href="{{ nav.usage }}" data-i18n="nav.usage">{{ "nav.usage"|t }}</a>
+<a href="{{ nav.pages }}" data-i18n="nav.pages">{{ "nav.pages"|t }}</a>
+<a href="{{ nav.messages }}" data-i18n="nav.messages">{{ "nav.messages"|t }}</a>
 </nav>
+<span class="lang" id="lang-switch" role="group" aria-label="{{ "lang.label"|t }}" data-i18n-attr="aria-label:lang.label" hidden>
+<button type="button" data-lang="ja" lang="ja">日本語</button>
+<button type="button" data-lang="en" lang="en">English</button>
+</span>
 </header>
 <main>
 {% block main %}{% endblock %}

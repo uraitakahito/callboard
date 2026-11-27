@@ -101,7 +101,13 @@ tr -d '\r' <"$tmp/css-head.txt" | grep -qi '^content-type: text/css'
 tr -d '\r' <"$tmp/css-head.txt" | grep -qix 'x-content-type-options: nosniff'
 test -s "$tmp/site.css"
 test "$(code "$url/no/such")" = 404
-# 相関図: 同じ CSP が付き、inline の style が無く、script は callboard が配る 2 つ（cytoscape と network.js）を src で読むだけ。
+# どの画面も <head> で読む、字の差し替えの script 4 つ（AI-50。この順。?v= は外して比べる）。
+i18n_scripts='<script src="/static/vendor/i18next-27.2.9.min.js">
+<script src="/static/locales/ja.js">
+<script src="/static/locales/en.js">
+<script src="/static/i18n.js">'
+# 相関図: 同じ CSP が付き、inline の style が無く、script は callboard が配る物を src で読むだけ（どの画面も読む字の差し替えの 4 つ
+# （i18next・訳 2 つ・i18n.js。AI-50）と、cytoscape と network.js）。
 curl -fsS -D "$tmp/network-head.txt" -o "$tmp/network.html" "$url/graph/network"
 tr -d '\r' <"$tmp/network-head.txt" | grep -qixF "content-security-policy: $csp"
 if grep -qiE '<style|style=' "$tmp/network.html"; then
@@ -109,15 +115,19 @@ if grep -qiE '<style|style=' "$tmp/network.html"; then
   exit 1
 fi
 scripts=$(grep -oiE '<script[^>]*>' "$tmp/network.html" | sed -E 's/\?v=[0-9a-f]+"/"/' | LC_ALL=C sort)
-want_scripts='<script src="/static/network.js">
-<script src="/static/vendor/cytoscape-3.35.0.min.js">'
+want_scripts='<script src="/static/i18n.js">
+<script src="/static/locales/en.js">
+<script src="/static/locales/ja.js">
+<script src="/static/network.js">
+<script src="/static/vendor/cytoscape-3.35.0.min.js">
+<script src="/static/vendor/i18next-27.2.9.min.js">'
 if [ "$scripts" != "$want_scripts" ]; then
-  echo "NG: 相関図の script が、callboard の配る 2 つでない: $scripts" >&2
+  echo "NG: 相関図の script が、callboard の配る 6 つでない: $scripts" >&2
   exit 1
 fi
 grep -qF 'data-src="/api/castlist/graph"' "$tmp/network.html"
-# 相関図の script と、取り込んだ cytoscape・i18next: JavaScript の型で、static/ の物と同じ字。
-for path in static/network.js static/vendor/cytoscape-3.35.0.min.js static/vendor/i18next-27.2.9.min.js; do
+# 相関図の script・字の差し替えの script と、取り込んだ cytoscape・i18next: JavaScript の型で、static/ の物と同じ字。
+for path in static/network.js static/i18n.js static/vendor/cytoscape-3.35.0.min.js static/vendor/i18next-27.2.9.min.js; do
   curl -fsS -D "$tmp/js-head.txt" -o "$tmp/got.js" "$url/$path"
   tr -d '\r' <"$tmp/js-head.txt" | grep -qi '^content-type: application/javascript'
   tr -d '\r' <"$tmp/js-head.txt" | grep -qix 'x-content-type-options: nosniff'
@@ -168,8 +178,8 @@ if grep -qiE '<style|style=' "$tmp/messages.html"; then
   exit 1
 fi
 scripts=$(grep -oiE '<script[^>]*>' "$tmp/messages.html" | sed -E 's/\?v=[0-9a-f]+"/"/')
-if [ "$scripts" != '<script src="/static/messages.js">' ]; then
-  echo "NG: メッセージの一覧の script が、callboard の配る 1 つでない: $scripts" >&2
+if [ "$scripts" != "$i18n_scripts"$'\n''<script src="/static/messages.js">' ]; then
+  echo "NG: メッセージの一覧の script が、字の差し替えの 4 つと、callboard の配る 1 つでない: $scripts" >&2
   exit 1
 fi
 grep -qF '合うメッセージは無い' "$tmp/messages.html"
@@ -184,7 +194,7 @@ cmp -s "$tmp/got.js" "$here/../static/messages.js" || {
 test "$(curl -s -o "$tmp/messages.html" -w '%{http_code}' "$url/messages?at=zz")" = 400
 grep -qF 'pagetray が引数を断りました' "$tmp/messages.html"
 # ページの一覧: この画面だけの CSP（本文の枠と図に、pagetray の link の頭を足した物。設定を書いていないので、既定の
-# http://127.0.0.1:8801）が付き、inline の style が無く、script は callboard が配る 1 つ。本物の pagetray（空の置き場）の
+# http://127.0.0.1:8801）が付き、inline の style が無く、script は字の差し替えの 4 つと、callboard が配る 1 つ。本物の pagetray（空の置き場）の
 # API（ListPages と、1.3.0 からの GetPageFacets）に聞いた答えを出す。
 pages_csp="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: http://127.0.0.1:8801; connect-src 'self'; frame-src http://127.0.0.1:8801; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
 curl -fsS -D "$tmp/pages-head.txt" -o "$tmp/pages.html" "$url/pages/"
@@ -194,8 +204,8 @@ if grep -qiE '<style|style=' "$tmp/pages.html"; then
   exit 1
 fi
 scripts=$(grep -oiE '<script[^>]*>' "$tmp/pages.html" | sed -E 's/\?v=[0-9a-f]+"/"/')
-if [ "$scripts" != '<script src="/static/pages.js">' ]; then
-  echo "NG: ページの一覧の script が、callboard の配る 1 つでない: $scripts" >&2
+if [ "$scripts" != "$i18n_scripts"$'\n''<script src="/static/pages.js">' ]; then
+  echo "NG: ページの一覧の script が、字の差し替えの 4 つと、callboard の配る 1 つでない: $scripts" >&2
   exit 1
 fi
 grep -qF '合うページは無い' "$tmp/pages.html"

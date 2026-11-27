@@ -3,7 +3,7 @@
 callboard が HTML を組んで返す画面（askama。`templates/`）。callboard を動かす機械の browser で `http://127.0.0.1:8803/` を開く。
 
 - 字はみな HTML として逃がす（ラベル・名・出来事の `detail` など、送り手が書いた字も）。
-- script を使うのは相関図（`GET /static/network.js` と、取り込んだ cytoscape）・メッセージの一覧（`GET /static/messages.js`）・ページの一覧（`GET /static/pages.js`）だけで、callboard が配る file だけを読む。inline の script は無い。style は callboard が配る CSS（`GET /static/site.css`）だけで、inline の style も無い。どの file も binary に埋め込む。
+- どの画面も、`<head>` で字の差し替えの script（取り込んだ i18next・訳 2 つ・`GET /static/i18n.js`。下の「画面の字の言語」）を読む。そのほかに script を使うのは相関図（`GET /static/network.js` と、取り込んだ cytoscape）・メッセージの一覧（`GET /static/messages.js`）・ページの一覧（`GET /static/pages.js`）だけで、callboard が配る file だけを読む。JavaScript を切っても、相関図のほかは日本語で読める。inline の script は無い。style は callboard が配る CSS（`GET /static/site.css`）だけで、inline の style も無い。どの file も binary に埋め込む。
 - どの画面にも Content-Security-Policy を付ける: `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`。browser は、castlist と pagetray の API に直には聞かない（`connect-src 'self'`）。ページの一覧だけは、pagetray が持つページの本文と file を browser が直に読むので、`img-src` と `frame-src` に pagetray の link の頭を足した物を付ける（下の「ページの一覧」）。
 - 時刻は、日本時間（UTC+9）で表示する（castlist の画面は castlist が受け取った時刻、メッセージの一覧は送り手が書いた時刻、ページの一覧は pagetray が受け取った時刻）。ISO 8601 の字（UTC・ミリ秒まで）は `<time datetime>` と `title` に置く（時刻にマウスを重ねると表示される）。
 - 明るい色と暗い色の両方を持つ（`prefers-color-scheme`）。
@@ -250,6 +250,17 @@ id は英語のまま（castlist の API）。日本語の名は画面だけで�
 | `model_unreadable` | model 不明 |
 | `retracted` | 取り消し |
 
+## 画面の字の言語
+
+画面の字は、日本語と英語で出す（AI-34・AI-50）。字は `static/locales/ja.json`・`en.json`（[i18next](https://www.i18next.com/) の JSON v4）の 1 か所に置き、画面は鍵で引く。
+
+- **サーバーは日本語の字を書く。** template は字を書く要素に鍵を付け（`<a href="/actors/" data-i18n="nav.actors">{{ "nav.actors"|t }}</a>`）、filter `t`（`crates/server/src/ui/i18n.rs`）が `ja.json` から日本語の字を引く。JavaScript を切っても日本語で読め、日本語の人には開いた時の字の空きが無い。属性は `data-i18n-attr="aria-label:<鍵>;title:<鍵>"`、差し込む値は `data-i18n-options='{"n":3}'`。
+- **英語はブラウザーで差し替える。** どの画面も `<head>` で、取り込んだ i18next・`/static/locales/ja.js`・`/static/locales/en.js`・`/static/i18n.js` の順に、`defer` を付けずに読む。訳の中身を同期の script で読むので、i18next は同期で起き、本文の script は起きた時から `window.callboardT(鍵, 値)` で字を引ける。
+- **言語の選び**: cookie `callboard-lang` → ブラウザーの言語の並びの初めの 1 つ（`en-US` は `en` に寄せる）→ 日本語。`ja`・`en` のほかは日本語。頭の帯の右の「日本語 / English」で選び直せ、選んだ物は cookie（1 年・`SameSite=Lax`）に残る。切り替えは JavaScript が出す（JavaScript が無い時は出さない）。選んだ言語の訳が届かなければ日本語のまま。
+- **英語の時**: `<head>` の内に `<html>` へ `i18n-wait` を付けて本文を隠し、読み終えたら `[data-i18n]` と `[data-i18n-attr]` を差し替え、`lang="en"` にして外す。差し替えは `textContent` と属性でだけする（`innerHTML` は使わない）。途中で止まっても、`site.css` の守り（CSS だけで効く）が 1.5 秒で本文を日本語のまま見せる。
+- **JavaScript の決まり**: 新着で server の HTML を読み直す script は、比べと差し替えの前に `window.callboardLocalize(読み直した木)` で訳す。JavaScript は、起きた時に DOM の字を読まない（本文の終わりの script は差し替えより先に動くので、日本語を取る）。字は `callboardT` で引く。
+- **訳の file の決まり**: 差し込みは `{{名}}` だけ（サーバーとブラウザーで字が食い違わないように。`$t(…)`・`{{n, number}}` は使わない）。数で言い分ける英語は `<鍵>_one`・`<鍵>_other`（日本語は `<鍵>_other` だけ）。`ja.json` と `en.json` は同じ鍵を持つ。画面に書いた鍵は、みな `ja.json` にある。どれも試験（`crates/server/tests/i18n.rs`・`e2e/tests/i18n.spec.ts`）が見る。画面の字の決まり（`ci/check-wording.sh`）は `ja.json` も見る。
+
 ## 配る file
 
 | 道 | 中身 |
@@ -257,7 +268,9 @@ id は英語のまま（castlist の API）。日本語の名は画面だけで�
 | `GET /static/site.css` | 画面の CSS（`text/css`） |
 | `GET /static/network.js` | 相関図の script（`application/javascript`） |
 | `GET /static/vendor/cytoscape-3.35.0.min.js` | 取り込んだ cytoscape |
-| `GET /static/vendor/i18next-27.2.9.min.js` | 取り込んだ i18next（画面の字の多言語化。AI-50。まだどの画面も読まない） |
+| `GET /static/vendor/i18next-27.2.9.min.js` | 取り込んだ i18next（画面の字の言語） |
+| `GET /static/locales/ja.js`・`GET /static/locales/en.js` | 日本語と英語の字（`static/locales/{ja,en}.json` を script に包んだ物。`text/javascript`） |
+| `GET /static/i18n.js` | 画面の字を差し替える script |
 | `GET /static/icon.svg` | browser の tab に出す印（`image/svg+xml`） |
 
 どれも binary に埋め込む。画面は CSS と script を `?v=<中身の写しの頭>` を付けて読み、取り込んだ物（cytoscape・i18next）は版が path に入るので、中身が替われば browser は読み直す。長く持たせてよい（`Cache-Control: public, max-age=31536000, immutable`）。印だけは 1 日。

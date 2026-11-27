@@ -7,6 +7,7 @@
 //! - CSP（[`crate::CSP`]）が inline の script と style を断るので、style は callboard が配る CSS の file だけ。
 //! - ページの本文と file の中身は pagetray が持つ。ページの一覧の、本文の枠と file の link は、pagetray の link の頭
 //!   （[`crate::config`]）で組む（[`pages`]）。
+pub(crate) mod i18n;
 mod list;
 mod messages;
 mod network;
@@ -32,6 +33,7 @@ use sha2::{Digest, Sha256};
 
 use crate::App;
 use crate::upstream::Health;
+use i18n::filters;
 
 pub use pages::csp as pages_csp;
 
@@ -41,7 +43,7 @@ pub use pages::csp as pages_csp;
 const SITE_CSS: &str = include_str!("../../../static/site.css");
 
 /// 中身の写しの頭を `?v=` に付けた path。中身が替われば browser は読み直す（長く持たせてよい）。
-fn versioned(path: &str, body: &str) -> String {
+pub(crate) fn versioned(path: &str, body: &str) -> String {
     let digest = Sha256::digest(body.as_bytes());
     let v: String = digest.iter().take(6).map(|b| format!("{b:02x}")).collect();
     format!("{path}?v={v}")
@@ -55,12 +57,6 @@ const CYTOSCAPE_JS: &str = include_str!("../../../static/vendor/cytoscape-3.35.0
 
 /// cytoscape の path。版が名に入るので、中身が替われば path も替わる。
 const CYTOSCAPE_PATH: &str = "/static/vendor/cytoscape-3.35.0.min.js";
-
-/// 画面の字を言語ごとに差し替える i18next（npm の物をそのまま取り込んだ。static/vendor/SOURCES.md。AI-50）。
-const I18NEXT_JS: &str = include_str!("../../../static/vendor/i18next-27.2.9.min.js");
-
-/// i18next の path。版が名に入るので、中身が替われば path も替わる。
-const I18NEXT_PATH: &str = "/static/vendor/i18next-27.2.9.min.js";
 
 /// 相関図を描く、callboard の script。
 const NETWORK_JS: &str = include_str!("../../../static/network.js");
@@ -114,7 +110,22 @@ async fn cytoscape_js() -> Response {
 
 /// `GET /static/vendor/i18next-27.2.9.min.js`: 画面の字を差し替える i18next。
 async fn i18next_js() -> Response {
-    asset("application/javascript; charset=utf-8", I18NEXT_JS)
+    asset("application/javascript; charset=utf-8", i18n::I18NEXT_JS)
+}
+
+/// `GET /static/i18n.js`: 画面の字を差し替える script。
+async fn i18n_js() -> Response {
+    asset("application/javascript; charset=utf-8", i18n::I18N_JS)
+}
+
+/// `GET /static/locales/ja.js`: 日本語の字（i18next の JSON を、script に包んだ物）。
+async fn locales_ja_js() -> Response {
+    asset("text/javascript; charset=utf-8", i18n::JA_JS.as_str())
+}
+
+/// `GET /static/locales/en.js`: 英語の字。
+async fn locales_en_js() -> Response {
+    asset("text/javascript; charset=utf-8", i18n::EN_JS.as_str())
 }
 
 /// `GET /static/messages.js`: メッセージの一覧の、新着の知らせの script。
@@ -266,7 +277,10 @@ pub fn routes(app: Arc<App>) -> Router {
         .route("/static/messages.js", get(messages_js))
         .route("/static/pages.js", get(pages_js))
         .route(CYTOSCAPE_PATH, get(cytoscape_js))
-        .route(I18NEXT_PATH, get(i18next_js))
+        .route(i18n::I18NEXT_PATH, get(i18next_js))
+        .route("/static/i18n.js", get(i18n_js))
+        .route("/static/locales/ja.js", get(locales_ja_js))
+        .route("/static/locales/en.js", get(locales_en_js))
         .fallback(not_found)
         .with_state(app)
 }

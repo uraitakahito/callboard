@@ -218,3 +218,37 @@ pub fn slow(wait: Duration, answer: fn() -> Response) -> Router {
         }),
     )
 }
+
+/// どの画面も `<head>` で読む、字の差し替えの script 4 つ（AI-50。i18next・訳 2 つ・i18n.js）を外した HTML。
+/// 4 つが `<head>` に、この順で 1 つずつあることも見る（無ければ落とす）。画面の中の script を数える試験が使う。
+#[allow(dead_code)]
+pub fn without_i18n_scripts(body: &str) -> String {
+    let head = &body[..body.find("</head>").expect("</head> が無い")];
+    let mut out = body.to_owned();
+    let mut last = 0;
+    for prefix in [
+        "<script src=\"/static/vendor/i18next-27.2.9.min.js\">",
+        "<script src=\"/static/locales/ja.js?v=",
+        "<script src=\"/static/locales/en.js?v=",
+        "<script src=\"/static/i18n.js?v=",
+    ] {
+        let at = head
+            .find(prefix)
+            .unwrap_or_else(|| panic!("{prefix} が head に無い: {head}"));
+        assert!(at >= last, "{prefix} の順が違う: {head}");
+        last = at;
+        assert_eq!(body.matches(prefix).count(), 1, "{prefix} が 1 つでない");
+        let start = out.find(prefix).unwrap();
+        let end = start + out[start..].find("</script>").unwrap() + "</script>".len();
+        // 中身の無い script（src で読むだけ）。
+        let tag = &out[start..end];
+        assert!(tag.ends_with("\"></script>"), "{tag}");
+        assert_eq!(
+            tag[1..].find('<'),
+            Some(tag.len() - "</script>".len() - 1),
+            "{tag}"
+        );
+        out.replace_range(start..end, "");
+    }
+    out
+}
