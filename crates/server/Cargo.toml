@@ -21,14 +21,18 @@ pagetray_client = { path = "../pagetray-client" }
 aws-smithy-http-client = { version = "1.5.3", default-features = false, features = ["default-client"] }
 # 画面の HTML（repo の templates/。askama.toml）。
 askama = "0.16.1"
-axum = { version = "0.8.9", default-features = false, features = ["http1", "tokio"] }
+# query は、画面の URL の引数を名と値の並びで読むため。
+axum = { version = "0.8.9", default-features = false, features = ["http1", "query", "tokio"] }
+aws-smithy-types = "1.9.4"
 http-body = "1"
 http-body-util = "0.1"
-# /healthz と、守りの層が断る答えの JSON。
+# 答えをそのまま browser に返す道（castlist の図の API の中継）が使う、生の HTTP の client。lock に前からある版（axum と smithy の client が使う物）。
+hyper-util = { version = "0.1", default-features = false, features = ["client-legacy", "http1", "tokio"] }
+# /healthz と、守りの層が断る答えの JSON。出来事の detail（Document）を、画面に出す JSON の字にする。
 serde_json = "1"
 # 配る file の path に付ける、中身の写しの頭（?v=）。
 sha2 = { version = "0.11.1", default-features = false }
-time = { version = "0.3", features = ["formatting"] }
+time = { version = "0.3", features = ["formatting", "parsing"] }
 tokio = { version = "1.54", features = ["rt-multi-thread", "macros", "net", "signal", "time"] }
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 # 時刻つきの記録（stdout）。
