@@ -422,13 +422,14 @@ dependencies = [
 
 [[package]]
 name = "callboard"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "askama",
  "aws-smithy-http-client",
  "aws-smithy-types",
  "axum",
  "castlist_client",
+ "futures-util",
  "http-body 1.1.0",
  "http-body-util",
  "hyper-util",
@@ -437,6 +438,7 @@ dependencies = [
  "sha2",
  "time",
  "tokio",
+ "tokio-util",
  "tower",
  "tracing",
  "tracing-subscriber",

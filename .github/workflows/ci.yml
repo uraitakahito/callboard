@@ -64,8 +64,8 @@ jobs:
       - run: ci/gen.sh --check
   e2e:
     if: github.event_name != 'schedule'
-    # callboard の画面を、出した版の castlist を相手に、本物の browser（Chromium）で見る（e2e/ の Playwright の試験）。
-    # 相手の castlist は、出した版の image（arm64）から取り出した binary なので、同じ種類の機械で流す。
+    # callboard の画面を、出した版の castlist と pagetray を相手に、本物の browser（Chromium）で見る（e2e/ の Playwright の試験）。
+    # 相手の castlist と pagetray は、出した版の image（arm64）から取り出した binary なので、同じ種類の機械で流す。
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 15
     permissions:
@@ -75,8 +75,10 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
       - name: 試験が起こす callboard を作る
         run: cargo build --locked --bin callboard-server
-      - name: 相手の castlist の binary を、出した版の image から取り出す
-        run: ci/castlist-binary.sh "$RUNNER_TEMP/castlist-server"
+      - name: 相手の castlist と pagetray の binary を、出した版の image から取り出す
+        run: |
+          ci/castlist-binary.sh "$RUNNER_TEMP/castlist-server"
+          ci/pagetray-binary.sh "$RUNNER_TEMP/pagetray-server"
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         with:
           package_json_file: e2e/package.json
@@ -96,11 +98,12 @@ jobs:
       - name: Chromium と、それが要る library を入れる
         working-directory: e2e
         run: pnpm exec playwright install --with-deps --only-shell chromium
-      - name: 画面の試験（相関図・プロフィール・新旧の比べ）
+      - name: 画面の試験（castlist の 4 つの画面・メッセージの一覧と pagetray の画面との比べ）
         working-directory: e2e
         run: |
           CALLBOARD_E2E_SERVER=../target/debug/callboard-server \
           CALLBOARD_E2E_CASTLIST="$RUNNER_TEMP/castlist-server" \
+          CALLBOARD_E2E_PAGETRAY="$RUNNER_TEMP/pagetray-server" \
           pnpm test
       - if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

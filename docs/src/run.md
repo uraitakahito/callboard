@@ -22,7 +22,7 @@ Apple Container（`container` CLI）で、release の image を動かす。host�
 | `CALLBOARD_LISTEN` | 待ち受ける所 | `0.0.0.0:8080`（image の既定のままでよい） |
 | `CALLBOARD_CASTLIST_URL` | castlist に聞く先 | 無い（必ず書く） |
 | `CALLBOARD_PAGETRAY_URL` | pagetray に聞く先 | 無い（必ず書く） |
-| `CALLBOARD_PAGETRAY_LINK_URL` | browser が pagetray の画面（まだ移していない物）と、置いたページを開く URL の頭 | `http://127.0.0.1:8801` |
+| `CALLBOARD_PAGETRAY_LINK_URL` | browser が pagetray の画面（まだ移していないページの一覧）と、置いたページを開く URL の頭 | `http://127.0.0.1:8801` |
 
 - どれも `http://<host>:<port>` の形だけを受ける（path・`https://` は受けない）。
 - 0.1.0 にあった `CALLBOARD_CASTLIST_LINK_URL`（castlist の画面を開く URL の頭）は、0.2.0 で無くした（castlist の画面をみな移したので、指す先が無い）。書いてあっても読まない。
@@ -33,12 +33,13 @@ Apple Container（`container` CLI）で、release の image を動かす。host�
 
 ```sh
 container image pull ghcr.io/uraitakahito/callboard:v<version>
-container run -d --name callboard -p 127.0.0.1:8803:8080 -m 200M -c 1 -e CALLBOARD_CASTLIST_URL=http://castlist.box:8080 -e CALLBOARD_PAGETRAY_URL=http://<pagetray に届く名>:8080 ghcr.io/uraitakahito/callboard:v<version>
+container run -d --name callboard -p 127.0.0.1:8803:8080 -m 200M -c 1 -e CALLBOARD_CASTLIST_URL=http://castlist.box:8080 -e CALLBOARD_PAGETRAY_URL=http://pagetray.box:8080 ghcr.io/uraitakahito/callboard:v<version>
 ```
 
-- castlist は、container の名 `castlist.box` で届く（既定の network では、Apple Container の DNS が domain `box` の名を答える）。
-- pagetray の container の名は `pagetray` で、domain の付かない名。Apple Container の DNS は、domain（`box`）の付いた名だけを答えるので、**この名では届かない**（0.1.0 を起こした時に確かめた: `Name does not resolve`）。届くようにするまで、入口の画面は pagetray を「届きません」と出す（callboard は起き、castlist の画面はみな使える。pagetray の画面は、まだ pagetray が出している）。
-- **castlist は 1.1.0 から**（0.2.0 の一覧とタイムラインが、1.1.0 で足した欄と操作を使う）。古い castlist に向けると、タイムラインは「castlist に聞けません（404 が返りました）」の画面になり、一覧とプロフィールの「時刻ずれ」の印と、状態の横の出来事の名が出ない。castlist 2.0.0（画面を外した版。API は 1.1.0 と同じ）でも、そのまま動く。
+- castlist は container の名 `castlist.box` で、pagetray は `pagetray.box` で届く（既定の network では、Apple Container の DNS が domain `box` の名を答える）。
+- pagetray の container の名が、domain の付かない `pagetray`（pagetray 1.1.x までの docs の名）のままだと、**名では届かない**（Apple Container の DNS は、domain（`box`）の付いた名だけを答える。0.1.0 を起こした時に確かめた: `Name does not resolve`）。届かない間、入口の画面は pagetray を「届きません」と出し、メッセージの一覧は 503 の画面になる（callboard は起き、castlist の画面はみな使える）。pagetray の container を `pagetray.box` の名で作り直す（pagetray の docs の「動かす」）。
+- **castlist は 1.1.0 から**（一覧とタイムラインが、1.1.0 で足した欄と操作を使う）。古い castlist に向けると、タイムラインは「castlist に聞けません（404 が返りました）」の画面になり、一覧とプロフィールの「時刻ずれ」の印と、状態の横の出来事の名が出ない。castlist 2.0.0（画面を外した版。API は 1.1.0 と同じ）でも、そのまま動く。
+- **pagetray は 1.2.0 から**（0.3.0 のメッセージの一覧が、1.2.0 で足した操作を使う）。古い pagetray に向けると、メッセージの一覧は「pagetray に聞けません（404 が返りました）」の画面になる。
 
 > [!WARNING]
 > `-p` には必ず `127.0.0.1:` を書く。`-p 8803:8080` と書くと LAN に開く。

@@ -70,8 +70,11 @@ async fn 入口と頭の_link_は_まだ移していない画面を_link_の頭�
     }
     assert!(!body.contains(":8802"), "{body}");
     let pagetray = section(&body, "pagetray");
-    for (name, path) in [("ページの一覧", "/"), ("メッセージ", "/messages")] {
-        let link = format!("<a href=\"{PAGETRAY_LINK}{path}\">{name}</a>");
+    // pagetray の画面は、メッセージの一覧だけを移した。ページの一覧は、まだ pagetray の画面（link の頭）を指す。
+    for link in [
+        format!("<a href=\"{PAGETRAY_LINK}/\">ページの一覧</a>"),
+        "<a href=\"/messages\">メッセージ</a>".to_owned(),
+    ] {
         assert!(pagetray.contains(&link), "{link}: {pagetray}");
     }
     // 頭の link（どの画面にも出す）。無い道の画面にも出る。
@@ -83,7 +86,7 @@ async fn 入口と頭の_link_は_まだ移していない画面を_link_の頭�
             "<a href=\"/graph/timeline\">タイムライン</a>".to_owned(),
             "<a href=\"/graph/network\">相関図</a>".to_owned(),
             format!("<a href=\"{PAGETRAY_LINK}/\">ページ</a>"),
-            format!("<a href=\"{PAGETRAY_LINK}/messages\">メッセージ</a>"),
+            "<a href=\"/messages\">メッセージ</a>".to_owned(),
         ] {
             assert!(nav.contains(&link), "{link}: {nav}");
         }

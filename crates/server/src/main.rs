@@ -1,7 +1,7 @@
 //! callboard の server を起こす binary（image の中の /callboard-server）。
 //! - 設定は環境変数（[`callboard::config`]）。形が違えば、訳を出して起きない。
 //! - 記録は stdout だけ（callboard は data も volume も持たない）。
-//! - 止める合図（SIGTERM・SIGINT）で新しい問い合わせを断り、走っている物を終えてから閉じる。
+//! - 止める合図（SIGTERM・SIGINT）で新しい問い合わせを断り、走っている物を終えてから閉じる（新着の知らせの流れは、合図で閉じる）。
 use std::process::ExitCode;
 
 use callboard::config::Settings;
@@ -45,13 +45,20 @@ async fn serve() -> Result<(), Box<dyn std::error::Error>> {
     // 合図が来たら新しい問い合わせを断り、走っている物を終えてから閉じる。
     let mut term = signal(SignalKind::terminate())?;
     let mut int = signal(SignalKind::interrupt())?;
-    axum::serve(listener, callboard::app(&settings))
+    // 流し続ける答え（新着の知らせの中継）は、合図で閉じる（閉じないと、browser が切るまで終われない）。
+    let closing = callboard::Closing::new();
+    let config = callboard::Config {
+        closing: closing.clone(),
+        ..callboard::Config::default()
+    };
+    axum::serve(listener, callboard::app_with(&settings, config))
         .with_graceful_shutdown(async move {
             let name = tokio::select! {
                 _ = term.recv() => "SIGTERM",
                 _ = int.recv() => "SIGINT",
             };
             tracing::info!("signal {name}");
+            closing.cancel();
         })
         .await?;
     Ok(())
