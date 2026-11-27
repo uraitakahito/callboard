@@ -4,18 +4,18 @@
 
 {% macro maybe(v) %}{% if let Some(v) = v %}{{ v }}{% else %}<span class="none">—</span>{% endif %}{% endmacro %}
 
-{% macro quick(links) %}<p class="quick">期間（今の条件のまま、期間だけを替えます）: {% for (name, href) in links %}{% if !loop.first %} ・ {% endif %}<a href="{{ href }}">{{ name }}</a>{% endfor %}</p>{% endmacro %}
+{% macro quick(links) %}<p class="quick"><span data-i18n="common.quick">{{ "common.quick"|t }}</span> {% for (name, href) in links %}{% if !loop.first %} ・ {% endif %}<a href="{{ href }}">{{ name }}</a>{% endfor %}</p>{% endmacro %}
 
-{% macro skew() %}<span class="skew" title="送り手の時計が、castlist の時計と 5 分より離れています">時刻ずれ</span>{% endmacro %}
+{% macro skew() %}<span class="skew" title="{{ "common.skew.title"|t }}" data-i18n="common.skew.label" data-i18n-attr="title:common.skew.title">{{ "common.skew.label"|t }}</span>{% endmacro %}
 
-{% macro presence(row) %}{% if row.present %}<span class="state on">稼働中</span>{% else %}<span class="state off">停止{% if row.inferred %}（推し）{% endif %}</span>{% endif %}{% if let Some(p) = row.presence %} <span class="event" title="{{ p.1 }}">{{ p.0 }}</span>{% endif %}{% endmacro %}
+{% macro presence(row) %}{% if row.present %}<span class="state on" data-i18n="common.state.running">{{ "common.state.running"|t }}</span>{% else if row.inferred %}<span class="state off" data-i18n="common.state.stoppedInferred">{{ "common.state.stoppedInferred"|t }}</span>{% else %}<span class="state off" data-i18n="common.state.stopped">{{ "common.state.stopped"|t }}</span>{% endif %}{% if let Some(p) = row.presence %} <span class="event" title="{{ p.1 }}">{{ p.0 }}</span>{% endif %}{% endmacro %}
 
 {% macro setting(row) %}{% if let Some(s) = row.setting %}<code>{{ s.0 }}</code> · <code>{{ s.1 }}</code>{% else %}<span class="none">—</span>{% endif %}{% endmacro %}
 
-{% macro foot() %}時刻は日本時間（UTC+9）で、castlist が受け取った時刻です。時刻にマウスを重ねると ISO 8601 の形で表示します。{% endmacro %}
+{% macro foot() %}<span data-i18n="common.foot">{{ "common.foot"|t }}</span>{% endmacro %}
 
 {% macro chart(c) %}<svg class="chart" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {{ c.width }} {{ c.height }}" width="{{ c.width }}" height="{{ c.height }}" role="img" aria-label="{{ c.label }}">
 <g class="axis">{% for tick in c.y_ticks %}<line class="grid" x1="{{ c.left }}" y1="{{ tick.at }}" x2="{{ c.right }}" y2="{{ tick.at }}"/><text class="tick" x="{{ c.tick_x }}" y="{{ tick.at + 4 }}" text-anchor="end">{{ tick.label }}</text>{% endfor %}{% for tick in c.x_ticks %}<text class="tick" x="{{ tick.at }}" y="{{ c.label_y }}" text-anchor="middle">{{ tick.label }}</text>{% endfor %}<line class="base" x1="{{ c.left }}" y1="{{ c.base }}" x2="{{ c.right }}" y2="{{ c.base }}"/></g>
 {% for bar in c.bars %}<rect class="{{ bar.class }}" x="{{ bar.x }}" y="{{ bar.y }}" width="{{ bar.w }}" height="{{ bar.h }}"><title>{{ bar.title }}</title></rect>{% endfor %}
-{% if let Some(path) = c.line %}<path class="context" d="{{ path }}"/>{% endif %}{% for mark in c.marks %}<line class="compact" x1="{{ mark.x }}" y1="{{ c.top }}" x2="{{ mark.x }}" y2="{{ c.base }}"><title>{{ mark.title }}</title></line>{% endfor %}{% if let Some(limit) = c.limit %}<line class="limit" x1="{{ limit.x1 }}" y1="{{ limit.y1 }}" x2="{{ limit.x2 }}" y2="{{ limit.y2 }}"/><text class="limit-label" x="{{ limit.text_x }}" y="{{ limit.text_y }}" text-anchor="{{ limit.anchor }}">20 万</text>{% endif %}
+{% if let Some(path) = c.line %}<path class="context" d="{{ path }}"/>{% endif %}{% for mark in c.marks %}<line class="compact" x1="{{ mark.x }}" y1="{{ c.top }}" x2="{{ mark.x }}" y2="{{ c.base }}"><title>{{ mark.title }}</title></line>{% endfor %}{% if let Some(limit) = c.limit %}<line class="limit" x1="{{ limit.x1 }}" y1="{{ limit.y1 }}" x2="{{ limit.x2 }}" y2="{{ limit.y2 }}"/><text class="limit-label" x="{{ limit.text_x }}" y="{{ limit.text_y }}" text-anchor="{{ limit.anchor }}" data-i18n="common.chart.limit">{{ "common.chart.limit"|t }}</text>{% endif %}
 </svg>{% endmacro %}

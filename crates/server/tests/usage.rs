@@ -184,13 +184,13 @@ fn names(section: &str) -> Vec<String> {
         .collect()
 }
 
-/// 全体の数（`<dt>名</dt><dd>値</dd>` の値）。
+/// 全体の数（`<dt>名</dt><dd>値</dd>` の値。`<dt>` には字の鍵の属性が付く）。
 fn fact<'a>(body: &'a str, name: &str) -> &'a str {
     let total = section(body, "total");
     let at = total
-        .find(&format!("<dt>{name}</dt><dd>"))
+        .find(&format!("\">{name}</dt><dd>"))
         .unwrap_or_else(|| panic!("{name} が無い: {total}"));
-    let start = at + format!("<dt>{name}</dt><dd>").len();
+    let start = at + format!("\">{name}</dt><dd>").len();
     &total[start..start + total[start..].find("</dd>").unwrap()]
 }
 
@@ -199,7 +199,7 @@ async fn 使用量は_全体の数を出し_本体と手伝いを分ける() {
     let app = sample().await;
     let body = app.html(WINDOW).await;
     assert!(
-        body.contains("<title>使用量 ・ callboard</title>"),
+        body.contains("<title data-i18n=\"usage.title\">使用量 ・ callboard</title>"),
         "{body}"
     );
     assert_eq!(fact(&body, "席（アクター）"), "4");
@@ -209,10 +209,10 @@ async fn 使用量は_全体の数を出し_本体と手伝いを分ける() {
     // 手伝いの回は 4 回・$0.25（全体の 3.4%）。
     assert_eq!(
         fact(&body, "手伝い（subagent）の回"),
-        "4（額 $0.25。全体の額の 3.4%）"
+        r#"4<span data-i18n="usage.total.helperCostShare" data-i18n-options="{&#34;cost&#34;:&#34;$0.25&#34;,&#34;share&#34;:&#34;3.4%&#34;}">（額 $0.25。全体の額の 3.4%）</span>"#
     );
     assert!(
-        body.contains("表示した時刻: <time datetime=\"2026-11-22T06:00:00.000Z\""),
+        body.contains("<span data-i18n=\"common.asOf\">表示した時刻:</span> <time datetime=\"2026-11-22T06:00:00.000Z\""),
         "{body}"
     );
 }
@@ -270,13 +270,13 @@ async fn 役割ごとの表は_本体の回の数と額と_段から出した文
         "{roles}"
     );
     assert!(
-        roles.contains("<span class=\"none\">（無し）</span>"),
+        roles.contains("<span class=\"none\" data-i18n=\"usage.noName\">（無し）</span>"),
         "{roles}"
     );
     // 20 万の段（8 段目）から数えるので、見出しは「以上」（review-9 の #4）。
     assert!(
         roles.contains(
-            "<th class=\"num\">20 万以上の回</th><th class=\"num\">20 万以上の回の額</th>"
+            "<th class=\"num\" data-i18n=\"usage.col.overTurns\">20 万以上の回</th><th class=\"num\" data-i18n=\"usage.col.overCost\">20 万以上の回の額</th>"
         ),
         "{roles}"
     );
@@ -350,11 +350,11 @@ async fn 期間は時の境に揃えて_castlist_に送り_送った期間を日
     let at = body.find("<p class=\"note\" id=\"window\">").expect("期間");
     let window = &body[at..at + body[at..].find("</p>").unwrap()];
     assert!(
-        window.contains("<time datetime=\"2026-11-22T01:00:00.000Z\" title=\"2026-11-22T01:00:00.000Z\">2026-11-22 10:00:00</time> から"),
+        window.contains("<time datetime=\"2026-11-22T01:00:00.000Z\" title=\"2026-11-22T01:00:00.000Z\">2026-11-22 10:00:00</time><span data-i18n=\"list.costs.middle\"> から"),
         "{window}"
     );
     assert!(
-        window.contains("<time datetime=\"2026-11-22T04:00:00.000Z\" title=\"2026-11-22T04:00:00.000Z\">2026-11-22 13:00:00</time> まで"),
+        window.contains("<time datetime=\"2026-11-22T04:00:00.000Z\" title=\"2026-11-22T04:00:00.000Z\">2026-11-22 13:00:00</time><span data-i18n=\"usage.window.after\"> まで"),
         "{window}"
     );
     assert!(window.contains("時の境に揃えて"), "{window}");
@@ -363,14 +363,17 @@ async fn 期間は時の境に揃えて_castlist_に送り_送った期間を日
     assert!(body.contains("name=\"from\" value=\"2026-11-22T10:30\""));
     assert!(body.contains("name=\"to\" value=\"2026-11-22T12:10\""));
     assert_eq!(
-        body.matches("<label>ラベル <input name=\"label\"").count(),
+        body.matches(
+            "<label><span data-i18n=\"filters.label\">ラベル</span> <input name=\"label\""
+        )
+        .count(),
         3
     );
     assert!(
         body.contains("name=\"label\" value=\"tpm.role:software-engineer\""),
         "{body}"
     );
-    assert!(body.contains("<a href=\"/usage/\">条件を消す</a>"));
+    assert!(body.contains("<a href=\"/usage/\" data-i18n=\"filters.clear\">条件を消す</a>"));
     // 期間をすぐ選ぶ link は、ラベルを残して、この画面を指す。
     let at = body.find(">今日</a>").unwrap();
     let start = body[..at].rfind("href=\"").unwrap() + 6;
@@ -481,7 +484,7 @@ async fn 頁が多すぎれば_50_頁で止め_誤りにせず_期間を狭め�
     let body = app.html(WINDOW).await;
     assert_eq!(app.castlist.seen().len(), 50);
     assert!(
-        body.contains("<p class=\"error\">記録が多すぎて、全部を読めませんでした"),
+        body.contains("<p class=\"error\" data-i18n=\"usage.tooMany\" data-i18n-options=\"{&#34;read&#34;:50}\">記録が多すぎて、全部を読めませんでした"),
         "{body}"
     );
     assert!(body.contains("期間を狭めてください"), "{body}");
@@ -495,7 +498,9 @@ async fn 行が無ければ_そう書き_表を出さない() {
     let app = start(vec![usage_page(vec![], vec![], None)]).await;
     let body = app.html(WINDOW).await;
     assert!(
-        body.contains("<p class=\"empty\">この期間に、数の記録はありません。</p>"),
+        body.contains(
+            "<p class=\"empty\" data-i18n=\"usage.empty\">この期間に、数の記録はありません。</p>"
+        ),
         "{body}"
     );
     assert!(!body.contains("<table"), "{body}");
@@ -675,7 +680,7 @@ async fn 途中の頁で時間切れになっても_読めた分を出し_時間
     let (status, _, body) = app.send(get(WINDOW)).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(
-        body.contains("<p class=\"error\">時間内に、全部を読めませんでした"),
+        body.contains("<p class=\"error\" data-i18n=\"usage.tooSlow\" data-i18n-options=\"{&#34;read&#34;:6}\">時間内に、全部を読めませんでした"),
         "{body}"
     );
     assert!(body.contains("期間を狭めてください"), "{body}");
@@ -699,7 +704,9 @@ async fn 文脈の長さの段ごとの額は_本体の回の段を棒にし_20_
     let body = app.html(WINDOW).await;
     let chart = section(&body, "by-context");
     assert!(
-        chart.contains("<h2>文脈の長さの段ごとの額（本体の回）</h2>"),
+        chart.contains(
+            "<h2 data-i18n=\"usage.byContext.heading\">文脈の長さの段ごとの額（本体の回）</h2>"
+        ),
         "{chart}"
     );
     let svg = svg(chart);
@@ -745,7 +752,10 @@ async fn 期間が_1_日までなら_時ごとの額を_本体と手伝いを積
     let app = sample().await;
     let body = app.html(WINDOW).await;
     let chart = section(&body, "by-day");
-    assert!(chart.contains("<h2>時ごとの額（日本時間）</h2>"), "{chart}");
+    assert!(
+        chart.contains("<h2 data-i18n=\"usage.bySlot.heading\" data-i18n-options=\"{&#34;unit&#34;:&#34;時&#34;}\">時ごとの額（日本時間）</h2>"),
+        "{chart}"
+    );
     let svg = svg(chart);
     assert!(
         svg.contains("role=\"img\"") && svg.contains("aria-label=\"時ごとの額"),
@@ -797,7 +807,10 @@ async fn 期間が_1_日を越えれば_日本時間の日ごとの額() {
         .html("/usage/?from=2026-11-20T00:00&to=2026-11-23T00:00")
         .await;
     let chart = section(&body, "by-day");
-    assert!(chart.contains("<h2>日ごとの額（日本時間）</h2>"), "{chart}");
+    assert!(
+        chart.contains("<h2 data-i18n=\"usage.bySlot.heading\" data-i18n-options=\"{&#34;unit&#34;:&#34;日&#34;}\">日ごとの額（日本時間）</h2>"),
+        "{chart}"
+    );
     let svg = svg(chart);
     for tick in [">11-20</text>", ">11-21</text>", ">11-22</text>"] {
         assert!(svg.contains(tick), "{tick}: {svg}");
@@ -851,7 +864,7 @@ async fn 図は_script_を使わず_行が無ければ出さない() {
     let chart = section(&body, "by-context");
     assert!(!chart.contains("<svg"), "{chart}");
     assert!(
-        chart.contains("<p class=\"empty\">この期間に、本体の回の記録はありません。</p>"),
+        chart.contains("<p class=\"empty\" data-i18n=\"usage.byContext.empty\">この期間に、本体の回の記録はありません。</p>"),
         "{chart}"
     );
     assert_eq!(
@@ -868,7 +881,7 @@ async fn 日ごとの額は_図の下に畳んだ字の表でも読める() {
     let body = app.html(WINDOW).await;
     let day = section(&body, "by-day");
     assert!(
-        day.contains("<details class=\"slots\"><summary>時ごとの額を、表で見る</summary>"),
+        day.contains("<details class=\"slots\"><summary data-i18n=\"usage.bySlot.table\" data-i18n-options=\"{&#34;unit&#34;:&#34;時&#34;}\">時ごとの額を、表で見る</summary>"),
         "{day}"
     );
     // 額の在る区切りだけを出す。表の計の欄の和は、全体の額（$7.26）と同じ。

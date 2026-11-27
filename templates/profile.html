@@ -1,46 +1,46 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
-{% block title %}{{ me.name }}{% endblock %}
+{% block title %}{{ me.name }} ・ callboard{% endblock %}
 {% block main %}
 <h1>{{ me.name }}{% if !me.kind.is_empty() %} <span class="kind">{{ me.kind }}</span>{% endif %}</h1>
 <dl class="facts">
 <dt>id</dt><dd><code>{{ id }}</code></dd>
-<dt>発行元（issuer）</dt><dd><code>{{ issuer }}</code></dd>
-<dt>登録した時刻</dt><dd>{% call m::time(registered) %}{% endcall %}</dd>
+<dt data-i18n="profile.issuer">{{ "profile.issuer"|t }}</dt><dd><code>{{ issuer }}</code></dd>
+<dt data-i18n="profile.registered">{{ "profile.registered"|t }}</dt><dd>{% call m::time(registered) %}{% endcall %}</dd>
 </dl>
 
 <section id="state">
-<h2>今の状態</h2>
+<h2 data-i18n="profile.state.heading">{{ "profile.state.heading"|t }}</h2>
 <dl class="facts">
-<dt>状態</dt><dd>{% call m::presence(me) %}{% endcall %}{% if me.skewed %} {% call m::skew() %}{% endcall %}{% endif %}</dd>
+<dt data-i18n="list.col.state">{{ "list.col.state"|t }}</dt><dd>{% call m::presence(me) %}{% endcall %}{% if me.skewed %} {% call m::skew() %}{% endcall %}{% endif %}</dd>
 <dt>model · effort</dt><dd>{% call m::setting(me) %}{% endcall %}{% if let Some(c) = current %} <span class="muted">（{{ c.source }}・{% call m::time(c.received) %}{% endcall %}）</span>{% endif %}</dd>
-<dt>最初の登場</dt><dd>{% call m::maybe_time(me.first_entered) %}{% endcall %}</dd>
-<dt>最後の退場</dt><dd>{% call m::maybe_time(me.last_exited) %}{% endcall %}</dd>
+<dt data-i18n="list.col.firstEntered">{{ "list.col.firstEntered"|t }}</dt><dd>{% call m::maybe_time(me.first_entered) %}{% endcall %}</dd>
+<dt data-i18n="list.col.lastExited">{{ "list.col.lastExited"|t }}</dt><dd>{% call m::maybe_time(me.last_exited) %}{% endcall %}</dd>
 </dl>
 </section>
 
 <section id="usage">
-<h2>使用量（直近 31 日）</h2>
-{% if let Some(why) = usage.error %}<p class="error">数を読めません（{{ why }}）。</p>
+<h2 data-i18n="profile.usage.heading">{{ "profile.usage.heading"|t }}</h2>
+{% if let Some(why) = usage.error %}<p class="error" data-i18n="profile.usage.error" data-i18n-options="{{ "why"|opts1(why) }}">{{ "profile.usage.error"|t1("why", why) }}</p>
 {% else if let Some(u) = usage.view %}
 <dl class="facts">
-<dt>額</dt><dd>{{ u.cost }}（本体 {{ u.main_cost }}・手伝い {{ u.helper_cost }}）</dd>
-<dt>回</dt><dd>{{ u.turns }}（手伝い {{ u.helper_turns }}）</dd>
-<dt>いちばん長い文脈</dt><dd>{% call m::maybe(u.max_context) %}{% endcall %}</dd>
+<dt data-i18n="list.col.cost">{{ "list.col.cost"|t }}</dt><dd>{{ u.cost }}<span data-i18n="profile.usage.costSplit" data-i18n-options="{{ "main"|opts2(u.main_cost, "helper", u.helper_cost) }}">{{ "profile.usage.costSplit"|t2("main", u.main_cost, "helper", u.helper_cost) }}</span></dd>
+<dt data-i18n="common.turns">{{ "common.turns"|t }}</dt><dd>{{ u.turns }}<span data-i18n="profile.usage.helperTurns" data-i18n-options="{{ "n"|opts1(u.helper_turns) }}">{{ "profile.usage.helperTurns"|t1("n", u.helper_turns) }}</span></dd>
+<dt data-i18n="list.col.context">{{ "list.col.context"|t }}</dt><dd>{% call m::maybe(u.max_context) %}{% endcall %}</dd>
 </dl>
-{% if u.truncated %}<p class="error">記録が多すぎて、全部を読めませんでした。上の数と図は、読めた分だけの物です。</p>{% endif %}
+{% if u.truncated %}<p class="error" data-i18n="profile.usage.truncated">{{ "profile.usage.truncated"|t }}</p>{% endif %}
 {% if let Some(c) = u.chart %}
 <div class="scroll">{% call m::chart(c) %}{% endcall %}</div>
-<ul class="legend keys"><li><span class="key context"></span>線: 1 時間ごとの、本体の回のいちばん長い文脈（記録の無い時は切る）</li><li><span class="compact-key"></span>縦の点線: 要約（圧縮）。マウスを重ねると時刻と、前と後の文脈の長さ</li></ul>
+<ul class="legend keys"><li><span class="key context"></span><span data-i18n="profile.usage.keys.context">{{ "profile.usage.keys.context"|t }}</span></li><li><span class="compact-key"></span><span data-i18n="profile.usage.keys.compact">{{ "profile.usage.keys.compact"|t }}</span></li></ul>
 {% endif %}
-{% else %}<p class="empty">この 31 日に、数の記録はありません。</p>
+{% else %}<p class="empty" data-i18n="profile.usage.empty">{{ "profile.usage.empty"|t }}</p>
 {% endif %}
-<p class="muted">集めた期間: {% call m::time(usage.from) %}{% endcall %} から {% call m::time(usage.to) %}{% endcall %} まで（時の境に揃えています）。額は、使った量を API の値段に直した目安で、払う額ではありません。いちばん長い文脈と線は、本体の回だけで出します。<a href="/usage/">使用量の画面へ</a></p>
+<p class="muted"><span data-i18n="common.window.before">{{ "common.window.before"|t }}</span>{% call m::time(usage.from) %}{% endcall %}<span data-i18n="list.costs.middle">{{ "list.costs.middle"|t }}</span>{% call m::time(usage.to) %}{% endcall %}<span data-i18n="profile.usage.window.after">{{ "profile.usage.window.after"|t }}</span><a href="/usage/" data-i18n="profile.usage.toUsage">{{ "profile.usage.toUsage"|t }}</a></p>
 </section>
 
 <section id="labels">
-<h2>ラベル</h2>
-{% if me.labels.is_empty() %}<p class="empty">ありません。</p>{% else %}
+<h2 data-i18n="profile.labels.heading">{{ "profile.labels.heading"|t }}</h2>
+{% if me.labels.is_empty() %}<p class="empty" data-i18n="profile.none">{{ "profile.none"|t }}</p>{% else %}
 <ul class="chips">
 {% for (key, value) in me.labels %}<li><span class="chip"><span class="muted">{{ key }}</span> {{ value }}</span></li>
 {% endfor %}
@@ -49,17 +49,17 @@
 </section>
 
 <section id="bindings">
-<h2>外部の id</h2>
+<h2 data-i18n="profile.bindings.heading">{{ "profile.bindings.heading"|t }}</h2>
 <div class="scroll">
 <table>
-<thead><tr><th>受け取った時刻</th><th>種類</th><th>値</th><th></th></tr></thead>
+<thead><tr><th data-i18n="profile.col.received">{{ "profile.col.received"|t }}</th><th data-i18n="list.col.kind">{{ "list.col.kind"|t }}</th><th data-i18n="profile.bindings.value">{{ "profile.bindings.value"|t }}</th><th></th></tr></thead>
 <tbody>
 {% for b in bindings %}
 <tr{% if !b.current %} class="past"{% endif %}>
 <td>{% call m::time(b.received) %}{% endcall %}</td>
 <td><code>{{ b.kind }}</code></td>
 <td><code>{{ b.value }}</code></td>
-<td>{% if b.is_key %}<span class="chip">キー</span>{% endif %}{% if b.current %} <span class="chip role">今</span>{% endif %}</td>
+<td>{% if b.is_key %}<span class="chip" data-i18n="profile.bindings.key">{{ "profile.bindings.key"|t }}</span>{% endif %}{% if b.current %} <span class="chip role" data-i18n="profile.bindings.current">{{ "profile.bindings.current"|t }}</span>{% endif %}</td>
 </tr>
 {% endfor %}
 </tbody>
@@ -68,8 +68,8 @@
 </section>
 
 <section id="launched-by">
-<h2>起動した人</h2>
-{% if chain.is_empty() %}<p class="empty">ありません（起点）。</p>{% else %}
+<h2 data-i18n="profile.launchedBy.heading">{{ "profile.launchedBy.heading"|t }}</h2>
+{% if chain.is_empty() %}<p class="empty" data-i18n="profile.launchedBy.none">{{ "profile.launchedBy.none"|t }}</p>{% else %}
 <ol class="chain">
 {% for (link, verb) in chain %}<li><a href="{{ link.href }}">{{ link.name }}</a> <span class="muted">{% if !link.kind.is_empty() %}{{ link.kind }}・{% endif %}{{ verb }}</span></li>
 {% endfor %}<li><strong>{{ me.name }}</strong></li>
@@ -78,8 +78,8 @@
 </section>
 
 <section id="children">
-<h2>起動したアクター</h2>
-{% if children.is_empty() %}<p class="empty">ありません。</p>{% else %}
+<h2 data-i18n="profile.children.heading">{{ "profile.children.heading"|t }}</h2>
+{% if children.is_empty() %}<p class="empty" data-i18n="profile.none">{{ "profile.none"|t }}</p>{% else %}
 <ul class="links">
 {% for link in children %}<li><a href="{{ link.href }}">{{ link.name }}</a>{% if !link.kind.is_empty() %} <span class="muted">{{ link.kind }}</span>{% endif %}</li>
 {% endfor %}
@@ -88,19 +88,19 @@
 </section>
 
 <section id="continued">
-<h2>引き継ぎ</h2>
+<h2 data-i18n="profile.continued.heading">{{ "profile.continued.heading"|t }}</h2>
 <dl class="facts">
-<dt>引き継ぎ元</dt><dd>{% if before.is_empty() %}<span class="none">—</span>{% else %}{% for link in before %}<a href="{{ link.href }}">{{ link.name }}</a> {% endfor %}{% endif %}</dd>
-<dt>引き継ぎ先</dt><dd>{% if after.is_empty() %}<span class="none">—</span>{% else %}{% for link in after %}<a href="{{ link.href }}">{{ link.name }}</a> {% endfor %}{% endif %}</dd>
+<dt data-i18n="profile.continued.before">{{ "profile.continued.before"|t }}</dt><dd>{% if before.is_empty() %}<span class="none">—</span>{% else %}{% for link in before %}<a href="{{ link.href }}">{{ link.name }}</a> {% endfor %}{% endif %}</dd>
+<dt data-i18n="profile.continued.after">{{ "profile.continued.after"|t }}</dt><dd>{% if after.is_empty() %}<span class="none">—</span>{% else %}{% for link in after %}<a href="{{ link.href }}">{{ link.name }}</a> {% endfor %}{% endif %}</dd>
 </dl>
 </section>
 
 <section id="settings">
-<h2>model と effort の履歴</h2>
-{% if settings.is_empty() %}<p class="empty">ありません。</p>{% else %}
+<h2 data-i18n="profile.settings.heading">{{ "profile.settings.heading"|t }}</h2>
+{% if settings.is_empty() %}<p class="empty" data-i18n="profile.none">{{ "profile.none"|t }}</p>{% else %}
 <div class="scroll">
 <table>
-<thead><tr><th>受け取った時刻</th><th>model</th><th>effort</th><th>指定・実際</th><th></th></tr></thead>
+<thead><tr><th data-i18n="profile.col.received">{{ "profile.col.received"|t }}</th><th>model</th><th>effort</th><th data-i18n="profile.settings.source">{{ "profile.settings.source"|t }}</th><th></th></tr></thead>
 <tbody>
 {% for s in settings %}
 <tr>
@@ -108,22 +108,22 @@
 <td><code>{{ s.model }}</code></td>
 <td><code>{{ s.effort }}</code></td>
 <td>{{ s.source }}</td>
-<td>{% if s.mismatch %}<span class="mismatch" title="その前に指定した model か effort と違います">食い違い</span>{% endif %}{% if s.skewed %} {% call m::skew() %}{% endcall %}{% endif %}</td>
+<td>{% if s.mismatch %}<span class="mismatch" title="{{ "profile.settings.mismatchTitle"|t }}" data-i18n="profile.settings.mismatch" data-i18n-attr="title:profile.settings.mismatchTitle">{{ "profile.settings.mismatch"|t }}</span>{% endif %}{% if s.skewed %} {% call m::skew() %}{% endcall %}{% endif %}</td>
 </tr>
 {% endfor %}
 </tbody>
 </table>
 </div>
-<p class="muted">食い違い: 実際の値のうち、その前に最後に指定した値と model か effort が違う物です。</p>
+<p class="muted" data-i18n="profile.settings.mismatchNote">{{ "profile.settings.mismatchNote"|t }}</p>
 {% endif %}
 </section>
 
 <section id="events">
-<h2>出来事</h2>
-{% if events.is_empty() %}<p class="empty">ありません。</p>{% else %}
+<h2 data-i18n="profile.events.heading">{{ "profile.events.heading"|t }}</h2>
+{% if events.is_empty() %}<p class="empty" data-i18n="profile.none">{{ "profile.none"|t }}</p>{% else %}
 <div class="scroll">
 <table>
-<thead><tr><th>受け取った時刻</th><th>出来事</th><th>理由（reason）</th><th>きっかけ（source）</th><th>送り手の時刻</th><th></th></tr></thead>
+<thead><tr><th data-i18n="profile.col.received">{{ "profile.col.received"|t }}</th><th data-i18n="profile.events.event">{{ "profile.events.event"|t }}</th><th data-i18n="profile.events.reason">{{ "profile.events.reason"|t }}</th><th data-i18n="profile.events.source">{{ "profile.events.source"|t }}</th><th data-i18n="profile.events.sent">{{ "profile.events.sent"|t }}</th><th></th></tr></thead>
 <tbody>
 {% for e in events %}
 <tr>
@@ -141,4 +141,4 @@
 {% endif %}
 </section>
 {% endblock %}
-{% block foot %}{% call m::foot() %}{% endcall %} 表示した時刻: {% call m::time(as_of) %}{% endcall %}{% endblock %}
+{% block foot %}{% call m::foot() %}{% endcall %} <span data-i18n="common.asOf">{{ "common.asOf"|t }}</span> {% call m::time(as_of) %}{% endcall %}{% endblock %}

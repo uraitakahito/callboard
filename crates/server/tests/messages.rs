@@ -177,10 +177,10 @@ async fn 行は_記録を_状態の字にして出す() {
         r#"<span class="state delivered">届いた</span>"#,
         r#"<span class="route">t-1.swe.1 → pm.1</span>"#,
         // 日付をまたぐ（UTC の 15:00 は、次の日の 00:00）。
-        r#"<span>届いた <time datetime="2026-11-02T15:00:07.000Z" title="2026-11-02T15:00:07.000Z">11-03 00:00</time></span>"#,
+        r#"<span><span data-i18n="messages.delivered">届いた</span> <time datetime="2026-11-02T15:00:07.000Z" title="2026-11-02T15:00:07.000Z">11-03 00:00</time></span>"#,
         // 決めていない名は、書かれた字のまま。
-        "<span>渡した時: session-start</span>",
-        "<span>渡し直し 2 度</span>",
+        r#"<span data-i18n="messages.via" data-i18n-options="{&#34;via&#34;:&#34;session-start&#34;}">渡した時: session-start</span>"#,
+        r#"<span data-i18n="messages.again" data-i18n-options="{&#34;n&#34;:2}">渡し直し 2 度</span>"#,
         "<pre>りんごにする</pre>",
     ] {
         assert!(line.contains(part), "{part}: {line}");
@@ -240,7 +240,9 @@ async fn 状態と_渡した時は_画面の字で出す() {
     for (i, (_, label)) in vias.iter().enumerate() {
         let line = row(&page, &format!("p/v-{i}"));
         assert!(
-            line.contains(&format!("<span>渡した時: {label}</span>")),
+            line.contains(&format!(
+                r#"<span data-i18n="messages.via" data-i18n-options="{{&#34;via&#34;:&#34;{label}&#34;}}">渡した時: {label}</span>"#
+            )),
             "{line}"
         );
         // 渡した回数が 1 なら、渡し直しは出さない。
@@ -307,7 +309,9 @@ async fn 引数を_一覧と候補の問いに渡す() {
     assert_eq!(asked(&app, "/api/messages"), pairs([("maxResults", "200")]));
     assert_eq!(asked(&app, "/api/messages/facets"), pairs([]));
     assert!(
-        page.contains(r#"<span class="empty">合うメッセージは無い</span>"#),
+        page.contains(
+            r#"<span class="empty" data-i18n="messages.empty">合うメッセージは無い</span>"#
+        ),
         "{page}"
     );
 
@@ -345,11 +349,11 @@ async fn 絞り込みの列と_まだ届いていない数を出す() {
     let app = start(json!({ "messages": [message("p", "m-1")] }), facets()).await;
     let page = app.html("/messages").await;
     assert!(
-        page.contains("<title>まだ届いていない 2 件 ・ メッセージの記録 ・ callboard</title>"),
+        page.contains("<title data-i18n=\"messages.titleWaiting\" data-i18n-options=\"{&#34;n&#34;:2}\">まだ届いていない 2 件 ・ メッセージの記録 ・ callboard</title>"),
         "{page}"
     );
     assert!(
-        page.contains(r#"<a class="btn" id="undelivered" href="/messages?state=waiting" title="まだ届いていないメッセージだけに絞る">まだ届いていない 2 件</a>"#),
+        page.contains(r#"<a class="btn" id="undelivered" href="/messages?state=waiting" title="まだ届いていないメッセージだけに絞る" data-i18n="messages.undelivered" data-i18n-options="{&#34;n&#34;:2}" data-i18n-attr="title:messages.undeliveredTitle">まだ届いていない 2 件</a>"#),
         "{page}"
     );
     for choice in [
@@ -385,17 +389,19 @@ async fn 絞り込みの列と_まだ届いていない数を出す() {
         "{page}"
     );
     assert!(
-        page.contains(r#"<a class="btn on" id="undelivered" href="/messages?state=waiting" title="まだ届いていないメッセージだけに絞る" aria-current="true">まだ届いていない 2 件</a>"#),
+        page.contains(r#"<a class="btn on" id="undelivered" href="/messages?state=waiting" title="まだ届いていないメッセージだけに絞る" aria-current="true" data-i18n="messages.undelivered" data-i18n-options="{&#34;n&#34;:2}" data-i18n-attr="title:messages.undeliveredTitle">まだ届いていない 2 件</a>"#),
         "{page}"
     );
     assert!(
-        page.contains(r#"<a class="btn" href="/messages">絞り込みを外す</a>"#),
+        page.contains(
+            r#"<a class="btn" href="/messages" data-i18n="common.tray.reset">絞り込みを外す</a>"#
+        ),
         "{page}"
     );
     // 新着の印の先は、今の条件の頭（続きの印は付けない）。
     assert!(
         page.contains(
-            r#"<a class="btn" id="fresh" href="/messages?state=waiting" hidden>● 新着</a>"#
+            r#"<a class="btn" id="fresh" href="/messages?state=waiting" hidden data-i18n="common.tray.fresh">● 新着</a>"#
         ),
         "{page}"
     );
@@ -408,12 +414,12 @@ async fn 絞り込みの列と_まだ届いていない数を出す() {
     let app = start(json!({ "messages": [] }), quiet).await;
     let page = app.html("/messages").await;
     assert!(
-        page.contains("<title>メッセージの記録 ・ callboard</title>"),
+        page.contains("<title data-i18n=\"messages.title\">メッセージの記録 ・ callboard</title>"),
         "{page}"
     );
     assert!(
         page.contains(
-            r#"title="まだ届いていないメッセージだけに絞る" hidden>まだ届いていない 0 件</a>"#
+            r#"title="まだ届いていないメッセージだけに絞る" hidden data-i18n="messages.undelivered" data-i18n-options="{&#34;n&#34;:0}" data-i18n-attr="title:messages.undeliveredTitle">まだ届いていない 0 件</a>"#
         ),
         "{page}"
     );
@@ -427,7 +433,7 @@ async fn 続きは_link_で出す() {
     let app = start(list, facets()).await;
     let page = app.html("/messages?to=tpm&at=00").await;
     assert!(
-        page.contains(r#"<a class="more" href="/messages?to=tpm&#38;at=6d6573">続きを出す</a>"#),
+        page.contains(r#"<a class="more" href="/messages?to=tpm&#38;at=6d6573" data-i18n="common.tray.more">続きを出す</a>"#),
         "{page}"
     );
 }
@@ -443,11 +449,13 @@ async fn 画面の間の_link_と_script() {
         "{page}"
     );
     assert!(
-        page.contains(r#"<a class="btn" href="/pages/">ページ</a>"#),
+        page.contains(r#"<a class="btn" href="/pages/" data-i18n="nav.pages">ページ</a>"#),
         "{page}"
     );
     assert!(
-        page.contains(r#"<h1><a href="/messages">メッセージの記録</a></h1>"#),
+        page.contains(
+            r#"<h1><a href="/messages" data-i18n="messages.heading">メッセージの記録</a></h1>"#
+        ),
         "{page}"
     );
     let scripts = common::without_i18n_scripts(&page);

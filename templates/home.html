@@ -1,12 +1,13 @@
 {% extends "base.html" %}
-{% block title %}入口{% endblock %}
+{% block title_attrs %} data-i18n="home.title"{% endblock %}
+{% block title %}{{ "home.title"|t }}{% endblock %}
 {% block main %}
 <h1>callboard</h1>
-<p class="legend">アクターの台帳（castlist）と、ページの置き場（pagetray）の画面の入口です。</p>
+<p class="legend" data-i18n="home.legend">{{ "home.legend"|t }}</p>
 {% for s in services %}
 <section id="{{ s.id }}">
 <h2>{{ s.title }} <span class="kind">{{ s.id }}</span></h2>
-<p class="upstream">{% if let Some(version) = s.version %}<span class="state on">つながっています</span> <span class="muted">版 <code>{{ version }}</code></span>{% else %}<span class="state off">届きません</span> <span class="muted">{{ s.reason }}</span>{% endif %}</p>
+<p class="upstream">{% if let Some(version) = s.version %}<span class="state on" data-i18n="home.connected">{{ "home.connected"|t }}</span> <span class="muted"><span data-i18n="home.version">{{ "home.version"|t }}</span> <code>{{ version }}</code></span>{% else %}<span class="state off" data-i18n="home.unreachable">{{ "home.unreachable"|t }}</span> <span class="muted">{{ s.reason }}</span>{% endif %}</p>
 <ul class="links">
 {% for (name, href) in s.links %}<li><a href="{{ href }}">{{ name }}</a></li>
 {% endfor %}

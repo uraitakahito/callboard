@@ -200,7 +200,7 @@ async fn 行は_記録と印を出す() {
         // UTC の 15:30 は、次の日の 00:30。
         r#"<time datetime="2026-11-24T15:30:00.500Z" title="2026-11-24T15:30:00.500Z">11-25 00:30</time><span>A-1</span><span class="name">review-1</span>"#,
         r#"<span class="verdict concerns">気になる所あり</span><span class="reply waiting tpm">上げた</span>"#,
-        r#"<span class="title">（題なし）</span><span class="who">staff-engineer</span></a>"#,
+        r#"<span class="title" data-i18n="pages.untitled">（題なし）</span><span class="who">staff-engineer</span></a>"#,
         r#"<span class="links targets">見た物: <a href="/pages/?kind=x&#38;open=%2Fp%2FA-1%2Fplan-1.html">plan-1</a> <a href="/pages/?kind=x&#38;open=%2Fp%2FB-2%2Fplan-3.html">B-2/plan-3</a> <a href="/pages/?kind=x&#38;open=%2Fq%2FZ-9%2Fbrief-2.html">q/Z-9/brief-2</a> <a href="https://github.com/o/r/pull/191" target="_blank" rel="noopener">r#191</a> <a href="https://example.com/x" target="_blank" rel="noopener">https://example.com/x</a></span>"#,
         // 送り手: castlist の名（callboard のプロフィールへ）と、付随する id。
         r#"<span class="sender"><a class="actor" href="/actors/019a0000-0000-7000-8000-00000000000a" target="_blank" rel="noopener">t-1.swe.1</a><small>claude.session:a</small></span>"#,
@@ -213,7 +213,7 @@ async fn 行は_記録と印を出す() {
         r#"<li data-path="/p/A-1/plan-1.html" data-at="2026-11-24T00:00:00.000Z">"#,
         r#"<time datetime="2026-11-24T00:00:00.000Z" title="2026-11-24T00:00:00.000Z">11-24 09:00</time>"#,
         r#"<span class="title">plan の題</span><span class="who">software-engineer ・ workspace:1</span></a>"#,
-        r#"<span class="links reviews">レビュー: <a href="/pages/?kind=x&#38;open=%2Fp%2FA-1%2Freview-1.html">review-1</a><span class="verdict concerns">気になる所あり</span> <a href="/pages/?kind=x&#38;open=%2Fq%2FZ-9%2Freview-4.html">q/Z-9/review-4</a></span>"#,
+        r#"<span class="links reviews"><span data-i18n="pages.reviews">レビュー:</span> <a href="/pages/?kind=x&#38;open=%2Fp%2FA-1%2Freview-1.html">review-1</a><span class="verdict concerns">気になる所あり</span> <a href="/pages/?kind=x&#38;open=%2Fq%2FZ-9%2Freview-4.html">q/Z-9/review-4</a></span>"#,
         r#"<span class="sender">未確認<small>claude.session:b</small></span>"#,
     ] {
         assert!(line.contains(part), "{part}: {line}");
@@ -264,7 +264,7 @@ async fn 引数を_一覧の問いに渡す() {
     assert_eq!(asked(&app, "/api/reviews"), None);
     assert_eq!(asked(&app, "/api/files"), None);
     assert!(
-        html.contains(r#"<span class="empty">合うページは無い</span>"#),
+        html.contains(r#"<span class="empty" data-i18n="pages.empty">合うページは無い</span>"#),
         "{html}"
     );
 
@@ -311,17 +311,17 @@ async fn 操作の帯と_絞り込みの列を出す() {
     let app = start(json!({ "pages": [page("p", "A-1", "plan", 1)] })).await;
     let html = app.html("/pages/").await;
     for part in [
-        "<title>返事待ち 2 件 ・ ページの置き場 ・ callboard</title>",
-        r#"<h1><a href="/pages/">ページの置き場</a></h1>"#,
-        r#"<a class="btn" href="/messages">メッセージ</a>"#,
+        "<title data-i18n=\"pages.titleWaiting\" data-i18n-options=\"{&#34;n&#34;:2}\">返事待ち 2 件 ・ ページの置き場 ・ callboard</title>",
+        r#"<h1><a href="/pages/" data-i18n="pages.heading">ページの置き場</a></h1>"#,
+        r#"<a class="btn" href="/messages" data-i18n="nav.messages">メッセージ</a>"#,
         r#"<form action="/pages/" method="get">"#,
-        r#"<input type="search" name="q" value="" placeholder="題と本文を探す" aria-label="題と本文を探す">"#,
-        r#"<a class="btn" href="/pages/?sort=created_at" title="並びを替える">並び: 新しい順</a>"#,
-        r#"<a class="btn" id="waiting" href="/pages/?reply=waiting" title="Product Manager の返事を待っているページだけに絞る">返事待ち 2 件</a>"#,
-        r#"<a class="btn" id="review-waiting" href="/pages/?reply=waiting&#38;on=review" title="レビューの判定を待っている依頼書だけに絞る">レビュー待ち 3 件</a>"#,
+        r#"<input type="search" name="q" value="" placeholder="題と本文を探す" aria-label="題と本文を探す" data-i18n-attr="placeholder:pages.search.placeholder;aria-label:pages.search.placeholder">"#,
+        r#"<a class="btn" href="/pages/?sort=created_at" title="並びを替える" data-i18n="pages.sort.label" data-i18n-options="{&#34;sort&#34;:&#34;新しい順&#34;}" data-i18n-attr="title:pages.sort.title">並び: 新しい順</a>"#,
+        r#"<a class="btn" id="waiting" href="/pages/?reply=waiting" title="Product Manager の返事を待っているページだけに絞る">返事待ち <span data-i18n="pages.count" data-i18n-options="{&#34;n&#34;:2}">2 件</span></a>"#,
+        r#"<a class="btn" id="review-waiting" href="/pages/?reply=waiting&#38;on=review" title="レビューの判定を待っている依頼書だけに絞る">レビュー待ち <span data-i18n="pages.count" data-i18n-options="{&#34;n&#34;:3}">3 件</span></a>"#,
         // 0 件の釦は隠す。
-        r#"id="escalated" href="/pages/?reply=waiting&#38;on=tpm" title="判定を受けずに TPM 担当へ上げ、まだ決まっていないレビューだけに絞る" hidden>上げた 0 件</a>"#,
-        r#"<a class="btn" id="fresh" href="/pages/" hidden>● 新着</a>"#,
+        r#"id="escalated" href="/pages/?reply=waiting&#38;on=tpm" title="判定を受けずに TPM 担当へ上げ、まだ決まっていないレビューだけに絞る" hidden>上げた <span data-i18n="pages.count" data-i18n-options="{&#34;n&#34;:0}">0 件</span></a>"#,
+        r#"<a class="btn" id="fresh" href="/pages/" hidden data-i18n="common.tray.fresh">● 新着</a>"#,
         "<h2>返事</h2>",
         r#"<a href="/pages/?reply=waiting"><span>返事待ち</span><span class="n">2</span></a>"#,
         r#"<a href="/pages/?reply=answered"><span>答えた</span><span class="n">1</span></a>"#,
@@ -360,11 +360,11 @@ async fn 操作の帯と_絞り込みの列を出す() {
         r#"<input type="hidden" name="on" value="review">"#,
         r#"<input type="hidden" name="sort" value="created_at">"#,
         r#"<input type="search" name="q" value="み" "#,
-        r#"<a class="btn" href="/pages/?project=p&#38;q=%E3%81%BF&#38;reply=waiting&#38;on=review" title="並びを替える">並び: 古い順</a>"#,
-        r#"<a class="btn on" id="review-waiting" href="/pages/?reply=waiting&#38;on=review&#38;sort=created_at" title="レビューの判定を待っている依頼書だけに絞る" aria-current="true">レビュー待ち 3 件</a>"#,
+        r#"<a class="btn" href="/pages/?project=p&#38;q=%E3%81%BF&#38;reply=waiting&#38;on=review" title="並びを替える" data-i18n="pages.sort.label" data-i18n-options="{&#34;sort&#34;:&#34;古い順&#34;}" data-i18n-attr="title:pages.sort.title">並び: 古い順</a>"#,
+        r#"<a class="btn on" id="review-waiting" href="/pages/?reply=waiting&#38;on=review&#38;sort=created_at" title="レビューの判定を待っている依頼書だけに絞る" aria-current="true">レビュー待ち <span data-i18n="pages.count" data-i18n-options="{&#34;n&#34;:3}">3 件</span></a>"#,
         // 絞り込みを外しても、並びは保つ。
-        r#"<a class="btn" href="/pages/?sort=created_at">絞り込みを外す</a>"#,
-        r#"<a class="btn" id="fresh" href="/pages/?project=p&#38;q=%E3%81%BF&#38;reply=waiting&#38;on=review&#38;sort=created_at" hidden>● 新着</a>"#,
+        r#"<a class="btn" href="/pages/?sort=created_at" data-i18n="common.tray.reset">絞り込みを外す</a>"#,
+        r#"<a class="btn" id="fresh" href="/pages/?project=p&#38;q=%E3%81%BF&#38;reply=waiting&#38;on=review&#38;sort=created_at" hidden data-i18n="common.tray.fresh">● 新着</a>"#,
         r#"<a href="/pages/?project=p&#38;q=%E3%81%BF&#38;sort=created_at" class="on" aria-current="true"><span>レビュー待ち</span>"#,
         r#"<a href="/pages/?q=%E3%81%BF&#38;reply=waiting&#38;on=review&#38;sort=created_at" class="on" aria-current="true"><span>p</span>"#,
         r#"<a href="/pages/?project=p&#38;key=A-1&#38;q=%E3%81%BF&#38;reply=waiting&#38;on=review&#38;sort=created_at"><span>A-1</span>"#,
@@ -384,7 +384,7 @@ async fn 続きは_link_で出す() {
     let app = start(json!({ "pages": [page("p", "A-1", "plan", 1)], "nextToken": "6d6573" })).await;
     let html = app.html("/pages/?role=tpm&at=00").await;
     assert!(
-        html.contains(r#"<a class="more" href="/pages/?role=tpm&#38;at=6d6573">続きを出す</a>"#),
+        html.contains(r#"<a class="more" href="/pages/?role=tpm&#38;at=6d6573" data-i18n="common.tray.more">続きを出す</a>"#),
         "{html}"
     );
 }
@@ -401,10 +401,10 @@ async fn 選んだページを_本文の枠に出す() {
     for part in [
         r#" data-viewer="/p/A-1/plan-1.html""#.to_owned(),
         format!(
-            r#"<p><span>/p/A-1/plan-1.html</span><a href="{PAGETRAY_LINK}/p/A-1/plan-1.html" target="_blank" rel="noopener">別の tab で開く</a></p>"#
+            r#"<p><span>/p/A-1/plan-1.html</span><a href="{PAGETRAY_LINK}/p/A-1/plan-1.html" target="_blank" rel="noopener" data-i18n="pages.viewer.open">別の tab で開く</a></p>"#
         ),
         format!(
-            r#"<iframe src="{PAGETRAY_LINK}/p/A-1/plan-1.html" sandbox="allow-scripts" title="選んだページ"></iframe>"#
+            r#"<iframe src="{PAGETRAY_LINK}/p/A-1/plan-1.html" sandbox="allow-scripts" title="選んだページ" data-i18n-attr="title:pages.viewer.frame"></iframe>"#
         ),
         r#"<a href="/pages/?open=%2Fp%2FA-1%2Fplan-1.html" class="on" aria-current="true">"#
             .to_owned(),
@@ -447,7 +447,9 @@ async fn 選んだページを_本文の枠に出す() {
         assert!(!html.contains("<iframe"), "{open}: {html}");
         assert!(!html.contains("data-viewer"), "{open}: {html}");
         assert!(
-            html.contains("<p>ページを選ぶと、ここに 1 枚だけ出る</p>"),
+            html.contains(
+                "<p data-i18n=\"pages.viewer.empty\">ページを選ぶと、ここに 1 枚だけ出る</p>"
+            ),
             "{open}: {html}"
         );
     }
@@ -479,7 +481,7 @@ async fn key_の画面は_file_の枠と上げる枠を出す() {
     );
     assert_eq!(asked(&app, "/api/files/rules"), pairs([]));
     for part in [
-        r#"<div id="files" class="box" role="region" aria-label="file の枠">"#.to_owned(),
+        r#"<div id="files" class="box" role="region" aria-label="file の枠" data-i18n-attr="aria-label:pages.files.label">"#.to_owned(),
         // 図は、pagetray の URL で小さく出す。ほかは拡張子の字。
         format!(
             r#"<li data-file="/p/A-1/files/shot-2.png"><a class="thumb" href="{PAGETRAY_LINK}/p/A-1/files/shot-2.png" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><img src="{PAGETRAY_LINK}/p/A-1/files/shot-2.png" loading="lazy" alt=""></a>"#
@@ -490,7 +492,7 @@ async fn key_の画面は_file_の枠と上げる枠を出す() {
         r#"<span class="who">512 B ・ tpm ・ <time datetime="2026-11-23T15:00:00.000Z" title="2026-11-23T15:00:00.000Z">11-24 00:00</time></span>"#.to_owned(),
         r#"<span class="sender"><a class="actor" href="/actors/019a0000-0000-7000-8000-00000000000a" target="_blank" rel="noopener">t-1.swe.1</a><small>claude.session:a</small></span>"#.to_owned(),
         // 上げる枠: 送る先は callboard の中継の道。受ける種類と上限は、pagetray の答え。
-        r#"<div id="upload" class="box" role="region" aria-label="上げる枠" data-project="p" data-key="A-1" data-types="[[&#34;png&#34;,&#34;image/png&#34;],[&#34;txt&#34;,&#34;text/plain; charset=utf-8&#34;]]" data-max="16777216" data-upload="/api/pagetray/projects/p/keys/A-1/files">"#.to_owned(),
+        r#"<div id="upload" class="box" role="region" aria-label="上げる枠" data-i18n-attr="aria-label:pages.upload.label" data-project="p" data-key="A-1" data-types="[[&#34;png&#34;,&#34;image/png&#34;],[&#34;txt&#34;,&#34;text/plain; charset=utf-8&#34;]]" data-max="16777216" data-upload="/api/pagetray/projects/p/keys/A-1/files">"#.to_owned(),
         r#"<input type="file" accept=".png,.txt">"#.to_owned(),
     ] {
         assert!(html.contains(&part), "{part}: {html}");
@@ -500,7 +502,9 @@ async fn key_の画面は_file_の枠と上げる枠を出す() {
     let app = start(json!({ "pages": [] })).await;
     let html = app.html("/pages/?project=p&key=A-1").await;
     assert!(
-        html.contains(r#"<span class="empty">この Key の file は無い</span>"#),
+        html.contains(
+            r#"<span class="empty" data-i18n="pages.files.empty">この Key の file は無い</span>"#
+        ),
         "{html}"
     );
     // project か Key が 1 つだけ・project が api・形の違う名では、枠を出さず、file も聞かない。
