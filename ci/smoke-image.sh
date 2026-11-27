@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # image が、空の image の中で起き、/healthz に答え、外の Host と browser からの書き込みを断り、
-# 入口の画面と CSS が CSP の決まりどおりに出て、castlist と pagetray に名で届き、相関図とプロフィールが castlist の API を
+# 入口の画面と CSS が CSP の決まりどおりに出て、castlist と pagetray に名で届き、一覧・タイムライン・相関図・プロフィールが castlist の API を
 # 通して出て、止める合図で自分から終わり、起こし直しても答えるかを見る。
 # 呼ぶ先は、出した版の castlist と pagetray の image（ghcr.io の物を digest で取る）を、同じ network に起こす。
 # 使い方: ci/smoke-image.sh <image>
@@ -135,6 +135,17 @@ jq -e '.nodes == [] and .edges == [] and (.asOf | length > 0)' "$tmp/graph.json"
 test "$(curl -s -D "$tmp/graph-head.txt" -o "$tmp/graph.json" -w '%{http_code}' "$url/api/castlist/graph?label=x")" = 400
 tr -d '\r' <"$tmp/graph-head.txt" | grep -qi '^x-amzn-errortype: '
 jq -e '.message | length > 0' "$tmp/graph.json" >/dev/null
+# 一覧とタイムライン: 同じ CSP が付き、inline の script と style が無く、本物の castlist（空の台帳）に聞いた答えを出す。
+for path in actors/ graph/timeline; do
+  curl -fsS -D "$tmp/page-head.txt" -o "$tmp/page.html" "$url/$path"
+  tr -d '\r' <"$tmp/page-head.txt" | grep -qixF "content-security-policy: $csp"
+  if grep -qiE '<script|<style|style=' "$tmp/page.html"; then
+    echo "NG: $path に inline の script か style がある" >&2
+    exit 1
+  fi
+  grep -qF '条件に合うアクターはいません' "$tmp/page.html"
+done
+test "$(code "$url/actors/?nope=1")" = 400
 # プロフィール: castlist に無いアクターは 404 の画面（castlist に聞いた答え）。
 test "$(curl -s -o "$tmp/profile.html" -w '%{http_code}' "$url/actors/019a0000-0000-7000-8000-0000000000ff")" = 404
 grep -qF 'そのアクターは無い' "$tmp/profile.html"

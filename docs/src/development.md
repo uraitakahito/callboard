@@ -28,7 +28,7 @@ ci/gen.sh --check                                                  # 取った�
 `e2e/` の試験は、出した版の castlist の server を一時の DB で起こし、castlist の API で見本の記録を置いてから、callboard の画面を開く。castlist の画面（古い画面）と callboard の画面の中身を比べる試験（新旧の比べ）も、この castlist を相手にする。
 
 - CI（job `e2e`）は、`ci/castlist-binary.sh` が、出した版の image（`ci/upstream.env`）から binary を取り出す（arm64 の Linux の binary なので、同じ種類の機械で流す）。
-- ほかの機械では、castlist の同じ版の tag を build した binary を、`CALLBOARD_E2E_CASTLIST` に渡す。castlist の repo を変えないように、tag を別の folder に取り出して build する: `git -C <castlist の repo> archive v1.0.0 | tar -x -C <空の folder>` の後、その folder で `cargo build --locked -p castlist-next`（v1.0.0 の tag では、image に入る server の package の名が `castlist-next`。binary は `target/debug/castlist-next`）。
+- ほかの機械では、castlist の同じ版の tag を build した binary を、`CALLBOARD_E2E_CASTLIST` に渡す。castlist の repo を変えないように、tag を別の folder に取り出して build する: `git -C <castlist の repo> archive v1.1.0 | tar -x -C <空の folder>` の後、その folder で `cargo build --locked --bin castlist-server`（binary は `target/debug/castlist-server`）。版は `ci/upstream.env` の `CASTLIST_VERSION` に合わせる。
 - pagetray は起こさない（今ある画面は castlist だけを呼ぶ）。
 
 ## 置き場所
@@ -71,9 +71,9 @@ callboard は自分の API の定義を持たない。castlist と pagetray の�
 | 層 | 中身 | 在り処 |
 |---|---|---|
 | 受け入れ | 本物の binary を空いた port で起こし、HTTP で叩く（起きる・設定の誤りで起きない・止める合図で終わる） | `crates/server/tests/server.rs` |
-| 道筋 | castlist・pagetray の代わりに、決めた答えを返す偽の server を process の中に立て、Router を直に呼ぶ。偽の server が受けた要求（path・header）も見る | `crates/server/tests/` の `guard.rs`（守りの層）・`health.rs`・`home.rs`（入口）・`profile.rs`（プロフィール）・`network.rs`（相関図と中継の道）（道具は `crates/server/tests/common/`） |
-| browser | 出した版の castlist と、同じ commit の callboard を空いた port で起こし、castlist の API で見本を置き、Chromium で開く。相関図の点と線の数・押した先・絞り・色・console の誤りと CSP の違反が 0、プロフィールの中身、castlist の画面との新旧の比べを見る | `e2e/`（Playwright。CI の job `e2e`。Node の依存の弱点は job `advisories` の `pnpm audit`） |
-| 単体 | 外に触らない純な関数 | 各 file の `#[cfg(test)]` |
+| 道筋 | castlist・pagetray の代わりに、決めた答えを返す偽の server を process の中に立て、Router を直に呼ぶ。偽の server が受けた要求（path・header）も見る | `crates/server/tests/` の `guard.rs`（守りの層）・`health.rs`・`home.rs`（入口）・`list.rs`（一覧）・`profile.rs`（プロフィール）・`timeline.rs`（タイムライン）・`network.rs`（相関図と中継の道）（道具は `crates/server/tests/common/`） |
+| browser | 出した版の castlist と、同じ commit の callboard を空いた port で起こし、castlist の API で見本を置き、Chromium で開く。相関図の点と線の数・押した先・絞り・色・console の誤りと CSP の違反が 0、プロフィールの中身、一覧とタイムラインの期間の欄、castlist の画面との新旧の比べ（一覧・プロフィール・タイムライン・引数の誤り）を見る | `e2e/`（Playwright。CI の job `e2e`。Node の依存の弱点は job `advisories` の `pnpm audit`） |
+| 単体 | 外に触らない純な関数（タイムラインの並べる計算 `src/ui/timeline_layout.rs` は、castlist から試験ごと移した） | 各 file の `#[cfg(test)]` |
 | release の版 | tag と `Cargo.toml` の版・`CHANGELOG.md` の節の突き合わせを、通る形と落ちる形で打つ | `ci/test-check-release-version.sh`（CI の job `test`） |
 | image | 空の image の中で起き、出した版の castlist と pagetray の image に名で届き、相関図と中継の道が本物の castlist を通して出て、断るべき物を断り、止める合図で終わる | `ci/smoke-image.sh <image>`（CI の job `image`） |
 
