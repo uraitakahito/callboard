@@ -98,7 +98,7 @@ jobs:
       - name: Chromium と、それが要る library を入れる
         working-directory: e2e
         run: pnpm exec playwright install --with-deps --only-shell chromium
-      - name: 画面の試験（castlist の 4 つの画面・メッセージの一覧と pagetray の画面との比べ）
+      - name: 画面の試験（castlist の 4 つの画面・費えの画面・メッセージの一覧・ページの一覧）
         working-directory: e2e
         run: |
           CALLBOARD_E2E_SERVER=../target/debug/callboard-server \

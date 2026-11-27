@@ -2,7 +2,7 @@
 // castlist の画面と中身を比べていた試験（新旧の比べ）は、castlist が画面を外した 2.0.0 で、比べる相手が無くなったので外した。
 // ここは、その試験が一緒に見ていた「見本がそのとおりに出ること」を引き継ぐ。
 import { expect, test, type APIRequestContext } from '@playwright/test';
-import { CASTLIST } from './helpers';
+import { CASTLIST, PAGETRAY } from './helpers';
 
 async function main(request: APIRequestContext, path: string): Promise<string> {
   const page = await request.get(path);
@@ -79,4 +79,15 @@ test('相手の castlist は画面を持たない（2.0.0 から）。前の画�
     expect((await request.get(`${CASTLIST}${path}`)).status(), path).toBe(404);
   }
   expect((await request.get(`${CASTLIST}/api/timeline`)).status()).toBe(200);
+});
+
+test('相手の pagetray は画面を持たない（2.0.0 から）。前の画面の道は 404 で、置いたページと API は前のまま', async ({ request }) => {
+  for (const path of ['/', '/?project=x', '/x/', '/x/K-1/', '/messages']) {
+    const answer = await request.get(`${PAGETRAY}${path}`);
+    expect(answer.status(), path).toBe(404);
+    expect(answer.headers()['content-type'] ?? '', path).not.toContain('text/html');
+  }
+  for (const path of ['/api/pages', '/api/pages/facets', '/api/messages', '/api/files/rules']) {
+    expect((await request.get(`${PAGETRAY}${path}`)).status(), path).toBe(200);
+  }
 });

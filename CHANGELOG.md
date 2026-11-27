@@ -2,6 +2,15 @@
 
 版ごとに、画面と、呼ぶ先（castlist・pagetray）の要る版と、動かし方（設定・image）が変わったかを書く。release の workflow は、tag の版の節（`## <版>`）が無いと何も出さない（`ci/check-release-version.sh`）。
 
+## 1.0.0
+
+castlist と pagetray の画面を、みな callboard に移し終えた版（AI-32 の最後の段）。pagetray は 2.0.0 で自分の画面を外した（castlist は 2.0.0 で外していた）。画面は、ここだけにある。
+
+- **呼ぶ先の要る版は変わらない**: castlist は 1.1.0 から（費えの数は 2.1.0 から）、pagetray は 1.3.0 から。pagetray 2.0.0（画面を外した版。API は 1.3.0 と同じ）でも、そのまま動く。CI の相手は pagetray 2.0.0 にした。
+- 画面・設定・image の中身は、0.5.0 と同じ。`CALLBOARD_PAGETRAY_LINK_URL` は、browser がページの本文と file を pagetray から開く URL の頭として、引き続き使う。
+- 試験: pagetray の画面と中身を比べる browser の試験（新旧の比べ）を外した（比べる相手が無くなった）。比べていた事のうち、続きの頁を辿る事・1 頁 200 行の時の ListReviews が通る事・引数の誤りの画面は、比べない形で残した。相手の pagetray が画面を持たない（前の画面の道が 404）ことを見る試験を足した。
+- 外す前の比べの結果（記録）: 動いている置き場で、メッセージの一覧 109 画面（0.3.0）とページの一覧 330 画面（0.4.0）を、pagetray の画面と比べて、違いは 0 だった。
+
 ## 0.5.0
 
 費えの画面を足した版（t-j4pp）。席（アクター = Claude Code の session）が使ったトークンの数と額を見せる。castlist から移した画面でなく、callboard で初めて作った画面。

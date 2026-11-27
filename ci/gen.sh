@@ -32,10 +32,10 @@ sha_for() {
 # 下の castlist の版の common.smithy が合わない時は、smithy build が落ちる（その時は、castlist と pagetray の版を揃えて上げる）。
 # 並びは「置く folder:file:digest」。
 CASTLIST_TAG=v2.1.0
-PAGETRAY_TAG=v1.3.0
+PAGETRAY_TAG=v2.0.0
 PINS="castlist:common.smithy:6425614b79d58d7149f17396cebc3eb30e0e6c511516957d82004eb329fb66d0
 castlist:castlist.smithy:d59d714619fe73e906fac5ab4e872c9f3470714cf44904525754ad0c7ba64f74
-pagetray:pagetray.smithy:65e05e0bc5c09fcd1b0cb6516c8b2fa2908a5b9988bd7c7ae54fac1c883126ce"
+pagetray:pagetray.smithy:f9e4d1db81d35847f73ff3e95a91b55a9899ff9f74d85cd8d5ca93f592faa1ec"
 # 取る所（folder の名 → その repo の、tag の model/model/）。
 raw_for() {
   case "$1" in
