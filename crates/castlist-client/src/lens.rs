@@ -29,6 +29,16 @@ pub(crate) fn reflens_list_settings_output_output_next_token(
     ::std::option::Option::Some(input)
 }
 
+pub(crate) fn reflens_list_usage_output_output_next_token(
+    input: &crate::operation::list_usage::ListUsageOutput,
+) -> ::std::option::Option<&::std::string::String> {
+    let input = match &input.next_token {
+        ::std::option::Option::None => return ::std::option::Option::None,
+        ::std::option::Option::Some(t) => t,
+    };
+    ::std::option::Option::Some(input)
+}
+
 pub(crate) fn lens_list_actors_output_output_actors(
     input: crate::operation::list_actors::ListActorsOutput,
 ) -> ::std::option::Option<::std::vec::Vec<crate::types::ActorRow>> {
@@ -47,5 +57,12 @@ pub(crate) fn lens_list_settings_output_output_settings(
     input: crate::operation::list_settings::ListSettingsOutput,
 ) -> ::std::option::Option<::std::vec::Vec<crate::types::SettingRow>> {
     let input = input.settings;
+    ::std::option::Option::Some(input)
+}
+
+pub(crate) fn lens_list_usage_output_output_usage(
+    input: crate::operation::list_usage::ListUsageOutput,
+) -> ::std::option::Option<::std::vec::Vec<crate::types::Usage>> {
+    let input = input.usage;
     ::std::option::Option::Some(input)
 }
