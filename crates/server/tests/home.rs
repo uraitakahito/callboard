@@ -6,7 +6,7 @@ use std::time::Duration;
 use axum::Router;
 use axum::http::{Request, StatusCode, header};
 use axum::routing::get as route_get;
-use common::{App, CASTLIST_LINK, PAGETRAY_LINK, get};
+use common::{App, PAGETRAY_LINK, get};
 
 /// `id` の `<section>` の中身。
 fn section<'a>(body: &'a str, id: &str) -> &'a str {
@@ -58,15 +58,17 @@ async fn 呼ぶ先には_host_127_0_0_1_で聞き_browser_の_header_を渡さ�
 async fn 入口と頭の_link_は_まだ移していない画面を_link_の頭で_移した画面を_callboard_の道で指す() {
     let app = App::start().await;
     let body = app.html("/").await;
+    // castlist の 4 つの画面は callboard に移したので、callboard の中の道を指す。
     let castlist = section(&body, "castlist");
-    for (name, path) in [("アクターの一覧", "/"), ("タイムライン", "/graph/timeline")]
-    {
-        let link = format!("<a href=\"{CASTLIST_LINK}{path}\">{name}</a>");
+    for (name, path) in [
+        ("アクターの一覧", "/actors/"),
+        ("タイムライン", "/graph/timeline"),
+        ("相関図", "/graph/network"),
+    ] {
+        let link = format!("<a href=\"{path}\">{name}</a>");
         assert!(castlist.contains(&link), "{link}: {castlist}");
     }
-    // 相関図は callboard に移したので、callboard の中の道を指す。
-    let link = "<a href=\"/graph/network\">相関図</a>";
-    assert!(castlist.contains(link), "{castlist}");
+    assert!(!body.contains(":8802"), "{body}");
     let pagetray = section(&body, "pagetray");
     for (name, path) in [("ページの一覧", "/"), ("メッセージ", "/messages")] {
         let link = format!("<a href=\"{PAGETRAY_LINK}{path}\">{name}</a>");
@@ -77,8 +79,8 @@ async fn 入口と頭の_link_は_まだ移していない画面を_link_の頭�
     for page in [&body, &missing] {
         let nav = &page[page.find("<nav").unwrap()..page.find("</nav>").unwrap()];
         for link in [
-            format!("<a href=\"{CASTLIST_LINK}/\">アクター</a>"),
-            format!("<a href=\"{CASTLIST_LINK}/graph/timeline\">タイムライン</a>"),
+            "<a href=\"/actors/\">アクター</a>".to_owned(),
+            "<a href=\"/graph/timeline\">タイムライン</a>".to_owned(),
             "<a href=\"/graph/network\">相関図</a>".to_owned(),
             format!("<a href=\"{PAGETRAY_LINK}/\">ページ</a>"),
             format!("<a href=\"{PAGETRAY_LINK}/messages\">メッセージ</a>"),
@@ -244,10 +246,11 @@ async fn 無い道は_404_の画面で_入口への_link_を出す() {
     let app = App::start().await;
     for path in [
         "/no/such",
-        "/actors/",
+        "/actors",
+        "/actors/x/y",
         "/api/graph",
         "/api/castlist/actors",
-        "/graph/timeline",
+        "/graph/tree",
         "/static/none.css",
     ] {
         let (status, headers, body) = app.send(get(path)).await;

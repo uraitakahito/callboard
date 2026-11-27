@@ -63,7 +63,7 @@ pub fn app(settings: &Settings) -> Router {
 pub fn app_with(settings: &Settings, config: Config) -> Router {
     let castlist = Castlist::new(&settings.castlist);
     let pagetray = Pagetray::new(&settings.pagetray);
-    let nav = ui::Nav::new(castlist.link(), pagetray.link());
+    let nav = ui::Nav::new(pagetray.link());
     let app = Arc::new(App {
         castlist,
         pagetray,

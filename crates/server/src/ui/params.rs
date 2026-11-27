@@ -58,15 +58,22 @@ impl Params {
         Ok(Self(pairs))
     }
 
-    fn one(&self, name: &str) -> Option<&str> {
+    pub fn one(&self, name: &str) -> Option<&str> {
         self.0
             .iter()
             .find(|(n, _)| n == name)
             .map(|(_, v)| v.as_str())
     }
 
+    pub fn all<'a>(&'a self, name: &'a str) -> impl Iterator<Item = &'a str> {
+        self.0
+            .iter()
+            .filter(move |(n, _)| n == name)
+            .map(|(_, v)| v.as_str())
+    }
+
     /// 時刻（RFC 3339）を、castlist の API に渡す字（UTC・ミリ秒まで）にする。
-    fn time(&self, name: &str) -> Result<Option<String>, PageError> {
+    pub fn time(&self, name: &str) -> Result<Option<String>, PageError> {
         self.one(name)
             .map(|v| {
                 OffsetDateTime::parse(v, &Rfc3339).map(stamp).map_err(|_| {
@@ -79,8 +86,73 @@ impl Params {
     }
 }
 
+impl Params {
+    pub fn flag(&self, name: &str) -> Result<Option<bool>, PageError> {
+        match self.one(name) {
+            None => Ok(None),
+            Some("true") => Ok(Some(true)),
+            Some("false") => Ok(Some(false)),
+            Some(_) => Err(bad_request(format!("{name} は true か false"))),
+        }
+    }
+
+    /// `true` だけを受ける絞り（付けなければ絞らない）。
+    pub fn only_true(&self, name: &str) -> Result<bool, PageError> {
+        match self.one(name) {
+            None => Ok(false),
+            Some("true") => Ok(true),
+            Some(_) => Err(bad_request(format!(
+                "{name} は true だけ（絞らないなら付けない）"
+            ))),
+        }
+    }
+
+    /// 名の形の値（model・effort など）。
+    pub fn name(&self, name: &str) -> Result<Option<String>, PageError> {
+        self.one(name)
+            .map(|v| {
+                if is_name(v) {
+                    Ok(v.to_owned())
+                } else {
+                    Err(bad_request(format!(
+                        "{name} は英小文字・数字・- . で 64 字まで"
+                    )))
+                }
+            })
+            .transpose()
+    }
+
+    /// 空でない 256 字までの値（id など）。
+    pub fn value(&self, name: &str) -> Result<Option<String>, PageError> {
+        self.one(name)
+            .map(|v| {
+                if is_value(v) {
+                    Ok(v.to_owned())
+                } else {
+                    Err(bad_request(format!("{name} は空でない 256 字まで")))
+                }
+            })
+            .transpose()
+    }
+
+    /// 決まった物のどれか。
+    pub fn choice(
+        &self,
+        name: &str,
+        choices: &[&'static str],
+    ) -> Result<Option<&'static str>, PageError> {
+        self.one(name)
+            .map(|v| {
+                choices.iter().find(|c| **c == v).copied().ok_or_else(|| {
+                    bad_request(format!("{name} は {} のどれか", choices.join("・")))
+                })
+            })
+            .transpose()
+    }
+}
+
 /// `鍵:値` を初めの `:` で分けられるか。
-fn pair(name: &str, v: &str, shape: &str) -> Result<(), PageError> {
+pub fn pair(name: &str, v: &str, shape: &str) -> Result<(), PageError> {
     match v.split_once(':') {
         Some((key, value)) if is_name(key) && is_value(value) => Ok(()),
         _ => Err(bad_request(format!("{name} は「{shape}」の形（{v}）"))),
@@ -111,11 +183,14 @@ pub fn graph_query(pairs: &Pairs) -> Result<Pairs, PageError> {
 
 // --- 期間の欄 ---
 
-/// 図の期間の欄（登録した期間）の名。
+/// 一覧の期間の欄（稼働した期間）と、図の期間の欄（登録した期間）の名。
+pub const LIST_PERIOD: [&str; 2] = ["active_from", "active_to"];
 pub const GRAPH_PERIOD: [&str; 2] = ["from", "to"];
 
 /// 期間の欄の引数の名と、画面の見出しの字（読めない値の 400 の画面に書く）。
-const PERIOD_LABELS: [(&str, &str); 2] = [
+const PERIOD_LABELS: [(&str, &str); 4] = [
+    ("active_from", "稼働した期間（から）"),
+    ("active_to", "稼働した期間（まで）"),
     ("from", "登録した期間（から）"),
     ("to", "登録した期間（まで）"),
 ];
@@ -143,7 +218,7 @@ fn from_local(value: &str) -> String {
 
 /// RFC 3339 の値を、日時の欄（`datetime-local`）に入れる日本時間の字にする（form を送り直しても同じ時刻）。
 /// 秒が 0 なら分まで、ミリ秒が 0 なら秒まで。読めない値は、そのまま。
-fn to_local(value: &str) -> String {
+pub fn to_local(value: &str) -> String {
     let Ok(t) = OffsetDateTime::parse(value, &Rfc3339) else {
         return value.to_owned();
     };

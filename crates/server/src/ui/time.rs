@@ -30,7 +30,7 @@ pub fn stamp(t: OffsetDateTime) -> String {
 }
 
 /// 日本の時刻の字（`2026-11-23 09:00:00`）。
-fn local(t: OffsetDateTime) -> String {
+pub fn local(t: OffsetDateTime) -> String {
     let t = t.to_offset(OFFSET);
     format!(
         "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",

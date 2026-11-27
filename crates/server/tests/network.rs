@@ -8,7 +8,7 @@ use axum::Router;
 use axum::extract::Request;
 use axum::http::{StatusCode, header};
 use axum::routing::get as route_get;
-use common::{App, CASTLIST_LINK, error_type, get, with_host};
+use common::{App, error_type, get, with_host};
 use serde_json::Value;
 
 /// 図の答え（偽の castlist が返す。中身は中継の試験で見分けられればよい）。
@@ -99,18 +99,13 @@ async fn 相関図は_callboard_が配る_script_だけを読み_inline_の_scri
 }
 
 #[tokio::test]
-async fn 相関図から_一覧とタイムラインへは_castlist_の画面へ行き_script_を切った_browser_にタイムラインを勧める()
- {
+async fn 相関図から_一覧とタイムラインへ行け_script_を切った_browser_にタイムラインを勧める() {
     let app = start().await;
     let body = app
         .html("/graph/network?label=tpm.key:t-23zs&from=2026-11-22T13:00")
         .await;
-    // まだ移していない画面は、castlist の link の頭で。
-    assert_eq!(link_to(&body, "一覧へ"), format!("{CASTLIST_LINK}/"));
-    assert_eq!(
-        link_to(&body, "タイムラインへ"),
-        format!("{CASTLIST_LINK}/graph/timeline")
-    );
+    assert_eq!(link_to(&body, "一覧へ"), "/actors/");
+    assert_eq!(link_to(&body, "タイムラインへ"), "/graph/timeline");
     let at = body.find("<noscript>").expect("noscript");
     let noscript = &body[at..at + body[at..].find("</noscript>").unwrap()];
     assert!(
@@ -120,9 +115,7 @@ async fn 相関図から_一覧とタイムラインへは_castlist_の画面へ
     // 同じ絞りのタイムライン（期間は、日本時間の RFC 3339 のまま）。
     assert_eq!(
         link_to(noscript, "タイムライン"),
-        format!(
-            "{CASTLIST_LINK}/graph/timeline?label=tpm.key:t-23zs&from=2026-11-22T13:00:00%2B09:00"
-        )
+        "/graph/timeline?label=tpm.key:t-23zs&from=2026-11-22T13:00:00%2B09:00"
     );
     // 絞り込みの form は、callboard の相関図へ送る。
     assert!(

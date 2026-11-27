@@ -8,47 +8,64 @@ use castlist_client::config::timeout::TimeoutConfig;
 use castlist_client::config::{BehaviorVersion, Config};
 use castlist_client::operation::get_actor::GetActorOutput;
 use castlist_client::operation::get_lineage::GetLineageOutput;
+use castlist_client::operation::get_timeline::GetTimelineOutput;
+use castlist_client::operation::list_actors::ListActorsOutput;
 use http_body_util::BodyExt;
 
 use super::{Failure, Health, Raw, TIMEOUT, http_client, raw_client, reason, unreadable, within};
-use crate::config::Base;
 use crate::errors::reply;
 
 /// 記録に書く、呼ぶ先の名。
 const NAME: &str = "castlist";
+
+/// アクターを探す条件（ListActors の引数。画面が確かめた物）。
+#[derive(Clone, Debug, Default)]
+pub struct ActorSearch {
+    /// `鍵:値`。重ねれば、どれも持つアクター。
+    pub labels: Vec<String>,
+    /// `種類:値`。
+    pub binding: Option<String>,
+    pub at: Option<aws_smithy_types::DateTime>,
+    pub active_from: Option<aws_smithy_types::DateTime>,
+    pub active_to: Option<aws_smithy_types::DateTime>,
+    pub kind: Option<String>,
+    pub model: Option<String>,
+    pub effort: Option<String>,
+    pub active: Option<bool>,
+    pub launched_by: Option<String>,
+    pub skewed: bool,
+    pub sort: String,
+    pub order: String,
+    pub limit: Option<i32>,
+    /// 次の頁の印（前の答えの nextToken）。
+    pub after: Option<String>,
+}
 
 /// castlist の居場所と、呼ぶ client。
 #[derive(Clone, Debug)]
 pub struct Castlist {
     /// 聞く先（`http://<host>:<port>`）。
     api: String,
-    /// browser が castlist を開く URL の頭（`http://<host>:<port>`）。
-    link: String,
     client: Client,
     /// 答えをそのまま browser に返す道（[`Castlist::graph`]）が使う、生の HTTP の client。
     raw: Raw,
 }
 
 impl Castlist {
-    pub fn new(base: &Base) -> Self {
+    /// `api` は聞く先（`http://<host>:<port>`）。
+    pub fn new(api: &str) -> Self {
         let config = Config::builder()
             .behavior_version(BehaviorVersion::latest())
-            .endpoint_url(&base.api)
+            .endpoint_url(api)
             .http_client(http_client())
             .retry_config(RetryConfig::disabled())
             .timeout_config(TimeoutConfig::builder().operation_timeout(TIMEOUT).build())
             .build();
         Self {
-            api: base.api.clone(),
-            link: base.link.clone(),
+            api: api.to_owned(),
             client: Client::from_conf(config),
             raw: raw_client(),
         }
-    }
-
-    /// browser が castlist を開く URL の頭（`http://<host>:<port>`）。
-    pub fn link(&self) -> &str {
-        &self.link
     }
 
     /// 生きているかを聞く（GetHealth）。聞けなければ、その訳。
@@ -107,6 +124,65 @@ impl Castlist {
                 Some(e) if e.is_not_found() => Failure::NotFound,
                 _ => Failure::Unavailable(reason(NAME, &self.api, &e)),
             })
+    }
+
+    /// アクターを探す（ListActors。監査の検索）。条件は、画面が確かめた物。
+    pub async fn actors(&self, search: &ActorSearch) -> Result<ListActorsOutput, Failure> {
+        self.client
+            .list_actors()
+            .set_label((!search.labels.is_empty()).then(|| search.labels.clone()))
+            .set_binding(search.binding.clone())
+            .set_at(search.at)
+            .set_active_from(search.active_from)
+            .set_active_to(search.active_to)
+            .set_kind(search.kind.clone())
+            .set_model(search.model.clone())
+            .set_effort(search.effort.clone())
+            .set_active(search.active)
+            .set_launched_by(search.launched_by.clone())
+            .set_skewed(search.skewed.then_some(true))
+            .sort(&search.sort)
+            .order(&search.order)
+            .set_max_results(search.limit)
+            .set_next_token(search.after.clone())
+            .customize()
+            .mutate_request(|request| {
+                request.headers_mut().insert("host", "127.0.0.1");
+            })
+            .send()
+            .await
+            .map_err(|e| Failure::Unavailable(reason(NAME, &self.api, &e)))
+    }
+
+    /// タイムラインを描く元の値（GetTimeline。castlist 1.1.0 から）。`label` は `鍵:値`、`from`・`to` は UTC の RFC 3339 の字
+    /// （画面が確かめた物）。castlist が引数を断れば [`Failure::NotFound`] でなく、聞けなかった訳（400 が返りました）になる。
+    pub async fn timeline(
+        &self,
+        label: Option<&str>,
+        from: Option<&str>,
+        to: Option<&str>,
+    ) -> Result<GetTimelineOutput, Failure> {
+        let time = |value: Option<&str>| {
+            value.and_then(|v| {
+                aws_smithy_types::DateTime::from_str(
+                    v,
+                    aws_smithy_types::date_time::Format::DateTime,
+                )
+                .ok()
+            })
+        };
+        self.client
+            .get_timeline()
+            .set_label(label.map(str::to_owned))
+            .set_from(time(from))
+            .set_to(time(to))
+            .customize()
+            .mutate_request(|request| {
+                request.headers_mut().insert("host", "127.0.0.1");
+            })
+            .send()
+            .await
+            .map_err(|e| Failure::Unavailable(reason(NAME, &self.api, &e)))
     }
 
     /// 図の点と線（GetGraph。`GET /api/graph`）の答えを、そのまま返す（相関図の script が browser から引く）。

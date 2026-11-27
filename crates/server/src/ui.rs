@@ -4,7 +4,7 @@
 //! - サーバーが HTML を組んで返す（askama。`templates/`）。字はみな HTML として逃がす。
 //!   script を使うのは相関図だけで、callboard が配る file だけを読む（inline の script は無い）。
 //! - CSP（[`crate::CSP`]）が inline の script と style を断るので、style は callboard が配る CSS の file だけ。
-//! - まだ callboard に移していない画面への link は、castlist・pagetray の link の頭（[`crate::config`]）で組む。
+//! - まだ callboard に移していない画面（pagetray の 2 つ）への link は、pagetray の link の頭（[`crate::config`]）で組む。
 mod network;
 mod params;
 mod profile;
@@ -92,6 +92,11 @@ async fn network_js() -> Response {
 
 // --- 画面に出す形 ---
 
+/// 種類の印。人（Product Manager）にだけ「人」を付け、AI には付けない（アクターはほとんど AI なので。Product Manager の頼み）。
+fn kind_name(kind: &str) -> &'static str {
+    if kind == "human" { "人" } else { "" }
+}
+
 /// どの画面の頭にも出す、画面の間の link。まだ移していない画面は、castlist・pagetray の画面を指す。
 pub struct Nav {
     actors: String,
@@ -103,10 +108,12 @@ pub struct Nav {
 
 impl Nav {
     /// link の頭（`http://<host>:<port>`）から組む。
-    pub fn new(castlist: &str, pagetray: &str) -> Self {
+    pub fn new(pagetray: &str) -> Self {
         Self {
-            actors: format!("{castlist}/"),
-            timeline: format!("{castlist}/graph/timeline"),
+            // castlist の 4 つの画面は、みな callboard に移した。
+            actors: "/actors/".to_owned(),
+            // タイムラインも callboard に移した。
+            timeline: "/graph/timeline".to_owned(),
             // 相関図は callboard に移した。
             network: "/graph/network".to_owned(),
             pages: format!("{pagetray}/"),
