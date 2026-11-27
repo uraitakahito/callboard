@@ -21,11 +21,11 @@
     return LANGS.includes(base) ? base : null;
   }
 
-  /** cookie の言語。無ければ null。 */
+  /** cookie の言語。無ければ null。書くのは ja・en だけなので、decode せずに生の値を比べる（壊れた値でも止まらない）。 */
   function cookieLang() {
     for (const part of document.cookie.split(';')) {
-      const [name, value] = part.trim().split('=');
-      if (name === COOKIE) return normalize(decodeURIComponent(value || ''));
+      const at = part.indexOf('=');
+      if (at > 0 && part.slice(0, at).trim() === COOKIE) return normalize(part.slice(at + 1).trim());
     }
     return null;
   }
@@ -39,6 +39,25 @@
   }
 
   const locales = window.callboardLocales || {};
+
+  /** 入れ子の訳の表から、`a.b.c` の鍵の字を引く。無ければ undefined。 */
+  function lookup(table, key) {
+    let node = table;
+    for (const part of key.split('.')) node = node && typeof node === 'object' ? node[part] : undefined;
+    return typeof node === 'string' ? node : undefined;
+  }
+
+  // i18next が届かない時の仮の callboardT（日本語の字を鍵で引き、{{名}} に値を入れるだけ。サーバーの filter と同じ）。
+  // 本文の script（messages.js など）は callboardT が無いと止まるので、i18next を起こす前に出しておく。
+  window.callboardT = (key, options) => {
+    let text = lookup(locales.ja, key) ?? lookup(locales.ja, `${key}_other`);
+    if (text === undefined) return key;
+    for (const [name, value] of Object.entries(options || {})) text = text.split(`{{${name}}}`).join(String(value));
+    return text;
+  };
+  window.callboardLocalize = () => {};
+  if (typeof i18next === 'undefined') return;
+
   // 選んだ言語の訳が読めていなければ（訳の script が届かないなど）、日本語のまま（字を差し替えない）。
   const picked = pick();
   const lang = locales[picked] ? picked : 'ja';
@@ -107,7 +126,8 @@
       const target = button.getAttribute('data-lang');
       button.setAttribute('aria-pressed', String(target === lang));
       button.addEventListener('click', () => {
-        if (target === lang) return;
+        // 比べるのは選んだ言語（訳が届かず日本語で出ている時も、日本語を選び直せる）。
+        if (target === picked) return;
         document.cookie = `${COOKIE}=${target}; Path=/; Max-Age=31536000; SameSite=Lax`;
         window.location.reload();
       });

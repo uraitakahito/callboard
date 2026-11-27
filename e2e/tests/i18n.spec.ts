@@ -100,7 +100,8 @@ test('差し替えの途中で止まっても、CSS の守りが 1.5 秒で本�
   await page.route(/\/static\/i18n\.js/, (route) =>
     route.fulfill({ status: 200, contentType: 'application/javascript', body: "document.documentElement.classList.add('i18n-wait');" }),
   );
-  await page.goto('/');
+  // load まで待つと、遅い時に守りがもう効いてしまうので、DOM を読み終えた所で見る。
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('html')).toHaveClass(/i18n-wait/);
   const visibility = () => page.locator('body').evaluate((b) => getComputedStyle(b).visibility);
   expect(await visibility()).toBe('hidden');
@@ -123,4 +124,41 @@ test('サーバーが書いた日本語の字は、ブラウザーの i18next �
     });
     expect(mismatches, path).toEqual([]);
   }
+});
+
+test('壊れた cookie でも止まらず、ブラウザーの言語で出し、切り替えも出る', async ({ browser }) => {
+  const { context, page } = await open(browser, 'en-US');
+  const problems = collectProblems(page);
+  await context.addCookies([{ name: 'callboard-lang', value: '%E0%A4', url: test.info().project.use.baseURL! }]);
+  await page.goto('/');
+  expect(await navTexts(page)).toEqual(EN_NAV);
+  await expect(page.locator('#lang-switch')).toBeVisible();
+  await page.locator('#lang-switch button[data-lang="ja"]').click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ja');
+  expect(problems).toEqual([]);
+  await context.close();
+});
+
+test('i18next が届かなくても、日本語で見え、callboardT は日本語の字を返し、script の誤りは出ない', async ({ browser }) => {
+  const { context, page } = await open(browser, 'en-US');
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.route(/\/static\/vendor\/i18next-/, (route) => route.fulfill({ status: 404, body: '' }));
+  await page.goto('/');
+  await expect(page.locator('body')).toBeVisible();
+  expect(await navTexts(page)).toEqual(JA_NAV);
+  expect(await page.evaluate(() => (window as unknown as { callboardT: (k: string) => string }).callboardT('nav.actors'))).toBe('アクター');
+  expect(errors).toEqual([]);
+  await context.close();
+});
+
+test('cookie が英語で英語の訳が届かない時も、日本語を選び直せる', async ({ browser }) => {
+  const { context, page } = await open(browser, 'ja-JP');
+  await context.addCookies([{ name: 'callboard-lang', value: 'en', url: test.info().project.use.baseURL! }]);
+  await page.route(/\/static\/locales\/en\.js/, (route) => route.fulfill({ status: 404, body: '' }));
+  await page.goto('/');
+  expect(await navTexts(page)).toEqual(JA_NAV);
+  await page.locator('#lang-switch button[data-lang="ja"]').click();
+  await expect.poll(async () => (await context.cookies()).find((c) => c.name === 'callboard-lang')?.value).toBe('ja');
+  await context.close();
 });

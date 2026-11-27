@@ -120,12 +120,18 @@ async fn i18n_js() -> Response {
 
 /// `GET /static/locales/ja.js`: 日本語の字（i18next の JSON を、script に包んだ物）。
 async fn locales_ja_js() -> Response {
-    asset("text/javascript; charset=utf-8", i18n::JA_JS.as_str())
+    asset(
+        "application/javascript; charset=utf-8",
+        i18n::JA_JS.as_str(),
+    )
 }
 
 /// `GET /static/locales/en.js`: 英語の字。
 async fn locales_en_js() -> Response {
-    asset("text/javascript; charset=utf-8", i18n::EN_JS.as_str())
+    asset(
+        "application/javascript; charset=utf-8",
+        i18n::EN_JS.as_str(),
+    )
 }
 
 /// `GET /static/messages.js`: メッセージの一覧の、新着の知らせの script。

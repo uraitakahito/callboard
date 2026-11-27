@@ -256,9 +256,10 @@ id は英語のまま（castlist の API）。日本語の名は画面だけで�
 
 - **サーバーは日本語の字を書く。** template は字を書く要素に鍵を付け（`<a href="/actors/" data-i18n="nav.actors">{{ "nav.actors"|t }}</a>`）、filter `t`（`crates/server/src/ui/i18n.rs`）が `ja.json` から日本語の字を引く。JavaScript を切っても日本語で読め、日本語の人には開いた時の字の空きが無い。属性は `data-i18n-attr="aria-label:<鍵>;title:<鍵>"`、差し込む値は `data-i18n-options='{"n":3}'`。
 - **英語はブラウザーで差し替える。** どの画面も `<head>` で、取り込んだ i18next・`/static/locales/ja.js`・`/static/locales/en.js`・`/static/i18n.js` の順に、`defer` を付けずに読む。訳の中身を同期の script で読むので、i18next は同期で起き、本文の script は起きた時から `window.callboardT(鍵, 値)` で字を引ける。
-- **言語の選び**: cookie `callboard-lang` → ブラウザーの言語の並びの初めの 1 つ（`en-US` は `en` に寄せる）→ 日本語。`ja`・`en` のほかは日本語。頭の帯の右の「日本語 / English」で選び直せ、選んだ物は cookie（1 年・`SameSite=Lax`）に残る。切り替えは JavaScript が出す（JavaScript が無い時は出さない）。選んだ言語の訳が届かなければ日本語のまま。
+- **言語の選び**: cookie `callboard-lang`（`ja` か `en` のほかの値は無い物とみなす）→ ブラウザーの言語の並びの初めの 1 つ（`en-US` は `en` に寄せる）→ 日本語。`ja`・`en` のほかは日本語。頭の帯の右の「日本語 / English」で選び直せ、選んだ物は cookie（1 年・`SameSite=Lax`）に残る。切り替えは JavaScript が出す（JavaScript が無い時は出さない）。選んだ言語の訳が届かなければ日本語のまま。i18next が届かない時も日本語のままで、`callboardT` は日本語の字を返す（本文の script が止まらないように、`i18n.js` が i18next を起こす前に出す仮の物。`{{名}}` に値を入れるだけ）。
 - **英語の時**: `<head>` の内に `<html>` へ `i18n-wait` を付けて本文を隠し、読み終えたら `[data-i18n]` と `[data-i18n-attr]` を差し替え、`lang="en"` にして外す。差し替えは `textContent` と属性でだけする（`innerHTML` は使わない）。途中で止まっても、`site.css` の守り（CSS だけで効く）が 1.5 秒で本文を日本語のまま見せる。
 - **JavaScript の決まり**: 新着で server の HTML を読み直す script は、比べと差し替えの前に `window.callboardLocalize(読み直した木)` で訳す。JavaScript は、起きた時に DOM の字を読まない（本文の終わりの script は差し替えより先に動くので、日本語を取る）。字は `callboardT` で引く。
+- **鍵を付ける要素の決まり**: `data-i18n` は、子の要素を持たない要素にだけ付ける（英語の時は字を丸ごと替えるので、子の link・強め・数の要素は消える）。字の中に link や時刻がある文は、その前と後で鍵を分け、それぞれを `<span>` に入れる。
 - **訳の file の決まり**: 差し込みは `{{名}}` だけ（サーバーとブラウザーで字が食い違わないように。`$t(…)`・`{{n, number}}` は使わない）。数で言い分ける英語は `<鍵>_one`・`<鍵>_other`（日本語は `<鍵>_other` だけ）。`ja.json` と `en.json` は同じ鍵を持つ。画面に書いた鍵は、みな `ja.json` にある。どれも試験（`crates/server/tests/i18n.rs`・`e2e/tests/i18n.spec.ts`）が見る。画面の字の決まり（`ci/check-wording.sh`）は `ja.json` も見る。
 
 ## 配る file
@@ -269,7 +270,7 @@ id は英語のまま（castlist の API）。日本語の名は画面だけで�
 | `GET /static/network.js` | 相関図の script（`application/javascript`） |
 | `GET /static/vendor/cytoscape-3.35.0.min.js` | 取り込んだ cytoscape |
 | `GET /static/vendor/i18next-27.2.9.min.js` | 取り込んだ i18next（画面の字の言語） |
-| `GET /static/locales/ja.js`・`GET /static/locales/en.js` | 日本語と英語の字（`static/locales/{ja,en}.json` を script に包んだ物。`text/javascript`） |
+| `GET /static/locales/ja.js`・`GET /static/locales/en.js` | 日本語と英語の字（`static/locales/{ja,en}.json` を script に包んだ物。`application/javascript`） |
 | `GET /static/i18n.js` | 画面の字を差し替える script |
 | `GET /static/icon.svg` | browser の tab に出す印（`image/svg+xml`） |
 

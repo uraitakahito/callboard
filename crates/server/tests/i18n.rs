@@ -176,6 +176,16 @@ async fn 画面に書いた鍵は_みな訳にある() {
             let key = attrs(&body[at..], "data-i18n")[0];
             let text = &body[tag_end + 1..tag_end + 1 + body[tag_end + 1..].find('<').unwrap()];
             assert_eq!(unescape(text), text_of(&ja, key), "{path} の {key}");
+            // data-i18n の要素は子の要素を持たない（英語の時は textContent で丸ごと替えるので、子は消える）。字の次の tag は、
+            // その要素の閉じの tag。
+            let open = body[..at].rfind('<').unwrap() + 1;
+            let name = &body[open..open + body[open..].find([' ', '>']).unwrap()];
+            let after = &body[tag_end + 1 + text.len()..];
+            assert!(
+                after.starts_with(&format!("</{name}>")),
+                "{path} の {key} の要素（{name}）が子を持つ: {}",
+                &after[..after.len().min(80)]
+            );
         }
         for pairs in attrs(&body, "data-i18n-attr") {
             for pair in pairs.split(';') {
@@ -194,16 +204,21 @@ async fn 字の差し替えの_script_と訳は_head_で_defer_無しに読み_�
     let body = app.html("/").await;
     // 4 つが head に、i18next・日本語・英語・i18n.js の順に 1 つずつ（without_i18n_scripts が見る）。
     let _ = common::without_i18n_scripts(&body);
-    assert!(!body.contains("defer"), "{body}");
+    // head の script の tag に defer・async は無い（同期で読む）。
+    let head = &body[..body.find("</head>").unwrap()];
+    for (at, _) in head.match_indices("<script") {
+        let tag = &head[at..at + head[at..].find('>').unwrap()];
+        assert!(!tag.contains("defer") && !tag.contains("async"), "{tag}");
+    }
     for (prefix, content_type, file) in [
         (
             "/static/locales/ja.js?v=",
-            "text/javascript; charset=utf-8",
+            "application/javascript; charset=utf-8",
             None,
         ),
         (
             "/static/locales/en.js?v=",
-            "text/javascript; charset=utf-8",
+            "application/javascript; charset=utf-8",
             None,
         ),
         (
