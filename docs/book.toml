@@ -1,0 +1,14 @@
+# callboard の本（mdBook）。作るのは `mdbook build docs`（CI の docs.yml も同じ）。
+[book]
+title = "callboard"
+description = "castlist と pagetray の画面をまとめるサーバー"
+language = "ja"
+src = "src"
+
+[build]
+build-dir = "book"
+
+[output.html]
+git-repository-url = "https://github.com/uraitakahito/callboard"
+edit-url-template = "https://github.com/uraitakahito/callboard/edit/main/docs/{path}"
+site-url = "/callboard/"

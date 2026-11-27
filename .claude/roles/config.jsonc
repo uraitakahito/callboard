@@ -1,0 +1,21 @@
+// この repo（とその上の folder）で、roster で担当を起こしたときの設定。書いていない欄は既定のまま。
+{
+  "infra": {
+    // 画面のサーバー（callboard の container）。止めると、Product Manager が開いている画面が出なくなる。
+    // data も volume も持たないので、起こし直しても失う物は無い。起こす・止める・版を上げるのは、pagetray と同じ
+    // 「TPM に相談」（guard: tpm。DevOps Engineer 担当だけが打てる。Product Manager の答え: AI-32 の confirm-4 の項目 4）。
+    // 起こし方は docs の「動かす」（docs/src/run.md）。
+    // guard は命令の字に match の字が含まれるかで見る。CI の試しの container の名（smoke-callboard など）には当たらない。
+    "callboard": {
+      "guard": "tpm",
+      "match": [
+        "--name callboard",
+        "container start callboard",
+        "container stop callboard",
+        "container kill callboard",
+        "container delete callboard",
+        "container rm callboard",
+      ],
+    },
+  },
+}
