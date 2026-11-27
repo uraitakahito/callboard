@@ -40,11 +40,6 @@ pub fn failed(service: &'static str, e: Failure) -> PageError {
     }
 }
 
-/// 名の並び（日本語は「・」、英語は「, 」で区切る）。
-fn names(names: &[&str]) -> (String, String) {
-    (names.join("・"), names.join(", "))
-}
-
 pub type Pairs = Vec<(String, String)>;
 
 /// 問い合わせの引数を、名と値の並びで読む（読めなければ 400）。
@@ -72,11 +67,10 @@ impl Params {
     pub fn new(pairs: Pairs, known: &[&str], repeatable: &[&str]) -> Result<Self, PageError> {
         for (i, (name, _)) in pairs.iter().enumerate() {
             if !known.contains(&name.as_str()) {
-                let (ja, en) = names(known);
                 return Err(bad_request(
                     Text::new("params.unknown")
                         .with("name", name)
-                        .with_both("known", ja, en),
+                        .with_list("known", known),
                 ));
             }
             if !repeatable.contains(&name.as_str()) && pairs[..i].iter().any(|(n, _)| n == name) {
@@ -166,11 +160,10 @@ impl Params {
         self.one(name)
             .map(|v| {
                 choices.iter().find(|c| **c == v).copied().ok_or_else(|| {
-                    let (ja, en) = names(choices);
                     bad_request(
                         Text::new("params.choice")
                             .with("name", name)
-                            .with_both("choices", ja, en),
+                            .with_list("choices", choices),
                     )
                 })
             })

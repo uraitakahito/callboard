@@ -269,6 +269,61 @@ test('英語のブラウザーでは、file を上げられなかった訳も、
   expect(json.code).toBe('errors.kind.unsupportedMediaType');
   expect(json.values.detail).toBe(json.message);
   const say = box.locator('form > .say');
-  await expect(say).toHaveText('Upload failed (415): This file type or content is not accepted');
+  // 呼ぶ先の訳（detail）は、呼ぶ先の言葉のまま添える（AI-48 で pagetray の訳が英語になるまで、日本語）。
+  await expect(say).toHaveText(`Upload failed (415): This file type or content is not accepted (${json.message})`);
+  await context.close();
+});
+
+/** callboardT に鍵と値を直に渡した字。 */
+const t = (page: Page, key: string, values?: unknown) =>
+  page.evaluate(([k, v]) => (window as unknown as { callboardT: (k: string, o?: unknown) => string }).callboardT(k as string, v), [key, values] as const);
+
+/** サーバーが配る形の値: 入れ子の字（$t）・入れ子の中の入れ子・名の並び（$join）・万の数・数で言い分ける字。 */
+const NESTED = {
+  retry: ['errors.unreachableRetry', { service: 'castlist', why: { $t: 'upstream.returned', values: { status: 404 } } }],
+  deep: ['list.costNote.unreadable', { why: { $t: 'errors.unreachable', values: { service: 'pagetray', why: { $t: 'upstream.unreachable' } } } }],
+  join: ['params.choice', { name: 'kind', choices: { $join: ['ai', 'human'], sep: 'common.listSep' } }],
+  range: ['usage.byContext.bar', { range: { $t: 'common.tokenRange', values: { low: '0', high: { $t: 'common.tokens', values: { man: '2.5', k: '25' } } } }, cost: '$0.11', turns: '1', count: 1 }],
+} as const;
+
+test('入れ子の字・名の並び・万の数は、callboardT が選んだ言語で先に組む（i18next が無い時の仮の物も）', async ({ browser }) => {
+  const want = {
+    en: {
+      retry: 'Cannot reach castlist (returned 404). Wait a moment and reload.',
+      deep: 'Cannot read cost and longest context (Cannot reach pagetray (cannot connect)). The list is shown as is.',
+      join: 'kind must be one of ai, human',
+      range: '0–25k: $0.11 (1 turn)',
+    },
+    ja: {
+      retry: 'castlist に聞けません（404 が返りました）。少し待ってから開き直してください。',
+      deep: '額といちばん長い文脈を読めません（pagetray に聞けません（つながりません））。一覧は、そのまま出しています。',
+      join: 'kind は ai・human のどれか',
+      range: '0〜2.5 万: $0.11（1 回）',
+    },
+  };
+  for (const [locale, lang, blockI18next] of [['en-US', 'en', false], ['ja-JP', 'ja', false], ['en-US', 'ja', true]] as const) {
+    const { context, page } = await open(browser, locale);
+    // i18next が届かない時は、仮の callboardT が日本語で組む。
+    if (blockI18next) await page.route(/\/static\/vendor\/i18next-/, (route) => route.fulfill({ status: 404, body: '' }));
+    await page.goto('/');
+    for (const [name, [key, values]] of Object.entries(NESTED)) {
+      expect(await t(page, key, values), `${locale} ${name}`).toBe(want[lang][name as keyof typeof NESTED]);
+    }
+    await context.close();
+  }
+});
+
+test('英語のブラウザーでは、使用量の画面の万の数と入れ子の字を英語で組む', async ({ browser }) => {
+  const { context, page } = await open(browser, 'en-US');
+  await page.goto('/usage/');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  // 段の幅（入れ子の万の数）。
+  await expect(page.locator('#by-context p.legend')).toContainText('bands of 25k');
+  await expect(page.locator('#by-context svg.chart')).toHaveAttribute('aria-label', /bands of 25k/);
+  // 目盛りの万の数と、棒の title（段の範囲は入れ子の中の入れ子、回の数は数で言い分ける）。
+  await expect(page.locator('#by-context svg text.tick', { hasText: /^200k$/ })).toHaveCount(1);
+  const titles = await page.locator('#by-context svg rect.bar title').allTextContents();
+  expect(titles.length).toBeGreaterThan(0);
+  for (const title of titles) expect(title).toMatch(/^[\d,.]+k?–([\d,.]+k)?: \$[\d,.]+ \(\d+ turns?\)$/);
   await context.close();
 });

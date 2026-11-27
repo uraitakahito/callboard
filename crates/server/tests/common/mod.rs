@@ -281,12 +281,23 @@ pub fn ja_text(key: &str, values: &serde_json::Value) -> String {
         .unwrap_or_else(|| panic!("{key} が ja.json に無い"))
         .to_owned();
     for (name, value) in values.as_object().into_iter().flatten() {
-        let value = value
-            .as_str()
-            .map_or_else(|| value.to_string(), str::to_owned);
-        text = text.replace(&format!("{{{{{name}}}}}"), &value);
+        text = text.replace(&format!("{{{{{name}}}}}"), &ja_value(value));
     }
     text
+}
+
+/// 差し込む値の日本語の字。入れ子の字（`{"$t":…,"values":…}`）と名の並び（`{"$join":[…],"sep":…}`）は、日本語で組む。
+fn ja_value(value: &serde_json::Value) -> String {
+    if let Some(key) = value.get("$t").and_then(serde_json::Value::as_str) {
+        return ja_text(key, value.get("values").unwrap_or(&serde_json::json!({})));
+    }
+    if let Some(items) = value.get("$join").and_then(serde_json::Value::as_array) {
+        let sep = ja_text(value["sep"].as_str().unwrap(), &serde_json::json!({}));
+        return items.iter().map(ja_value).collect::<Vec<_>>().join(&sep);
+    }
+    value
+        .as_str()
+        .map_or_else(|| value.to_string(), str::to_owned)
 }
 
 /// 鍵を付けた `<span data-i18n="…" …>字</span>` だけの字なら、中の字を返す（ほかは、そのまま）。数の字（`23 万` など）の
@@ -301,7 +312,7 @@ pub fn unwrap_text(cell: &str) -> &str {
     }
 }
 
-/// トークンの数の字（`common.tokens`）の要素。日本語は `{man} 万`、英語の値は `{k}`。
+/// トークンの数の字（`common.tokens`）の要素。日本語は `{man} 万`。値は数の部分だけ（`k` は千の数）。
 pub fn tokens(man: &str, k: &str) -> String {
     format!(
         "<span data-i18n=\"common.tokens\" data-i18n-options=\"{{&#34;k&#34;:&#34;{k}&#34;,&#34;man&#34;:&#34;{man}&#34;}}\">{man} 万</span>"

@@ -1,9 +1,12 @@
 //! 画面の字（AI-50）。字は `static/locales/{ja,en}.json`（i18next の JSON）の 1 か所に置き、画面は鍵で引く。
 //!
-//! - サーバーは日本語の字を HTML に書く（JavaScript が無くても読める・日本語の人に字の空きが無い）。字を書く要素には、鍵も
-//!   `data-i18n="<鍵>"` で付ける。日本語でない時は、ブラウザーの i18next（`static/i18n.js`）が鍵から字を引いて差し替える。
-//! - サーバーがするのは、日本語の字を鍵で引くことだけ（値の差し込みは、使う段で足す）。複数形・言語の選び・訳の形式は i18next が
-//!   持つ（サーバーは持たない）。そのため、訳の file に使ってよい差し込みは `{{名}}` だけにする（試験が見る）。
+//! - サーバーは日本語の字だけを組んで HTML に書く（JavaScript が無くても読める・日本語の人に字の空きが無い）。字を書く要素には、
+//!   鍵と値も `data-i18n="<鍵>"`・`data-i18n-options="{…}"` で付ける。日本語でない時は、ブラウザーの i18next（`static/i18n.js`）が
+//!   同じ鍵と値から字を組んで差し替える。サーバーは英語の字を組まない。
+//! - Rust が組む字は [`Text`]（鍵と値）で持つ。ほかの字の中に入れる字は、鍵と値のまま `{"$t":"<鍵>","values":{…}}` の値で、
+//!   名の並びは `{"$join":[…],"sep":"common.listSep"}` の値で配り、ブラウザーが選んだ言語で先に組む。
+//! - 複数形・言語の選び・訳の形式は i18next が持つ。訳の file に使ってよい差し込みは `{{名}}` だけにする（試験が見る。`$t` は
+//!   値の側にだけ置き、訳の file には書かない）。
 //! - ブラウザーへは、同じ JSON を `/static/locales/{ja,en}.js` の script（`(window.callboardLocales ??= {}).ja = {…};`）で配る。
 //!   同期の script なので、i18next は訳の中身ごと同期で起き、本文の script が動く前から字を引ける。
 
@@ -63,13 +66,22 @@ pub(crate) fn text(key: &str) -> &str {
 pub(crate) enum Arg {
     Str(String),
     Num(i64),
+    /// ほかの字（鍵と値のまま配り、選んだ言語で組む）。
+    Text(Box<Text>),
+    /// 名の並び（区切りは `common.listSep` の字。日本語は「・」）。
+    Join(Vec<String>),
 }
+
+/// 名の並びの区切りの字の鍵。
+const LIST_SEP: &str = "common.listSep";
 
 impl std::fmt::Display for Arg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Str(text) => f.write_str(text),
             Self::Num(n) => write!(f, "{n}"),
+            Self::Text(t) => write!(f, "{t}"),
+            Self::Join(items) => f.write_str(&items.join(text(LIST_SEP))),
         }
     }
 }
@@ -79,6 +91,8 @@ impl Arg {
         match self {
             Self::Str(text) => Value::String(text.clone()),
             Self::Num(n) => Value::from(*n),
+            Self::Text(t) => t.json(),
+            Self::Join(items) => serde_json::json!({ "$join": items, "sep": LIST_SEP }),
         }
     }
 }
@@ -118,7 +132,7 @@ macro_rules! num_arg {
 num_arg!(i32, i64, u8, u16, u32, u64, usize, u128);
 
 /// 字の `{{名}}` に値を入れる（i18next の差し込みのうち、訳の file に使ってよい形はこれだけ）。元の字を 1 度だけ走るので、
-/// 入れた値の中の `{{名}}` は置き換えない。値の無い `{{名}}` は、そのまま残す。
+/// 入れた値の中の `{{名}}` は置き換えない。値の無い `{{名}}` は、そのまま残す。入れ子の字は、日本語で組んで入れる。
 fn fill(text: &str, values: &[(&str, Arg)]) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
@@ -159,19 +173,13 @@ fn options_map(values: &[(&str, Arg)]) -> Value {
     )
 }
 
-/// 英語の字の表（言語ごとに字を組んで値にする時だけ引く。[`Text::with_text`]）。
+/// 英語の字の表。字を組むためには使わない（サーバーは日本語だけを組む）。タイムラインの行の種類の字の幅を、英語の時にも
+/// 収まるように見積もる（[`english_width_text`]）ためだけに引く。
 static EN: LazyLock<BTreeMap<String, String>> = LazyLock::new(|| table(EN_JSON));
 
-/// 鍵の英語の字。`count` が 1 なら `<鍵>_one`、ほかは `<鍵>_other`、無ければ `<鍵>`（i18next の英語の言い分けと同じ）。
-fn english<'a>(key: &'a str, count: Option<&Arg>) -> &'a str {
-    let suffix = if count == Some(&Arg::Num(1)) {
-        "_one"
-    } else {
-        "_other"
-    };
-    EN.get(&format!("{key}{suffix}"))
-        .or_else(|| EN.get(key))
-        .map_or(key, String::as_str)
+/// 値の無い鍵の英語の字。字の幅を見積もるためだけに使う（画面の英語の字は、ブラウザーが組む）。
+pub(crate) fn english_width_text(key: &str) -> &str {
+    EN.get(key).map_or(key, String::as_str)
 }
 
 /// HTML の属性の値として逃がす（`& < > " '`。askama と同じ数字の形）。
@@ -195,8 +203,7 @@ fn escape(text: &str) -> String {
 /// - `Display` は日本語の字（[`text`] の字に値を入れた物）。template では `{{ x }}` で書く（askama が逃がす）。
 /// - [`Text::attrs`] は、その字の要素に付ける ` data-i18n="<鍵>"`（値があれば ` data-i18n-options="…"` も）。template では
 ///   `<span{{ x.attrs()|safe }}>{{ x }}</span>`。ブラウザーの i18next が、同じ鍵と値で英語に差し替える。
-/// - 言語で形の替わる値（`2.5 万`・ほかの字の中に入れる字）は [`Text::with_both`]: 日本語の字は `{{名}}`、英語の字は `{{名En}}`
-///   で引く（`data-i18n-options` には両方を書く）。
+/// - ほかの字の中に入れる字は [`Text::with_text`]（鍵と値のまま `{"$t":…,"values":…}` で配る）。名の並びは [`Text::with_list`]。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Text {
     key: &'static str,
@@ -211,7 +218,7 @@ impl Text {
         }
     }
 
-    /// 鍵の無い字（数・時刻など、言語で替わらない字）。そのまま書き、鍵の属性は付けない（[`Text::attrs`] は空）。
+    /// 鍵の無い字（数・時刻・記録の値など、言語で替わらない字）。そのまま書き、鍵の属性は付けない（[`Text::attrs`] は空）。
     pub(crate) fn plain(text: impl Into<String>) -> Self {
         Self {
             key: "",
@@ -242,21 +249,18 @@ impl Text {
         self
     }
 
-    /// 言語で形の替わる値。日本語の字の `{{名}}` に `ja`、英語の字の `{{名En}}` に `en` を入れる。
-    pub(crate) fn with_both(
-        mut self,
-        name: &str,
-        ja: impl Into<String>,
-        en: impl Into<String>,
-    ) -> Self {
-        self.values.push((name.to_owned(), Arg::Str(ja.into())));
-        self.values.push((format!("{name}En"), Arg::Str(en.into())));
+    /// ほかの字を値に入れる。日本語の字はサーバーが組み、ブラウザーへは鍵と値のまま配る。
+    pub(crate) fn with_text(mut self, name: &str, text: &Text) -> Self {
+        self.values
+            .push((name.to_owned(), Arg::Text(Box::new(text.clone()))));
         self
     }
 
-    /// ほかの字を値に入れる（日本語の字に日本語の字を、英語の字に英語の字を）。
-    pub(crate) fn with_text(self, name: &str, text: &Text) -> Self {
-        self.with_both(name, text.to_string(), text.english())
+    /// 名の並びを値に入れる（区切りは、選んだ言語の `common.listSep`）。
+    pub(crate) fn with_list(mut self, name: &str, items: &[&str]) -> Self {
+        let items = items.iter().map(|&i| i.to_owned()).collect();
+        self.values.push((name.to_owned(), Arg::Join(items)));
+        self
     }
 
     pub(crate) fn key(&self) -> &'static str {
@@ -270,17 +274,16 @@ impl Text {
             .collect()
     }
 
-    /// 英語の字（値を入れた物）。ほかの字の値にする時だけ使う（画面の英語は、ブラウザーが組む）。
-    pub(crate) fn english(&self) -> String {
+    /// 入れ子の値の JSON（`{"$t":"<鍵>","values":{…}}`。値が無ければ `values` は書かない。鍵の無い字は、字のまま）。
+    fn json(&self) -> Value {
         if let Some(plain) = self.as_plain() {
-            return plain;
+            return Value::String(plain);
         }
-        let count = self
-            .values
-            .iter()
-            .find(|(name, _)| name == "count")
-            .map(|(_, value)| value);
-        fill(english(self.key, count), &self.pairs())
+        if self.values.is_empty() {
+            serde_json::json!({ "$t": self.key })
+        } else {
+            serde_json::json!({ "$t": self.key, "values": self.values() })
+        }
     }
 
     /// 差し込む値（JSON の object。誤りの JSON の `values` と、`data-i18n-options` に書く物）。
@@ -504,35 +507,69 @@ mod tests {
     }
 
     #[test]
-    fn 言語で形の替わる値は_名と_名_en_で両方を渡す() {
-        let inner = Text::new("upstream.unreachable");
-        let text = Text::new("errors.unreachable")
+    fn 入れ子の字は_日本語で組み_鍵と値のまま配る() {
+        let inner = Text::new("upstream.returned").with_num("status", 404);
+        let text = Text::new("errors.unreachableRetry")
             .with("service", "pagetray")
             .with_text("why", &inner);
-        assert_eq!(text.to_string(), "pagetray に聞けません（つながりません）");
+        assert_eq!(
+            text.to_string(),
+            "pagetray に聞けません（404 が返りました）。少し待ってから開き直してください。"
+        );
         assert_eq!(
             text.values(),
-            serde_json::json!({"service": "pagetray", "why": "つながりません", "whyEn": "cannot connect"})
+            serde_json::json!({
+                "service": "pagetray",
+                "why": {"$t": "upstream.returned", "values": {"status": 404}}
+            })
         );
-        assert_eq!(text.english(), "Cannot reach pagetray (cannot connect)");
+        // 値の無い入れ子は values を書かない。入れ子の中の入れ子も、鍵と値のまま。
+        let deep = Text::new("list.costNote.unreadable").with_text(
+            "why",
+            &Text::new("errors.unreachable")
+                .with("service", "castlist")
+                .with_text("why", &Text::new("upstream.unreachable")),
+        );
+        assert_eq!(
+            deep.to_string(),
+            "額といちばん長い文脈を読めません（castlist に聞けません（つながりません））。一覧は、そのまま出しています。"
+        );
+        assert_eq!(
+            deep.values()["why"]["values"]["why"],
+            serde_json::json!({"$t": "upstream.unreachable"})
+        );
+        // 鍵の無い字は、字のまま入れる。
+        let plain = Text::new("common.tokenRange")
+            .with_text("low", &Text::plain("0"))
+            .with_text("high", &Text::new("common.tokens").with("man", "2.5"));
+        assert_eq!(plain.to_string(), "0〜2.5 万");
+        assert_eq!(plain.values()["low"], "0");
     }
 
     #[test]
-    fn 英語の字は_count_で言い分け_日本語は_other_を引く() {
-        let bar = |n: i64| {
-            Text::new("usage.byContext.bar")
-                .with_both("range", "0〜2.5 万", "0–25k")
-                .with("cost", "$1.00")
-                .with("turns", n)
-                .with_num("count", n)
-        };
-        assert_eq!(bar(1).english(), "0–25k: $1.00 (1 turn)");
-        assert_eq!(bar(2).english(), "0–25k: $1.00 (2 turns)");
-        assert_eq!(bar(1).to_string(), "0〜2.5 万: $1.00（1 回）");
+    fn 名の並びは_join_の値で配り_日本語は中黒で組む() {
+        let text = Text::new("params.choice")
+            .with("name", "kind")
+            .with_list("choices", &["ai", "human"]);
+        assert_eq!(text.to_string(), "kind は ai・human のどれか");
+        assert_eq!(
+            text.values()["choices"],
+            serde_json::json!({"$join": ["ai", "human"], "sep": "common.listSep"})
+        );
+    }
+
+    #[test]
+    fn 数で言い分ける字は_日本語は_other_を引き_count_を数で配る() {
+        let bar = Text::new("usage.byContext.bar")
+            .with_text("range", &Text::plain("0〜2.5 万"))
+            .with("cost", "$1.00")
+            .with("turns", 1)
+            .with_num("count", 1);
+        assert_eq!(bar.to_string(), "0〜2.5 万: $1.00（1 回）");
+        assert_eq!(bar.values()["count"], 1);
         // 鍵の無い字は、そのまま書き、属性を付けない。
         let plain = Text::plain("$2");
         assert_eq!(plain.to_string(), "$2");
-        assert_eq!(plain.english(), "$2");
         assert_eq!(plain.attrs(), "");
         assert_eq!(plain.attr("title"), "");
     }

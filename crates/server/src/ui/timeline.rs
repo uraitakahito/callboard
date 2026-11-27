@@ -15,7 +15,7 @@ use castlist_client::operation::get_timeline::GetTimelineOutput;
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
-use super::i18n::{Text, filters};
+use super::i18n::{Text, english_width_text, filters};
 use super::params::{self, GRAPH_PERIOD, GraphForm, PageError, Pairs};
 use super::profile::{event_name, source_name};
 use super::time::{OFFSET, Time, stamp, time};
@@ -345,11 +345,12 @@ fn timeline_svg(data: &graph::Timeline, window: timeline::Window) -> Option<Time
             timeline::Lane {
                 human: n.actor.kind == "human",
                 order: millis(order).unwrap_or(i64::MAX),
-                // 種類の字の幅は、日本語と英語の広い方（英語の時はブラウザーが字を替えるので）。
+                // 種類の字の幅は、日本語と英語の広い方（英語の時はブラウザーが字を替えるので、英語の字の幅も見積もる。
+                // 英語の表を引くのは、この幅のためだけで、字は組まない）。
                 label_width: name_width(&n.actor.name)
                     + kind.map_or(0, |kind| {
                         6 + text_width(&kind.to_string(), SUB_PX)
-                            .max(text_width(&kind.english(), SUB_PX))
+                            .max(text_width(english_width_text(kind.key()), SUB_PX))
                     }),
                 ..timeline::Lane::default()
             }

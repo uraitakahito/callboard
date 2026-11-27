@@ -589,7 +589,7 @@ async fn 一覧の行に_一覧の期間の_席の額と_いちばん長い文�
     // se.1: 額は本体と手伝いの計（$1.75）、いちばん長い文脈は本体の回の大きい方（23 万。手伝いの 90 万は数えない）。
     assert_eq!(nums(tr(&body, SE1)), ["$1.75", "23 万"]);
     assert!(
-        tr(&body, SE1).contains(&common::tokens("23", "230k")),
+        tr(&body, SE1).contains(&common::tokens("23", "230")),
         "{body}"
     );
     // 数の無い席は「—」。

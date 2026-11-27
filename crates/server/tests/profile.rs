@@ -601,10 +601,7 @@ async fn 使用量の節は_直近_31_日の_そのアクターの額と回と_�
         fact(usage, "回"),
         r#"10<span data-i18n="profile.usage.helperTurns" data-i18n-options="{&#34;n&#34;:&#34;4&#34;}">（手伝い 4）</span>"#
     );
-    assert_eq!(
-        fact(usage, "いちばん長い文脈"),
-        common::tokens("23", "230k")
-    );
+    assert_eq!(fact(usage, "いちばん長い文脈"), common::tokens("23", "230"));
     // castlist には、そのアクターの行を、今を時の境に切り上げた時刻までの 31 日で聞く。
     let seen = app.castlist.seen();
     let usage_uri = seen
@@ -668,7 +665,7 @@ async fn 使用量の節の線は_時ごとの本体のいちばん長い文脈�
     assert_eq!(d.matches('M').count(), 2, "{d}");
     // 時にマウスを重ねると、時と値。
     assert!(
-        svg.contains(r#"<title data-i18n="usage.line.hit" data-i18n-options="{&#34;from&#34;:&#34;2026-11-22 10:00&#34;,&#34;to&#34;:&#34;11:00&#34;,&#34;value&#34;:&#34;23 万&#34;,&#34;valueEn&#34;:&#34;230k&#34;}">2026-11-22 10:00〜11:00: 23 万</title>"#),
+        svg.contains(r#"<title data-i18n="usage.line.hit" data-i18n-options="{&#34;from&#34;:&#34;2026-11-22 10:00&#34;,&#34;to&#34;:&#34;11:00&#34;,&#34;value&#34;:{&#34;$t&#34;:&#34;common.tokens&#34;,&#34;values&#34;:{&#34;k&#34;:&#34;230&#34;,&#34;man&#34;:&#34;23&#34;}}}">2026-11-22 10:00〜11:00: 23 万</title>"#),
         "{svg}"
     );
     assert!(
@@ -680,7 +677,7 @@ async fn 使用量の節の線は_時ごとの本体のいちばん長い文脈�
     // 圧縮（要約）の印は 1 つ。detail の前と後の文脈の長さを出す。
     assert_eq!(svg.matches("<line class=\"compact\"").count(), 1, "{svg}");
     assert!(
-        svg.contains(r#"<title data-i18n="profile.compaction.tokens" data-i18n-options="{&#34;at&#34;:&#34;2026-11-22 12:00:00&#34;,&#34;name&#34;:&#34;要約&#34;,&#34;nameEn&#34;:&#34;Compacted&#34;,&#34;post&#34;:&#34;3 万&#34;,&#34;postEn&#34;:&#34;30k&#34;,&#34;pre&#34;:&#34;18 万&#34;,&#34;preEn&#34;:&#34;180k&#34;}">要約 · 2026-11-22 12:00:00（18 万 → 3 万）</title>"#),
+        svg.contains(r#"<title data-i18n="profile.compaction.tokens" data-i18n-options="{&#34;at&#34;:&#34;2026-11-22 12:00:00&#34;,&#34;name&#34;:{&#34;$t&#34;:&#34;events.compacted&#34;},&#34;post&#34;:{&#34;$t&#34;:&#34;common.tokens&#34;,&#34;values&#34;:{&#34;k&#34;:&#34;30&#34;,&#34;man&#34;:&#34;3&#34;}},&#34;pre&#34;:{&#34;$t&#34;:&#34;common.tokens&#34;,&#34;values&#34;:{&#34;k&#34;:&#34;180&#34;,&#34;man&#34;:&#34;18&#34;}}}">要約 · 2026-11-22 12:00:00（18 万 → 3 万）</title>"#),
         "{svg}"
     );
     assert!(
@@ -692,7 +689,7 @@ async fn 使用量の節の線は_時ごとの本体のいちばん長い文脈�
     let app = start_with_usage(se1_actor(), usage_answer_only_main()).await;
     let body = app.html(&format!("/actors/{SE1}")).await;
     assert!(
-        section(&body, "usage").contains(r#"<title data-i18n="common.eventAt" data-i18n-options="{&#34;at&#34;:&#34;2026-11-22 12:00:00&#34;,&#34;name&#34;:&#34;要約&#34;,&#34;nameEn&#34;:&#34;Compacted&#34;}">要約 · 2026-11-22 12:00:00</title>"#),
+        section(&body, "usage").contains(r#"<title data-i18n="common.eventAt" data-i18n-options="{&#34;at&#34;:&#34;2026-11-22 12:00:00&#34;,&#34;name&#34;:{&#34;$t&#34;:&#34;events.compacted&#34;}}">要約 · 2026-11-22 12:00:00</title>"#),
         "{body}"
     );
 }
@@ -732,7 +729,7 @@ async fn 数を聞けなくても_頁は_200_で出し_使用量の節だけに�
     let body = app.html(&format!("/actors/{SE1}")).await;
     let usage = section(&body, "usage");
     assert!(
-        usage.contains("<p class=\"error\" data-i18n=\"profile.usage.error\" data-i18n-options=\"{&#34;why&#34;:&#34;404 が返りました&#34;,&#34;whyEn&#34;:&#34;returned 404&#34;}\">数を読めません（404 が返りました）。</p>"),
+        usage.contains("<p class=\"error\" data-i18n=\"profile.usage.error\" data-i18n-options=\"{&#34;why&#34;:{&#34;$t&#34;:&#34;upstream.returned&#34;,&#34;values&#34;:{&#34;status&#34;:&#34;404&#34;}}}\">数を読めません（404 が返りました）。</p>"),
         "{usage}"
     );
     // ほかの節は、今までどおり。

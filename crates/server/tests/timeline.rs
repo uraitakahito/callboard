@@ -173,7 +173,7 @@ async fn タイムラインは_model_の替わり目で帯を区切り_推しの
         lane(svg, SE1).contains("<line class=\"mark compacted\""),
         "{svg}"
     );
-    assert!(lane(svg, SE1).contains(r#"<title data-i18n="common.eventAt" data-i18n-options="{&#34;at&#34;:&#34;2026-11-22 11:00:00&#34;,&#34;name&#34;:&#34;要約&#34;,&#34;nameEn&#34;:&#34;Compacted&#34;}">要約 · 2026-11-22 11:00:00</title>"#));
+    assert!(lane(svg, SE1).contains(r#"<title data-i18n="common.eventAt" data-i18n-options="{&#34;at&#34;:&#34;2026-11-22 11:00:00&#34;,&#34;name&#34;:{&#34;$t&#34;:&#34;events.compacted&#34;}}">要約 · 2026-11-22 11:00:00</title>"#));
     // se.2 は稼働中: 右端を尖らせる。
     let se2 = lane(svg, SE2);
     assert!(se2.contains("class=\"open-end\""), "{se2}");

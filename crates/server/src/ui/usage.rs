@@ -185,8 +185,8 @@ fn percent(part: i64, whole: i64) -> Option<String> {
     Some(format!("{}.{}%", tenths / 10, tenths % 10))
 }
 
-/// トークンの数を「万」の単位にする（`22.5 万`・`97 万`。小数 1 桁に四捨五入し、`.0` は書かない）。英語は千の単位
-/// （`225k`・`970k`。同じ桁まで）。鍵は `common.tokens`（日本語は `{{man}} 万`、英語は `{{k}}`）。
+/// トークンの数を「万」の単位にする（`22.5 万`・`97 万`。小数 1 桁に四捨五入し、`.0` は書かない）。値は言語で替わらない数の
+/// 部分だけ（`man` は万の数、`k` は千の数。同じ桁まで）で、形（日本語「{{man}} 万」・英語「{{k}}k」）は訳の file の `common.tokens`。
 pub(super) fn man(tokens: i64) -> Text {
     let tenths = tokens.max(0).saturating_add(500) / 1_000;
     let man = if tenths % 10 == 0 {
@@ -196,7 +196,7 @@ pub(super) fn man(tokens: i64) -> Text {
     };
     Text::new("common.tokens")
         .with("man", man)
-        .with("k", format!("{}k", count(tenths)))
+        .with("k", count(tenths))
 }
 
 /// 段の下の端を、「22.5 万〜」の形にする。
@@ -929,9 +929,15 @@ mod tests {
             longest(230_000).map(|t| t.to_string()).as_deref(),
             Some("23 万")
         );
-        // 英語は千の単位（同じ桁まで）。
-        assert_eq!(man(225_000).english(), "225k");
-        assert_eq!(man(1_000_000).english(), "1,000k");
-        assert_eq!(from_man(975_000).english(), "975k–");
+        // 値は数の部分だけ（英語の形は訳の file）。千の数は同じ桁まで。
+        assert_eq!(
+            man(225_000).values(),
+            serde_json::json!({"man": "22.5", "k": "225"})
+        );
+        assert_eq!(man(1_000_000).values()["k"], "1,000");
+        assert_eq!(
+            from_man(975_000).values()["low"],
+            serde_json::json!({"$t": "common.tokens", "values": {"man": "97.5", "k": "975"}})
+        );
     }
 }

@@ -56,7 +56,8 @@
     "tokens": "{{man}} 万",
     "tokensFrom": "{{low}}〜",
     "tokenRange": "{{low}}〜{{high}}",
-    "eventAt": "{{name}} · {{at}}"
+    "eventAt": "{{name}} · {{at}}",
+    "listSep": "・"
   },
   "home": {
     "title": "入口 ・ callboard",

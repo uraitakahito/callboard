@@ -53,10 +53,11 @@
       "yesterday": "Yesterday",
       "week": "Last 7 days"
     },
-    "tokens": "{{k}}",
-    "tokensFrom": "{{lowEn}}–",
-    "tokenRange": "{{lowEn}}–{{highEn}}",
-    "eventAt": "{{nameEn}} · {{at}}"
+    "tokens": "{{k}}k",
+    "tokensFrom": "{{low}}–",
+    "tokenRange": "{{low}}–{{high}}",
+    "eventAt": "{{name}} · {{at}}",
+    "listSep": ", "
   },
   "home": {
     "title": "Home · callboard",
@@ -130,7 +131,7 @@
       "tooLong": "The list period is longer than {{days}} days, so cost and longest context are not shown (counts are read {{days}} days at a time).",
       "slow": "Cost and longest context could not be read in time. The list is shown as is.",
       "tooMany": "Too many records to show cost and longest context. Narrow the period.",
-      "unreadable": "Cannot read cost and longest context ({{whyEn}}). The list is shown as is."
+      "unreadable": "Cannot read cost and longest context ({{why}}). The list is shown as is."
     }
   },
   "messages": {
@@ -140,7 +141,7 @@
     "undelivered": "Undelivered: {{n}}",
     "undeliveredTitle": "Show only undelivered messages",
     "delivered": "Delivered",
-    "via": "Delivered via: {{viaEn}}",
+    "via": "Delivered via: {{via}}",
     "again": "Redelivered: {{n}}",
     "empty": "No matching messages",
     "foot": "Times are Japan time (UTC+9), as written by the sender. Hover over a time to see it in ISO 8601.",
@@ -206,13 +207,13 @@
       "inferred": "roster inferred it went down"
     },
     "seg": {
-      "setting": "{{label}} ({{sourceEn}})",
-      "settingMismatch": "{{label}} ({{sourceEn}}, differs from requested)",
+      "setting": "{{label}} ({{source}})",
+      "settingMismatch": "{{label}} ({{source}}, differs from requested)",
       "noSetting": "no model and effort record",
-      "openInferred": "continues (inferred close after the shown period: {{whyEn}})",
+      "openInferred": "continues (inferred close after the shown period: {{why}})",
       "open": "continues",
-      "endInferred": "{{end}} (inferred: {{whyEn}})",
-      "title": "{{name}} · {{whatEn}} · {{start}} to {{untilEn}}"
+      "endInferred": "{{end}} (inferred: {{why}})",
+      "title": "{{name}} · {{what}} · {{start}} to {{until}}"
     }
   },
   "pages": {
@@ -225,7 +226,7 @@
     },
     "sort": {
       "title": "Change the order",
-      "label": "Order: {{sortEn}}",
+      "label": "Order: {{sort}}",
       "newest": "newest first",
       "oldest": "oldest first"
     },
@@ -297,7 +298,7 @@
     },
     "usage": {
       "heading": "Usage (last 31 days)",
-      "error": "Could not read the counts ({{whyEn}}).",
+      "error": "Could not read the counts ({{why}}).",
       "costSplit": " (main {{main}}, helpers {{helper}})",
       "helperTurns": " (helpers {{n}})",
       "truncated": "There were too many records to read them all. The numbers and chart above cover only what was read.",
@@ -352,7 +353,7 @@
     },
     "title": "{{name}} · callboard",
     "compaction": {
-      "tokens": "{{nameEn}} · {{at}} ({{preEn}} → {{postEn}})"
+      "tokens": "{{name}} · {{at}} ({{pre}} → {{post}})"
     },
     "source": {
       "requested": "Requested",
@@ -387,11 +388,11 @@
     },
     "byContext": {
       "heading": "Cost by context length band (main session turns)",
-      "legend": "The horizontal axis is context length (bands of {{widthEn}}; ticks mark each band's lower edge), the vertical axis is the cost of turns in that band. The dotted line is 200k. Hover over a bar to see the band, cost and number of turns.",
+      "legend": "The horizontal axis is context length (bands of {{width}}; ticks mark each band's lower edge), the vertical axis is the cost of turns in that band. The dotted line is 200k. Hover over a bar to see the band, cost and number of turns.",
       "empty": "No main session turns in this period.",
-      "bar_one": "{{rangeEn}}: {{cost}} ({{turns}} turn)",
-      "chartLabel": "Cost per context-length band (main session turns). Horizontal: context length (bands of {{widthEn}}); vertical: cost. Dotted line at 200k. Main session total {{total}}.",
-      "bar_other": "{{rangeEn}}: {{cost}} ({{turns}} turns)"
+      "bar_one": "{{range}}: {{cost}} ({{turns}} turn)",
+      "chartLabel": "Cost per context-length band (main session turns). Horizontal: context length (bands of {{width}}); vertical: cost. Dotted line at 200k. Main session total {{total}}.",
+      "bar_other": "{{range}}: {{cost}} ({{turns}} turns)"
     },
     "bySlot": {
       "main": "Main",
@@ -454,14 +455,14 @@
         "after": " if missing)."
       },
       "context": "Context lengths (median, top 10%, longest context, turns ≥ 200k) count the main session's turns only (helper (subagent) turns run in their own short contexts, so they are left out).",
-      "bands": "The median and top 10% are approximations from bands of {{widthEn}} (the lower edge of the band the turn falls in; \"225k–\" means at least 225k and under 250k).",
+      "bands": "The median and top 10% are approximations from bands of {{width}} (the lower edge of the band the turn falls in; \"225k–\" means at least 225k and under 250k).",
       "delay": "Numbers for running seats can lag by up to about an hour."
     },
     "empty": "No usage records in this period.",
     "foot": "Times are Japan time (UTC+9). Hover over a time to see it in ISO 8601.",
     "line": {
-      "chartLabel": "Step line of context length (longest context of main session turns per hour). Horizontal: time (Japan time); vertical: context length. Dotted line at 200k. Longest context {{maxEn}}.",
-      "hit": "{{from}}–{{to}}: {{valueEn}}"
+      "chartLabel": "Step line of context length (longest context of main session turns per hour). Horizontal: time (Japan time); vertical: context length. Dotted line at 200k. Longest context {{max}}.",
+      "hit": "{{from}}–{{to}}: {{value}}"
     },
     "errors": {
       "notAfter": "Make \"Period (to)\" later than \"Period (from)\".",
@@ -490,39 +491,39 @@
     "tooLarge": "The body is limited to {{n}} MiB",
     "unreadableBody": "Cannot read the body",
     "kind": {
-      "validation": "The request was rejected as invalid",
-      "serialization": "The body could not be read",
-      "unsupportedMediaType": "This file type or content is not accepted",
-      "payloadTooLarge": "The file is too large",
-      "notFound": "Not found",
-      "forbidden": "Not allowed",
-      "conflict": "Conflicts with an existing record",
-      "unavailable": "The service is unavailable. Try again later",
-      "internal": "An internal error occurred",
-      "other": "The request failed"
+      "validation": "The request was rejected as invalid ({{detail}})",
+      "serialization": "The body could not be read ({{detail}})",
+      "unsupportedMediaType": "This file type or content is not accepted ({{detail}})",
+      "payloadTooLarge": "The file is too large ({{detail}})",
+      "notFound": "Not found ({{detail}})",
+      "forbidden": "Not allowed ({{detail}})",
+      "conflict": "Conflicts with an existing record ({{detail}})",
+      "unavailable": "The service is unavailable. Try again later ({{detail}})",
+      "internal": "An internal error occurred ({{detail}})",
+      "other": "The request failed ({{detail}})"
     },
-    "unreachable": "Cannot reach {{service}} ({{whyEn}})",
+    "unreachable": "Cannot reach {{service}} ({{why}})",
     "rejected": "{{service}} rejected the arguments: {{detail}}",
     "rejectedBare": "{{service}} rejected the arguments",
-    "unreachableRetry": "Cannot reach {{service}} ({{whyEn}}). Wait a moment and reload.",
+    "unreachableRetry": "Cannot reach {{service}} ({{why}}). Wait a moment and reload.",
     "twice": "Cannot read the arguments ({{name}} is given twice)"
   },
   "params": {
     "unreadable": "Cannot read the query arguments: {{detail}}",
-    "unknown": "Unknown argument: {{name}} (allowed: {{knownEn}})",
+    "unknown": "Unknown argument: {{name}} (allowed: {{known}})",
     "once": "Give {{name}} only once",
     "time": "{{name}} must be an RFC 3339 time (e.g. 2026-11-22T13:00:00+09:00)",
     "flag": "{{name}} must be true or false",
     "onlyTrue": "{{name}} accepts only true (leave it out to not filter)",
     "name": "{{name}} must be up to 64 lowercase letters, digits, - or .",
     "value": "{{name}} must be non-empty and up to 256 characters",
-    "choice": "{{name}} must be one of {{choicesEn}}",
-    "pair": "{{name}} must have the form \"{{shapeEn}}\" ({{value}})",
+    "choice": "{{name}} must be one of {{choices}}",
+    "pair": "{{name}} must have the form \"{{shape}}\" ({{value}})",
     "shape": {
       "label": "key:value",
       "binding": "kind:value"
     },
-    "period": "Cannot read the date and time in \"{{labelEn}}\". Pick it in the date field or enter it as 2026-11-22T13:00."
+    "period": "Cannot read the date and time in \"{{label}}\". Pick it in the date field or enter it as 2026-11-22T13:00."
   },
   "events": {
     "entered": "Entered",

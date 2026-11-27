@@ -405,7 +405,7 @@ async fn 中継の道は_castlist_に聞けなければ_unavailable_の形で返
     assert_eq!(json["code"], "errors.unreachable");
     assert_eq!(
         json["values"],
-        serde_json::json!({"service": "castlist", "why": "つながりません", "whyEn": "cannot connect"})
+        serde_json::json!({"service": "castlist", "why": {"$t": "upstream.unreachable"}})
     );
     assert_eq!(
         common::ja_text("errors.unreachable", &json["values"]),

@@ -180,7 +180,7 @@ async fn 行は_記録を_状態の字にして出す() {
         // 日付をまたぐ（UTC の 15:00 は、次の日の 00:00）。
         r#"<span><span data-i18n="messages.delivered">届いた</span> <time datetime="2026-11-02T15:00:07.000Z" title="2026-11-02T15:00:07.000Z">11-03 00:00</time></span>"#,
         // 決めていない名は、書かれた字のまま。
-        r#"<span data-i18n="messages.via" data-i18n-options="{&#34;via&#34;:&#34;session-start&#34;,&#34;viaEn&#34;:&#34;session-start&#34;}">渡した時: session-start</span>"#,
+        r#"<span data-i18n="messages.via" data-i18n-options="{&#34;via&#34;:&#34;session-start&#34;}">渡した時: session-start</span>"#,
         r#"<span data-i18n="messages.again" data-i18n-options="{&#34;n&#34;:2}">渡し直し 2 度</span>"#,
         "<pre>りんごにする</pre>",
     ] {
@@ -209,12 +209,12 @@ async fn 状態と_渡した時は_画面の字で出す() {
         ("carried", "ほかの道具で運んだ", "messages.state.carried"),
     ];
     let vias = [
-        ("gate", "検査が止めた後"),
-        ("wake", "起こした"),
-        ("prompt", "人の入力の時"),
-        ("max-deliveries", "渡し直しの上限を超えた"),
-        ("ttl", "期限で消えた"),
-        ("closed", "席を閉じた"),
+        ("gate", "検査が止めた後", "gate"),
+        ("wake", "起こした", "wake"),
+        ("prompt", "人の入力の時", "prompt"),
+        ("max-deliveries", "渡し直しの上限を超えた", "maxDeliveries"),
+        ("ttl", "期限で消えた", "ttl"),
+        ("closed", "席を閉じた", "closed"),
     ];
     let mut messages = Vec::new();
     for (i, (state, _, _)) in states.iter().enumerate() {
@@ -223,7 +223,7 @@ async fn 状態と_渡した時は_画面の字で出す() {
             json!({ "state": state }),
         ));
     }
-    for (i, (via, _)) in vias.iter().enumerate() {
+    for (i, (via, _, _)) in vias.iter().enumerate() {
         messages.push(with(
             message("p", &format!("v-{i}")),
             json!({ "via": via, "deliveries": 1 }),
@@ -241,13 +241,13 @@ async fn 状態と_渡した時は_画面の字で出す() {
             "{line}"
         );
     }
-    for (i, (_, label)) in vias.iter().enumerate() {
+    for (i, (_, label, key)) in vias.iter().enumerate() {
         let line = row(&page, &format!("p/v-{i}"));
-        // 英語の字は、値 viaEn（鍵 messages.viaName.* の英語の字）で組む。
+        // 渡した時の名は、鍵のまま入れ子の値で配る（ブラウザーが選んだ言語で組む）。
         assert!(
             line.contains(&format!(
-                r#"<span data-i18n="messages.via" data-i18n-options="{{&#34;via&#34;:&#34;{label}&#34;,&#34;viaEn&#34;:&#34;"#
-            )) && line.contains(&format!(r#"&#34;}}">渡した時: {label}</span>"#)),
+                r#"<span data-i18n="messages.via" data-i18n-options="{{&#34;via&#34;:{{&#34;$t&#34;:&#34;messages.viaName.{key}&#34;}}}}">渡した時: {label}</span>"#
+            )),
             "{line}"
         );
         // 渡した回数が 1 なら、渡し直しは出さない。

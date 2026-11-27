@@ -94,7 +94,11 @@ fn 訳の差し込みは_名だけの形() {
     // サーバーは {{名}} だけを入れる（i18next の入れ子 $t(…)・{{n, number}} の形・{{- 名}} は、サーバーとブラウザーで字が食い違う）。
     for (lang, json) in [("ja", JA), ("en", EN)] {
         for (key, text) in keys(json) {
-            assert!(!text.contains("$t("), "{lang} の {key}: {text}");
+            // 入れ子の字（$t）と名の並び（$join）は、data-i18n-options の値の側にだけ置く（訳の file には書かない）。
+            assert!(
+                !text.contains("$t") && !text.contains("$join"),
+                "{lang} の {key}: {text}"
+            );
             let mut rest = text.as_str();
             while let Some(at) = rest.find("{{") {
                 let end = rest[at..]

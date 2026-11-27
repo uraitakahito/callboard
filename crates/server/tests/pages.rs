@@ -320,7 +320,7 @@ async fn 操作の帯と_絞り込みの列を出す() {
         r#"<a class="btn" href="/messages" data-i18n="nav.messages">メッセージ</a>"#,
         r#"<form action="/pages/" method="get">"#,
         r#"<input type="search" name="q" value="" placeholder="題と本文を探す" aria-label="題と本文を探す" data-i18n-attr="placeholder:pages.search.placeholder;aria-label:pages.search.placeholder">"#,
-        r#"<a class="btn" href="/pages/?sort=created_at" title="並びを替える" data-i18n="pages.sort.label" data-i18n-options="{&#34;sort&#34;:&#34;新しい順&#34;,&#34;sortEn&#34;:&#34;newest first&#34;}" data-i18n-attr="title:pages.sort.title">並び: 新しい順</a>"#,
+        r#"<a class="btn" href="/pages/?sort=created_at" title="並びを替える" data-i18n="pages.sort.label" data-i18n-options="{&#34;sort&#34;:{&#34;$t&#34;:&#34;pages.sort.newest&#34;}}" data-i18n-attr="title:pages.sort.title">並び: 新しい順</a>"#,
         r#"<a class="btn" id="waiting" href="/pages/?reply=waiting" title="Product Manager の返事を待っているページだけに絞る" data-i18n-attr="title:pages.counter.waiting"><span data-i18n="pages.reply.waiting">返事待ち</span> <span data-i18n="pages.count" data-i18n-options="{&#34;n&#34;:2}">2 件</span></a>"#,
         r#"<a class="btn" id="review-waiting" href="/pages/?reply=waiting&#38;on=review" title="レビューの判定を待っている依頼書だけに絞る" data-i18n-attr="title:pages.counter.reviewWaiting"><span data-i18n="pages.reply.reviewWaiting">レビュー待ち</span> <span data-i18n="pages.count" data-i18n-options="{&#34;n&#34;:3}">3 件</span></a>"#,
         // 0 件の釦は隠す。
@@ -369,7 +369,7 @@ async fn 操作の帯と_絞り込みの列を出す() {
         r#"<input type="hidden" name="on" value="review">"#,
         r#"<input type="hidden" name="sort" value="created_at">"#,
         r#"<input type="search" name="q" value="み" "#,
-        r#"<a class="btn" href="/pages/?project=p&#38;q=%E3%81%BF&#38;reply=waiting&#38;on=review" title="並びを替える" data-i18n="pages.sort.label" data-i18n-options="{&#34;sort&#34;:&#34;古い順&#34;,&#34;sortEn&#34;:&#34;oldest first&#34;}" data-i18n-attr="title:pages.sort.title">並び: 古い順</a>"#,
+        r#"<a class="btn" href="/pages/?project=p&#38;q=%E3%81%BF&#38;reply=waiting&#38;on=review" title="並びを替える" data-i18n="pages.sort.label" data-i18n-options="{&#34;sort&#34;:{&#34;$t&#34;:&#34;pages.sort.oldest&#34;}}" data-i18n-attr="title:pages.sort.title">並び: 古い順</a>"#,
         r#"<a class="btn on" id="review-waiting" href="/pages/?reply=waiting&#38;on=review&#38;sort=created_at" title="レビューの判定を待っている依頼書だけに絞る" data-i18n-attr="title:pages.counter.reviewWaiting" aria-current="true"><span data-i18n="pages.reply.reviewWaiting">レビュー待ち</span> <span data-i18n="pages.count" data-i18n-options="{&#34;n&#34;:3}">3 件</span></a>"#,
         // 絞り込みを外しても、並びは保つ。
         r#"<a class="btn" href="/pages/?sort=created_at" data-i18n="common.tray.reset">絞り込みを外す</a>"#,

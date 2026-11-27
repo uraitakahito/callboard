@@ -207,10 +207,10 @@ castlist の `ListUsage` を、アクターの 2 つの問いと一緒に、3 �
 
 ### `GET /api/castlist/graph` 図の点と線（中継）
 
-castlist の `GetGraph`（`GET /api/graph`）の答えを、そのまま返す道。相関図の script が使う（browser は castlist に直には聞かない）。
+castlist の `GetGraph`（`GET /api/graph`）の答えの、状態・型・本文を返す道（断った答えの本文には `code`・`values` を足す）。相関図の script が使う（browser は castlist に直には聞かない）。
 
 - 渡すのは、問い合わせの引数の字だけ（castlist が確かめる）。browser の header（`Cookie`・`Referer` など）は渡さず、`Host: 127.0.0.1` で聞く。
-- 返すのは、castlist の答えの状態・本文の型・誤りの型の名（`X-Amzn-Errortype`）・本文。castlist の誤り（400 など）も、そのまま返る。
+- 返すのは、castlist の答えの状態・本文の型・誤りの型の名（`X-Amzn-Errortype`）・本文。castlist の誤り（400 など）は、状態・型・本文を返す（断った答えの本文には `code`・`values` を足す。下の「画面の字の言語」の「誤りの JSON」）。
 - castlist に聞けない時（つながらない・答えを読み終えるまで 4 秒）は、503 `Unavailable`（`{"message":"castlist に聞けません（…）","code":"errors.unreachable","values":{…}}`。下の「画面の字の言語」）。castlist が断った答えには、`code`（型の名の鍵）と `values`（`detail` に castlist の訳）を足す。
 - 読むだけ（`GET`・`HEAD`）。castlist のほかの道は中継しない。
 
@@ -254,15 +254,16 @@ id は英語のまま（castlist の API）。名は画面だけで、字は訳�
 
 画面の字は、日本語と英語で出す（AI-34・AI-50）。字は `static/locales/ja.json`・`en.json`（[i18next](https://www.i18next.com/) の JSON v4）の 1 か所に置き、画面は鍵で引く。
 
-- **サーバーは日本語の字を書く。** template は字を書く要素に鍵を付け（`<a href="/actors/" data-i18n="nav.actors">{{ "nav.actors"|t }}</a>`）、filter `t`（`crates/server/src/ui/i18n.rs`）が `ja.json` から日本語の字を引く。JavaScript を切っても日本語で読め、日本語の人には開いた時の字の空きが無い。属性は `data-i18n-attr="aria-label:<鍵>;title:<鍵>"`、差し込む値は `data-i18n-options='{"n":3}'`。
+- **サーバーは日本語の字だけを組む。** 英語の字は組まない（英語の字は、ブラウザーが同じ鍵と値で組む）。 template は字を書く要素に鍵を付け（`<a href="/actors/" data-i18n="nav.actors">{{ "nav.actors"|t }}</a>`）、filter `t`（`crates/server/src/ui/i18n.rs`）が `ja.json` から日本語の字を引く。JavaScript を切っても日本語で読め、日本語の人には開いた時の字の空きが無い。属性は `data-i18n-attr="aria-label:<鍵>;title:<鍵>"`、差し込む値は `data-i18n-options='{"n":3}'`。
 - **英語はブラウザーで差し替える。** どの画面も `<head>` で、取り込んだ i18next・`/static/locales/ja.js`・`/static/locales/en.js`・`/static/i18n.js` の順に、`defer` を付けずに読む。訳の中身を同期の script で読むので、i18next は同期で起き、本文の script は起きた時から `window.callboardT(鍵, 値)` で字を引ける。
 - **言語の選び**: cookie `callboard-lang`（`ja` か `en` のほかの値は無い物とみなす）→ ブラウザーの言語の並びの初めの 1 つ（`en-US` は `en` に寄せる）→ 日本語。`ja`・`en` のほかは日本語。頭の帯の右の「日本語 / English」で選び直せ、選んだ物は cookie（1 年・`SameSite=Lax`）に残る。切り替えは JavaScript が出す（JavaScript が無い時は出さない）。選んだ言語の訳が届かなければ日本語のまま。i18next が届かない時も日本語のままで、`callboardT` は日本語の字を返す（本文の script が止まらないように、`i18n.js` が i18next を起こす前に出す仮の物。`{{名}}` に値を入れるだけ）。
 - **英語の時**: `<head>` の内に `<html>` へ `i18n-wait` を付けて本文を隠し、読み終えたら `[data-i18n]` と `[data-i18n-attr]` を差し替え、`lang="en"` にして外す。差し替えは `textContent` と属性でだけする（`innerHTML` は使わない）。途中で止まっても、`site.css` の守り（CSS だけで効く）が 1.5 秒で本文を日本語のまま見せる。
 - **JavaScript の決まり**: 新着で server の HTML を読み直す script は、比べと差し替えの前に `window.callboardLocalize(読み直した木)` で訳す。JavaScript は、起きた時に DOM の字を読まない（本文の終わりの script は差し替えより先に動くので、日本語を取る）。字は `callboardT` で引く。
 - **鍵を付ける要素の決まり**: `data-i18n` は、子の要素を持たない要素にだけ付ける（英語の時は字を丸ごと替えるので、子の link・強め・数の要素は消える）。字の中に link や時刻がある文は、その前と後で鍵を分け、それぞれを `<span>` に入れる。
 - **Rust が組む字**: Rust（`crates/server/src/`）は、画面に出す字を日本語で返さず、鍵と値（`ui/i18n.rs` の `Text`）で返す。`Text` を `{{ x }}` で書くと日本語の字、`{{ x.attrs()|safe }}` でその要素の `data-i18n`（と `data-i18n-options`）、属性の字は `x.attr("title")`。英語は、ブラウザーが同じ鍵と値で組む。時・日のように言語で替わる単位は、値に入れずに鍵を分ける（`usage.bySlot.heading.hour`・`.day`）。鍵の無い字（数・時刻・記録の値）は `Text::plain` で、鍵を付けない。
-- **言語で形の替わる値**: 「万」の数（`2.5 万`）や、ほかの字の中に入れる字（「つながりません」）は、日本語の字が `{{名}}`、英語の字が `{{名En}}` で引き、`data-i18n-options` には両方を書く（`Text::with_both`・`with_text`。例 `{"width":"2.5 万","widthEn":"25k"}`）。トークンの数は、日本語は「万」（`22.5 万`）、英語は千（`225k`。同じ桁まで）。
-- **誤りの JSON**: callboard が返す誤りの答え（守りの層・file を上げる道・中継の道）は、`message`（日本語の字。今までのまま）に、`code`（その字の鍵）と `values`（差し込む値）を足す。ブラウザーは `callboardT(code, values)` で選んだ言語の字を組む（今はページの一覧の、上げられなかった訳）。castlist・pagetray が断った答えを運ぶ時は、`code` を型の名（`X-Amzn-Errortype`）の鍵（`errors.kind.unsupportedMediaType` など）にし、呼ぶ先の訳を `values` の `detail` に入れる（日本語の字は `{{detail}}` で、呼ぶ先の訳のまま。英語は型ごとの決まった字）。
+- **入れ子の字と名の並び**: ほかの字の中に入れる字（「castlist に聞けません（つながりません）」の「つながりません」）は、鍵と値のまま `data-i18n-options` に `{"why":{"$t":"upstream.unreachable"}}`（値があれば `{"$t":"<鍵>","values":{…}}`。入れ子の中の入れ子も同じ）で書く（`Text::with_text`）。名の並びは `{"$join":["ai","human"],"sep":"common.listSep"}`（`Text::with_list`）。サーバーは日本語で組み（区切りは「・」）、`i18n.js` は i18next に渡す前に、値の中の `$t`・`$join` を今の言語で先に組む（`callboardT(鍵, 値)` も同じ）。`$t` は値の側にだけ置き、訳の file には `$t(…)` を書かない。
+- **万の数**: 値は言語で替わらない数の部分だけ（`common.tokens` の `man`（万の数）と `k`（千の数。同じ桁まで））で、形は訳の file に置く（日本語「{{man}} 万」・英語「{{k}}k」）。段の幅などは、この字を入れ子で入れる。
+- **誤りの JSON**: callboard が返す誤りの答え（守りの層・file を上げる道・中継の道）は、`message`（日本語の字。今までのまま）に、`code`（その字の鍵）と `values`（差し込む値）を足す。ブラウザーは `callboardT(code, values)` で選んだ言語の字を組む（今はページの一覧の、上げられなかった訳）。castlist・pagetray が断った答えを運ぶ時は、`code` を型の名（`X-Amzn-Errortype`。`#` の前と `:` の後は落として比べる）の鍵（`errors.kind.unsupportedMediaType` など）にし、呼ぶ先の訳（`message`、無ければ `error`）を `values` の `detail` に入れる（日本語の字は `{{detail}}` で呼ぶ先の訳のまま。英語は型ごとの決まった字に、呼ぶ先の訳を「（…）」で添える）。`code` は callboard が付けた物だけを信じ、呼ぶ先の本文に `code` があれば `upstreamCode` に移す。訳の無い本文には足さない。
 - **区切りの記号**: 字の間の区切りの記号（「 ・ 」「 · 」と、全角の括弧「（…）」）は、題（`<title>`）のほかは、鍵にせず記号のまま template と字に残す（英語の時も同じ記号。題だけは、鍵の字に「 ・ callboard」「 · callboard」まで入れる）。
 - **訳の file の決まり**: 差し込みは `{{名}}` だけ（サーバーとブラウザーで字が食い違わないように。`$t(…)`・`{{n, number}}` は使わない）。数で言い分ける英語は `<鍵>_one`・`<鍵>_other`（日本語は `<鍵>_other` だけ。値の名は `count`）。`data-i18n-options` で数になるのは、数の型で渡した値だけ（字の `007` は字のまま）。`ja.json` と `en.json` は同じ鍵を持つ。画面に書いた鍵と、template と Rust の source に書いた鍵は、みな `ja.json` にある。どれも試験（`crates/server/tests/i18n.rs`・`e2e/tests/i18n.spec.ts`）が見る。画面の字の決まり（`ci/check-wording.sh`）は `ja.json` も見る。
 
@@ -332,7 +333,7 @@ project と Key を 1 つずつ選んだ時（`?project=…&key=…`）だけ、
 
 - **file の枠**: その Key の file（新しい順に 200 まで）。名（押すと、pagetray の file を別の tab で開く）・図なら小さな見本・大きさ・役割・置いた時刻・ページから参照する時の相対の path（`files/<語>-<番号>.<拡張子>`）・送り手。
 - **上げる枠**: file を選ぶ（か、落とす）と、拡張子と大きさを見て（受ける種類と上限は、pagetray の `GetFileRules` の答え）、見本を出す。「秘密が写っていないか見た」に印を付けると、送れる。script が要る。
-- 送る先は、callboard の `POST /api/pagetray/projects/{project}/keys/{key}/files?name=<語>.<拡張子>`（本文は file の中身。`Content-Type` は、その拡張子の種類）。callboard が、pagetray の `CreateFile` に、**役割 `product-manager`** で渡す。browser からは、名・中身の種類・中身だけを受ける（役割・workspace・番号・時刻・付随する id を書いても、渡さない）。答えは、pagetray の答え（置いた記録の 201 か、断った訳。種類が合わなければ 415）を、そのまま返す。pagetray に聞けなければ 503（pagetray の答えを 4 秒まで待つ。時間切れの時は、置かれたかもしれないので、画面は file の枠を読み直し、確かめてから送り直すように書く）。
+- 送る先は、callboard の `POST /api/pagetray/projects/{project}/keys/{key}/files?name=<語>.<拡張子>`（本文は file の中身。`Content-Type` は、その拡張子の種類）。callboard が、pagetray の `CreateFile` に、**役割 `product-manager`** で渡す。browser からは、名・中身の種類・中身だけを受ける（役割・workspace・番号・時刻・付随する id を書いても、渡さない）。答えは、pagetray の答え（置いた記録の 201 か、断った訳。種類が合わなければ 415）の状態・型・本文を返す（断った答えの本文には `code`・`values` を足す）。pagetray に聞けなければ 503（pagetray の答えを 4 秒まで待つ。時間切れの時は、置かれたかもしれないので、画面は file の枠を読み直し、確かめてから送り直すように書く）。
 - **この道の守り**: callboard の、ただ 1 つの書く道。この callboard の画面の form からの要求（`Origin` が `http://<Host>` とそのまま同じで、`Sec-Fetch-Site` が無いか `same-origin`）だけを通す。ほかの site・本文の枠の中のページ（pagetray の origin か、sandbox の `null`）・`Origin` の無い要求は 403。本文は 16 MiB まで（pagetray が file 1 つに受ける大きさ。ほかの道は 2 MiB）。project と Key の形が違う・名が無い要求は 400。
 - ほかの所（`roster file put` など）から、この Key に file が置かれると（`file` の知らせ）、file の枠を押さずに読み直す。
 
