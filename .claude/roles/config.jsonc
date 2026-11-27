@@ -8,8 +8,9 @@
     // guard は命令の字に match の字が含まれるかで見る。CI の試しの container の名（smoke-callboard など）には当たらない。
     // 名の前に旗を挟む命令（rm -f・delete --force など）は、字が続かないので当たらない。よく使う形だけ、下に足してある
     // （旗の組み合わせを、みな並べることはできない。stop -t <秒> のように値の入る旗は当てられない）。
-    // 上の 3 行は、字の含みで見る前の guard の話。命令の語で当てる roster の guard（t-7j37）では、間に旗や値が挟まっても当たり、
-    // smoke-callboard・callboard-x のような名の一部にも当たらない（rm -f などの書き足しの項目は、残しても害が無い）。
+    // 上の 3 行は、字の含みで見る前の guard の話。命令の語で当てる roster の guard（t-7j37）では、間に旗や値が挟まっても当たる
+    // （rm -f などの書き足しの項目は、残しても害が無い）。語で当たらなくても字に含まれれば今のとおり止める（callboard-x など）。
+    // 字の含みだけで通すのは、roster・git commit・grep・rg だけの命令（roster file put の名を付ける旗の値など）。
     "callboard": {
       "guard": "tpm",
       "match": [
