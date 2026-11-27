@@ -12,6 +12,7 @@ cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
 cargo test --locked -p castlist_client -p pagetray_client          # 定義の例から作った、生成した crate の中の試験（protocol の試験）
 ci/check-wording.sh                                                # 公開する字と画面の字が、決めた字か
+ci/test-check-release-version.sh                                   # release の tag と版の突き合わせの試験
 ci/check-vendor.sh                                                 # 取り込んだ cytoscape が npm の物と同じか（static/vendor/SOURCES.md）
 (cd e2e && CALLBOARD_E2E_CASTLIST=<castlist-server の binary> pnpm test)   # 画面を、本物の castlist を相手に、本物の browser で見る（下の「browser の試験の相手」）
 CALLBOARD_LISTEN=127.0.0.1:18813 CALLBOARD_CASTLIST_URL=http://127.0.0.1:8802 CALLBOARD_PAGETRAY_URL=http://127.0.0.1:8801 cargo run --bin callboard-server   # 手元で起こす（動いている callboard の 8803 とは別の port。castlist と pagetray は読むだけ）
@@ -73,6 +74,7 @@ callboard は自分の API の定義を持たない。castlist と pagetray の�
 | 道筋 | castlist・pagetray の代わりに、決めた答えを返す偽の server を process の中に立て、Router を直に呼ぶ。偽の server が受けた要求（path・header）も見る | `crates/server/tests/` の `guard.rs`（守りの層）・`health.rs`・`home.rs`（入口）・`profile.rs`（プロフィール）・`network.rs`（相関図と中継の道）（道具は `crates/server/tests/common/`） |
 | browser | 出した版の castlist と、同じ commit の callboard を空いた port で起こし、castlist の API で見本を置き、Chromium で開く。相関図の点と線の数・押した先・絞り・色・console の誤りと CSP の違反が 0、プロフィールの中身、castlist の画面との新旧の比べを見る | `e2e/`（Playwright。CI の job `e2e`。Node の依存の弱点は job `advisories` の `pnpm audit`） |
 | 単体 | 外に触らない純な関数 | 各 file の `#[cfg(test)]` |
+| release の版 | tag と `Cargo.toml` の版・`CHANGELOG.md` の節の突き合わせを、通る形と落ちる形で打つ | `ci/test-check-release-version.sh`（CI の job `test`） |
 | image | 空の image の中で起き、出した版の castlist と pagetray の image に名で届き、相関図と中継の道が本物の castlist を通して出て、断るべき物を断り、止める合図で終わる | `ci/smoke-image.sh <image>`（CI の job `image`） |
 
 ## 待たせない書き方
