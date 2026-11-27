@@ -362,15 +362,23 @@ test('英語のメッセージの一覧は、新着を受けて読み直した�
   await putMessage(request, 'i18n-live', 'm-1', message('2026-11-02T00:01:00Z', 1));
   const { context, page } = await open(browser, 'en-US');
   const problems = collectProblems(page);
-  await openLive(page, '/messages?project=i18n-live');
-  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-  // 変わらない絞り込みの列は、差し替えない（前は、訳した今の列と日本語の次の列を比べて、毎回差し替えていた）。
-  await page.locator('#filters').evaluate((el) => ((el as HTMLElement).dataset.mark = 'kept'));
-  // ほかの project に置くと、知らせが来て読み直すが、この絞りの一覧と絞り込みの列は変わらないので、差し替えない。
+  // 変わらない絞り込みの列は、差し替えない（前は、訳した今の列と日本語の次の列を比べて、毎回差し替えていた）。知らせに
+  // つながった時の初めの読み直しは、開いた時と同じ HTML を読む（何も変わらない）。つなぐのを止めておき、列の子（初めの
+  // link。差し替えは #filters の中身を替えるので、#filters そのものの印は消えない）に印を付けてから、つながせる。
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  await page.route(/\/api\/pagetray\/events$/, async (route) => {
+    await gate;
+    await route.continue();
+  });
   const pulled = page.waitForResponse((r) => new URL(r.url()).pathname === '/messages' && r.request().resourceType() === 'fetch');
-  await putMessage(request, 'i18n-other', 'm-1', message('2026-11-02T00:01:00Z', 1));
+  await page.goto('/messages?project=i18n-live');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  // 印は HTML に出ない JS の値で付ける（属性にすると、innerHTML の比べに入って「違う」になる）。
+  await page.locator('#filters a').first().evaluate((el) => ((el as unknown as { kept: boolean }).kept = true));
+  release();
   await (await pulled).finished();
-  await expect(page.locator('#filters')).toHaveAttribute('data-mark', 'kept');
+  expect(await page.locator('#filters a').first().evaluate((el) => (el as unknown as { kept?: boolean }).kept === true)).toBe(true);
   // この project に置くと、読み直した一覧に行が入り、英語のまま。
   await putMessage(request, 'i18n-live', 'm-2', message('2026-11-02T00:05:00Z', 1));
   await expect(page.locator('#list li[data-id="i18n-live/m-2"]')).toBeVisible();
@@ -389,16 +397,19 @@ test('英語のページの一覧は、新着を受けて読み直した後も�
   const pulled = page.waitForResponse((r) => new URL(r.url()).pathname === '/pages/' && r.request().resourceType() === 'fetch');
   const path = await placePage(request, 'i18n-live', 'L-1', 'confirm', '<!doctype html><title>confirm</title>');
   await reply(request, path, 'waiting');
-  await (await pulled).finished();
-  await expect(page.locator('#list li[data-path]')).toHaveCount(1);
-  // 待ちの数の釦（数は中の span。子ごと写す）も英語のまま。
-  await expect(page.locator('#waiting')).toBeVisible();
-  for (const selector of ['#toolbar', '#filters', '#list']) {
-    expect(await page.locator(selector).innerText(), selector).not.toMatch(/[ぁ-んァ-ヶ一-龠]/);
+  try {
+    await (await pulled).finished();
+    await expect(page.locator('#list li[data-path]')).toHaveCount(1);
+    // 待ちの数の釦（数は中の span。子ごと写す）も英語のまま。
+    await expect(page.locator('#waiting')).toBeVisible();
+    for (const selector of ['#toolbar', '#filters', '#list']) {
+      expect(await page.locator(selector).innerText(), selector).not.toMatch(/[ぁ-んァ-ヶ一-龠]/);
+    }
+    expect(await page.title()).not.toMatch(/[ぁ-んァ-ヶ一-龠]/);
+  } finally {
+    // ほかの試験の待ちの数を替えないように、途中で落ちても答えたに戻す。
+    await reply(request, path, 'answered');
   }
-  expect(await page.title()).not.toMatch(/[ぁ-んァ-ヶ一-龠]/);
-  // ほかの試験の待ちの数を替えないように、答えたに戻す。
-  await reply(request, path, 'answered');
   expect(problems).toEqual([]);
   await context.close();
 });
@@ -406,7 +417,7 @@ test('英語のページの一覧は、新着を受けて読み直した後も�
 test('英語の相関図は、network.js が組む字（数・状態・記録なし）も英語', async ({ browser }) => {
   const { context, page } = await open(browser, 'en-US');
   await page.goto('/graph/network');
-  await expect(page.locator('#network-status')).toContainText(/\d+ actors, \d+ edges \(as of /);
+  await expect(page.locator('#network-status')).toContainText(/Actors: \d+, edges: \d+ \(as of /);
   expect(await page.locator('#network-controls').innerText()).not.toMatch(/[ぁ-んァ-ヶ一-龠]/);
   await context.close();
 });

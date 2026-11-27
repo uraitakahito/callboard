@@ -249,7 +249,7 @@
     const dot = file.name.lastIndexOf('.');
     const ext = dot > 0 ? file.name.slice(dot + 1).replace(/[A-Z]/g, (x) => x.toLowerCase()) : '';
     if (!types.has(ext)) {
-      tell(window.callboardT('pages.upload.js.badExt', { ext: ext || window.callboardT('pages.upload.js.noExt'), types: [...types.keys()].join(window.callboardT('common.listSep')) }), true);
+      tell(window.callboardT('pages.upload.js.badExt', { ext: ext ? `.${ext}` : window.callboardT('pages.upload.js.noExt'), types: [...types.keys()].join(window.callboardT('common.listSep')) }), true);
       return;
     }
     if (file.size > max) {

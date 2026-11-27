@@ -183,8 +183,8 @@
     "js": {
       "human": " (human)",
       "noModel": "no model record",
-      "total": "{{actors}} actors, {{edges}} edges (as of {{at}})",
-      "shown": "{{total}}. Showing {{actors}} actors and {{edges}} edges",
+      "total": "Actors: {{actors}}, edges: {{edges}} (as of {{at}})",
+      "shown": "{{total}}. Showing actors: {{actors}}, edges: {{edges}}",
       "empty": "No actors match the filters. Remove some filters or clear them.",
       "failed": "Cannot show the network: {{why}}"
     }
@@ -262,7 +262,7 @@
       },
       "failed": "Upload failed ({{status}}): {{why}}",
       "js": {
-        "badExt": ".{{ext}} cannot be uploaded. Allowed: {{types}}",
+        "badExt": "{{ext}} cannot be uploaded. Allowed: {{types}}",
         "noExt": "(no extension)",
         "tooBig": "{{size}} is too large. The limit is {{max}} per file",
         "empty": "The file is empty",

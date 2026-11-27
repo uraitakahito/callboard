@@ -262,7 +262,7 @@
       },
       "failed": "上げられなかった（{{status}}）: {{why}}",
       "js": {
-        "badExt": ".{{ext}} は上げられない。上げられるのは {{types}}",
+        "badExt": "{{ext}} は上げられない。上げられるのは {{types}}",
         "noExt": "（拡張子なし）",
         "tooBig": "{{size}} は大きすぎる。1 つ {{max}} まで",
         "empty": "中身が空",

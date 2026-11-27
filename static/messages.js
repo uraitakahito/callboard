@@ -75,11 +75,6 @@
           if (nextCounter) {
             counter.hidden = nextCounter.hidden;
             counter.replaceChildren(...nextCounter.childNodes);
-            for (const name of ['data-i18n-options']) {
-              const value = nextCounter.getAttribute(name);
-              if (value === null) counter.removeAttribute(name);
-              else counter.setAttribute(name, value);
-            }
           }
           if (text) show(text);
         };
