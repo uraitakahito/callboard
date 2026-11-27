@@ -123,9 +123,9 @@
   function describe(node) {
     const d = node.data();
     // 種類の印は人にだけ付ける（アクターはほとんど AI なので、AI には付けない）。
-    const kind = d.kind === 'human' ? '（人）' : '';
-    const setting = d.model === NONE ? 'model の記録なし' : `${d.model} · ${d.effort}`;
-    const state = d.present ? '稼働中' : d.inferred ? '停止（推し）' : '停止';
+    const kind = d.kind === 'human' ? window.callboardT('network.js.human') : '';
+    const setting = d.model === NONE ? window.callboardT('network.js.noModel') : `${d.model} · ${d.effort}`;
+    const state = window.callboardT(d.present ? 'common.state.running' : d.inferred ? 'common.state.stoppedInferred' : 'common.state.stopped');
     return `${d.name}${kind}\n${setting}\n${state}`;
   }
 
@@ -140,7 +140,7 @@
     for (const value of values) {
       const option = document.createElement('option');
       option.value = value;
-      option.textContent = value === NONE ? '記録なし' : value;
+      option.textContent = value === NONE ? window.callboardT('common.noRecord') : value;
       select.append(option);
     }
   }
@@ -171,20 +171,20 @@
     // 試験と調べ物のため（browser の console から見られる）。
     window.callboardNetwork = cy;
 
-    const total = `${cy.nodes().length} のアクター・${cy.edges().length} の線（${local(graph.asOf)} の時点）`;
+    const total = window.callboardT('network.js.total', { actors: cy.nodes().length, edges: cy.edges().length, at: local(graph.asOf) });
     // 見えている数は、絞りの class で数える（:visible は、次に描くまで前の様子を返す）。
     const update = () => {
       const shown = cy.nodes().not('.hidden');
       if (shown.length === cy.nodes().length) {
         say(total);
       } else {
-        say(`${total}。見えているのは ${shown.length} のアクター・${shown.edgesWith(shown).length} の線`);
+        say(window.callboardT('network.js.shown', { total, actors: shown.length, edges: shown.edgesWith(shown).length }));
       }
     };
 
     if (cy.nodes().length === 0) {
       container.hidden = true;
-      say('条件に合うアクターはいません。条件を減らすか、条件を消してください。');
+      say(window.callboardT('network.js.empty'));
     } else {
       cy.layout({
         name: 'cose',
@@ -252,6 +252,6 @@
     .catch((e) => {
       container.hidden = true;
       container.dataset.state = 'error';
-      say(`相関図を表示できません: ${e.message}`);
+      say(window.callboardT('network.js.failed', { why: e.message }));
     });
 })();

@@ -27,10 +27,11 @@ pub fn reply(status: StatusCode, kind: &'static str, message: &Text) -> Response
 }
 
 /// 誤りの型の名（`X-Amzn-Errortype`）の鍵。知らない型は `errors.kind.other`。型の名は、名前空間（`#` の前）と、
-/// 後ろに付く説明（`:` の後。restJson1 の決まり）を落としてから比べる。
+/// 後ろに付く説明（`:` の後）を落としてから比べる。restJson1 の決まりの順（先に `:` の後を落とし、次に `#` の前を落とす。
+/// `:` の後の URL に `#` があっても、名を取り違えない）。
 fn kind_key(kind: &str) -> &'static str {
-    let kind = kind.rsplit_once('#').map_or(kind, |(_, name)| name);
-    let kind = kind.split_once(':').map_or(kind, |(name, _)| name).trim();
+    let kind = kind.split_once(':').map_or(kind, |(name, _)| name);
+    let kind = kind.rsplit_once('#').map_or(kind, |(_, name)| name).trim();
     match kind {
         "ValidationException" => "errors.kind.validation",
         "SerializationException" => "errors.kind.serialization",
@@ -74,6 +75,20 @@ mod tests {
 
     fn json(body: Option<Vec<u8>>) -> Value {
         serde_json::from_slice(&body.expect("code を足していない")).unwrap()
+    }
+
+    #[test]
+    fn 型の名は_コロンの後を落としてから_シャープの前を落とす() {
+        assert_eq!(kind_key("ValidationException"), "errors.kind.validation");
+        assert_eq!(kind_key("ai.common#Forbidden"), "errors.kind.forbidden");
+        assert_eq!(
+            kind_key("ValidationException:http://internal/x#frag"),
+            "errors.kind.validation"
+        );
+        assert_eq!(
+            kind_key("ai.common#NotFound:http://internal/y#z"),
+            "errors.kind.notFound"
+        );
     }
 
     #[test]

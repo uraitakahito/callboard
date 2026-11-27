@@ -1,7 +1,7 @@
 // 画面の字の言語（AI-50）。サーバーは日本語の字を書き、英語の時はブラウザーの i18next（static/i18n.js）が差し替える。
 // 言語は cookie（callboard-lang）→ ブラウザーの言語の並びの初めの 1 つ → 日本語。帯の切り替えで選べる。
 import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test';
-import { CASTLIST, collectProblems, placePage, putMessage, reply, reviewMarks } from './helpers';
+import { CASTLIST, collectProblems, openLive, placePage, putMessage, reply, reviewMarks } from './helpers';
 
 /** 頭の帯の画面の link の字（出た順）。 */
 const navTexts = (page: Page) => page.locator('header.bar nav a').allTextContents();
@@ -178,16 +178,11 @@ test('cookie が英語で英語の訳が届かない時も、日本語を選び�
  */
 const ALLOWED_JAPANESE: { text: RegExp; paths?: string[]; why: string; until: string }[] = [
   { text: /^日本語$/, why: '言語の切り替えの釦は、言語の名をその言語で書く', until: 'ずっと' },
-  { text: /^記録なし$/, paths: ['/graph/network'], why: '相関図の点の model の字は network.js が組む', until: '段 5' },
-  { text: /^\d+ のアクター・\d+ の線（.+ の時点）$/, paths: ['/graph/network'], why: '相関図の数の字は network.js が組む', until: '段 5' },
 ];
 
 /** `path` の画面で、許した字か。 */
 const allowed = (path: string, text: string) =>
   ALLOWED_JAPANESE.some((a) => a.text.test(text) && (!a.paths || a.paths.includes(path)));
-
-/** 題に残ってよい日本語（メッセージとページの一覧は、新着を読み直した時に server の題を写す。段 5 で直す）。 */
-const TITLE_UNTIL_STAGE5 = ['/messages', '/pages/'];
 
 const JAPANESE = /[ぁ-んァ-ヶ一-龠]/;
 
@@ -213,12 +208,12 @@ test('英語のブラウザーでは、どの画面も字と属性と題を英�
 
   const { context, page } = await open(browser, 'en-US');
   const problems = collectProblems(page);
-  // 新着の知らせの道を止める: メッセージとページの一覧の script は、知らせがつながると server の HTML を読み直して差し替えるが、
-  // 読み直した木をまだ訳さない（段 5 で直す）。ここでは、サーバーが書いた字（段 4）が英語になるかを見る。段 5 でこの止めを外す。
-  await page.route(/\/api\/pagetray\/events$/, (route) => route.fulfill({ status: 204, body: '' }));
   const found: Record<string, string[]> = {};
   for (const path of await screens(request)) {
-    await page.goto(path);
+    // メッセージとページの一覧は、知らせにつながると server の HTML を読み直して差し替える。読み直しが済んでから見る
+    // （読み直した木も訳す。段 5）。
+    if (path === '/messages' || path === '/pages/') await openLive(page, path);
+    else await page.goto(path);
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
     const { attrs, texts } = await page.evaluate(() => {
       const japanese = /[ぁ-んァ-ヶ一-龠]/;
@@ -243,7 +238,7 @@ test('英語のブラウザーでは、どの画面も字と属性と題を英�
     });
     // 見える字の全部（innerText）も見る。
     const visible = (await page.locator('body').innerText()).split(/[\n\t]+/).map((t) => t.trim());
-    const title = TITLE_UNTIL_STAGE5.includes(path) ? [] : [await page.title()];
+    const title = [await page.title()];
     const left = [...attrs, ...new Set([...texts, ...visible, ...title].filter((t) => JAPANESE.test(t) && !allowed(path, t)))];
     // 値の入っていない差し込み（{{名}}）も残らない。
     left.push(...visible.filter((t) => t.includes('{{')));
@@ -271,6 +266,30 @@ test('英語のブラウザーでは、file を上げられなかった訳も、
   const say = box.locator('form > .say');
   // 呼ぶ先の訳（detail）は、呼ぶ先の言葉のまま添える（AI-48 で pagetray の訳が英語になるまで、日本語）。
   await expect(say).toHaveText(`Upload failed (415): This file type or content is not accepted (${json.message})`);
+  await context.close();
+});
+
+test('英語のブラウザーでは、上げる道が 503 の時も、code の無い誤りの時も、訳を英語で組む', async ({ browser, request }) => {
+  await placePage(request, 'i18n-up', 'U-2', 'plan', '<!doctype html><title>plan</title>');
+  const { context, page } = await open(browser, 'en-US');
+  await page.goto('/pages/?project=i18n-up&key=U-2');
+  const box = page.locator('#upload');
+  const say = box.locator('form > .say');
+  const send = async (body: object, status: number) => {
+    await page.route(/\/api\/pagetray\/projects\/i18n-up\/keys\/U-2\/files/, (route) =>
+      route.request().method() === 'POST' ? route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) }) : route.fallback(),
+    );
+    await box.locator('input[type=file]').setInputFiles({ name: 'a.txt', mimeType: 'text/plain', buffer: Buffer.from('text') });
+    await box.getByRole('checkbox').check();
+    await box.locator('button[type=submit]').click();
+  };
+  // 503（聞けなかった。置かれたかもしれない）: 訳の後に、確かめてから送り直す文も英語で付く。
+  await send({ message: '1 秒で答えが無い', code: 'errors.kind.unavailable', values: { detail: 'timeout' } }, 503);
+  await expect(say).toHaveText('Upload failed (503): The service is unavailable. Try again later (timeout). Check whether it appears in the file list above before sending again');
+  await page.unrouteAll();
+  // code の無い誤り（呼ぶ先の古い形）: 字は呼ぶ先の訳のまま、外の文は英語。
+  await send({ error: 'bad' }, 400);
+  await expect(say).toHaveText('Upload failed (400): bad');
   await context.close();
 });
 
@@ -325,5 +344,80 @@ test('英語のブラウザーでは、使用量の画面の万の数と入れ�
   const titles = await page.locator('#by-context svg rect.bar title').allTextContents();
   expect(titles.length).toBeGreaterThan(0);
   for (const title of titles) expect(title).toMatch(/^[\d,.]+k?–([\d,.]+k)?: \$[\d,.]+ \(\d+ turns?\)$/);
+  await context.close();
+});
+
+test('英語のメッセージの一覧は、新着を受けて読み直した後も英語のままで、変わらない絞り込みの列は差し替えない', async ({ browser, request }) => {
+  const message = (deliveredAt: string, deliveries: number) => ({
+    key: 'L-1',
+    heading: 'live',
+    from: 'tpm',
+    to: 'pm.1',
+    text: 'text',
+    sentAt: '2026-11-02T00:00:00Z',
+    state: 'delivered' as const,
+    deliveredAt,
+    deliveries,
+  });
+  await putMessage(request, 'i18n-live', 'm-1', message('2026-11-02T00:01:00Z', 1));
+  const { context, page } = await open(browser, 'en-US');
+  const problems = collectProblems(page);
+  // 変わらない絞り込みの列は、差し替えない（前は、訳した今の列と日本語の次の列を比べて、毎回差し替えていた）。知らせに
+  // つながった時の初めの読み直しは、開いた時と同じ HTML を読む（何も変わらない）。つなぐのを止めておき、列の子（初めの
+  // link。差し替えは #filters の中身を替えるので、#filters そのものの印は消えない）に印を付けてから、つながせる。
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  await page.route(/\/api\/pagetray\/events$/, async (route) => {
+    await gate;
+    await route.continue();
+  });
+  const pulled = page.waitForResponse((r) => new URL(r.url()).pathname === '/messages' && r.request().resourceType() === 'fetch');
+  await page.goto('/messages?project=i18n-live');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  // 印は HTML に出ない JS の値で付ける（属性にすると、innerHTML の比べに入って「違う」になる）。
+  await page.locator('#filters a').first().evaluate((el) => ((el as unknown as { kept: boolean }).kept = true));
+  release();
+  await (await pulled).finished();
+  expect(await page.locator('#filters a').first().evaluate((el) => (el as unknown as { kept?: boolean }).kept === true)).toBe(true);
+  // この project に置くと、読み直した一覧に行が入り、英語のまま。
+  await putMessage(request, 'i18n-live', 'm-2', message('2026-11-02T00:05:00Z', 1));
+  await expect(page.locator('#list li[data-id="i18n-live/m-2"]')).toBeVisible();
+  for (const selector of ['#toolbar', '#filters', '#list']) {
+    expect(await page.locator(selector).innerText(), selector).not.toMatch(/[ぁ-んァ-ヶ一-龠]/);
+  }
+  expect(await page.title()).not.toMatch(/[ぁ-んァ-ヶ一-龠]/);
+  expect(problems).toEqual([]);
+  await context.close();
+});
+
+test('英語のページの一覧は、新着を受けて読み直した後も、一覧・待ちの釦・題が英語のまま', async ({ browser, request }) => {
+  const { context, page } = await open(browser, 'en-US');
+  const problems = collectProblems(page);
+  await openLive(page, '/pages/?project=i18n-live');
+  const pulled = page.waitForResponse((r) => new URL(r.url()).pathname === '/pages/' && r.request().resourceType() === 'fetch');
+  const path = await placePage(request, 'i18n-live', 'L-1', 'confirm', '<!doctype html><title>confirm</title>');
+  await reply(request, path, 'waiting');
+  try {
+    await (await pulled).finished();
+    await expect(page.locator('#list li[data-path]')).toHaveCount(1);
+    // 待ちの数の釦（数は中の span。子ごと写す）も英語のまま。
+    await expect(page.locator('#waiting')).toBeVisible();
+    for (const selector of ['#toolbar', '#filters', '#list']) {
+      expect(await page.locator(selector).innerText(), selector).not.toMatch(/[ぁ-んァ-ヶ一-龠]/);
+    }
+    expect(await page.title()).not.toMatch(/[ぁ-んァ-ヶ一-龠]/);
+  } finally {
+    // ほかの試験の待ちの数を替えないように、途中で落ちても答えたに戻す。
+    await reply(request, path, 'answered');
+  }
+  expect(problems).toEqual([]);
+  await context.close();
+});
+
+test('英語の相関図は、network.js が組む字（数・状態・記録なし）も英語', async ({ browser }) => {
+  const { context, page } = await open(browser, 'en-US');
+  await page.goto('/graph/network');
+  await expect(page.locator('#network-status')).toContainText(/Actors: \d+, edges: \d+ \(as of /);
+  expect(await page.locator('#network-controls').innerText()).not.toMatch(/[ぁ-んァ-ヶ一-龠]/);
   await context.close();
 });

@@ -729,7 +729,7 @@ async fn 数を聞けなくても_頁は_200_で出し_使用量の節だけに�
     let body = app.html(&format!("/actors/{SE1}")).await;
     let usage = section(&body, "usage");
     assert!(
-        usage.contains("<p class=\"error\" data-i18n=\"profile.usage.error\" data-i18n-options=\"{&#34;why&#34;:{&#34;$t&#34;:&#34;upstream.returned&#34;,&#34;values&#34;:{&#34;status&#34;:&#34;404&#34;}}}\">数を読めません（404 が返りました）。</p>"),
+        usage.contains("<p class=\"error\" data-i18n=\"profile.usage.error\" data-i18n-options=\"{&#34;why&#34;:{&#34;$t&#34;:&#34;upstream.returned&#34;,&#34;values&#34;:{&#34;status&#34;:404}}}\">数を読めません（404 が返りました）。</p>"),
         "{usage}"
     );
     // ほかの節は、今までどおり。

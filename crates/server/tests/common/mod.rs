@@ -268,7 +268,7 @@ pub fn ja_text(key: &str, values: &serde_json::Value) -> String {
     for part in key.split('.') {
         node = &node[part];
     }
-    let mut text = node
+    let text = node
         .as_str()
         .or_else(|| {
             let (head, last) = key.rsplit_once('.')?;
@@ -280,10 +280,26 @@ pub fn ja_text(key: &str, values: &serde_json::Value) -> String {
         })
         .unwrap_or_else(|| panic!("{key} が ja.json に無い"))
         .to_owned();
-    for (name, value) in values.as_object().into_iter().flatten() {
-        text = text.replace(&format!("{{{{{name}}}}}"), &ja_value(value));
+    // 元の字を 1 度だけ走って {{名}} を引く（サーバーの fill と同じ引き方。入れた値の中の {{…}} は置き換えない）。
+    let values = values.as_object();
+    let mut out = String::new();
+    let mut rest = text.as_str();
+    while let Some(at) = rest.find("{{") {
+        out.push_str(&rest[..at]);
+        let Some(end) = rest[at + 2..].find("}}") else {
+            out.push_str(&rest[at..]);
+            rest = "";
+            break;
+        };
+        let name = &rest[at + 2..at + 2 + end];
+        match values.and_then(|v| v.get(name)) {
+            Some(value) => out.push_str(&ja_value(value)),
+            None => out.push_str(&rest[at..at + 4 + end]),
+        }
+        rest = &rest[at + 4 + end..];
     }
-    text
+    out.push_str(rest);
+    out
 }
 
 /// 差し込む値の日本語の字。入れ子の字（`{"$t":…,"values":…}`）と名の並び（`{"$join":[…],"sep":…}`）は、日本語で組む。

@@ -90,7 +90,7 @@ const UNREADABLE: &str = "upstream.unreadable";
 
 /// 呼ぶ先が 2xx でない状態を返した訳。
 fn returned(status: u16) -> Text {
-    Text::new("upstream.returned").with("status", status)
+    Text::new("upstream.returned").with_num("status", status)
 }
 
 /// 誤りに付いている、HTTP の状態。
