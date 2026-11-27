@@ -560,7 +560,7 @@ async fn page(
         })
         .collect(),
     };
-    // 操作の帯の釦は、ほかの絞り込みを外して、その待ちだけに絞る（並びは保つ）。
+    // 操作の帯の釦は、ほかの絞り込みを外して、その待ちだけに絞り込む（並びは保つ）。
     let counter = |id, label, title, on: &str, count| Counter {
         id,
         label,

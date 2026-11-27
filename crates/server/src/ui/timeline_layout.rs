@@ -1,4 +1,4 @@
-//! タイムラインの並べ方（純な計算。DB に触らない）: 行（アクター）ごとの居た間・model と effort の替わり目・出来事の印と、
+//! タイムラインの並べ方（純な計算。DB に触らない）: 行（アクター）ごとの稼働した期間・model と effort の替わり目・出来事の印と、
 //! 線と、時刻の窓から、帯と矢印と印と目盛りの置き場を出す。
 //!
 //! - 時刻は UNIX の時からのミリ秒（castlist が受けた時刻）。横が時刻で、左から右へ進む。
@@ -375,7 +375,7 @@ fn room(s: &Segment, arrows: &[Arrow], need: u32) -> Option<u32> {
     (left + need <= s.x + s.w).then_some(left)
 }
 
-/// 時刻の窓。`from`・`to` が無ければ、居た間・印・線の時刻の初めから終わりまで（居るままの者がいれば今まで）。
+/// 時刻の窓。`from`・`to` が無ければ、稼働した期間・印・線の時刻の初めから終わりまで（居るままの者がいれば今まで）。
 /// 窓が無くて 1 分より短ければ、右に延ばす。終わりが初めより前なら、初めから 1 分。
 fn span_of(lanes: &[Lane], links: &[Link], w: Window) -> (i64, i64) {
     let times = lanes
@@ -413,7 +413,7 @@ fn span_of(lanes: &[Lane], links: &[Link], w: Window) -> (i64, i64) {
     }
 }
 
-/// 居た間（初め・終わり・推しの幕引きで終わったか。居るままなら終わりは None）。居る間の登場と、居ない間の退場は、何もしない。
+/// 稼働した期間（初め・終わり・推しの幕引きで終わったか。居るままなら終わりは None）。居る間の登場と、居ない間の退場は、何もしない。
 fn stays(presence: &[(i64, Presence)]) -> Vec<(i64, Option<i64>, bool)> {
     let mut out = Vec::new();
     let mut open: Option<i64> = None;
@@ -433,7 +433,7 @@ fn stays(presence: &[(i64, Presence)]) -> Vec<(i64, Option<i64>, bool)> {
     out
 }
 
-/// 居た間 [start, end) の、最後の便りの時刻: その行の居る・居ないの出来事と、出来事の印と、model と effort の替わり目の最新
+/// 稼働した期間 [start, end) の、最後の便りの時刻: その行の居る・居ないの出来事と、出来事の印と、model と effort の替わり目の最新
 /// （終わりの出来事そのものは数えない）。無ければ初め。
 fn last_sign(lane: &Lane, start: i64, end: i64) -> i64 {
     lane.presence
