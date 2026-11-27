@@ -20,7 +20,7 @@ castlist と pagetray の画面を、1 つずつ callboard に移した。castli
 | プロフィール | callboard（0.1.0 から） | `/actors/{id}` | castlist の `/actors/{id}` |
 | タイムライン | callboard（0.2.0 から） | `/graph/timeline` | castlist の `/graph/timeline` |
 | 相関図 | callboard（0.1.0 から） | `/graph/network` | castlist の `/graph/network` |
-| 費え | callboard（0.4.0 の次の版から。移した物でなく、callboard で初めて作った画面） | `/usage/` | —（castlist は、2.1.0 で読む API だけを足した） |
+| 費え | callboard（0.5.0 から。移した物でなく、callboard で初めて作った画面） | `/usage/` | —（castlist は、2.1.0 で読む API だけを足した） |
 | ページの一覧 | callboard（0.4.0 から） | `/pages/` | pagetray の `/`・`/<project>/`・`/<project>/<key>/` |
 | メッセージ | callboard（0.3.0 から） | `/messages` | pagetray の `/messages` |
 
