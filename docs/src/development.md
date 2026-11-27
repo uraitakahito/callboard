@@ -4,12 +4,16 @@
 
 Rust は `rustup` で入れる（Homebrew の `rust` は `rust-toolchain.toml` を読まない）。版は `rust-toolchain.toml` が決め、この repo の中で `cargo` を打つと、その版が入って使われる。
 
+画面の browser の試験（`e2e/`）だけは Node を使う。版は `e2e/.node-version`、pnpm の版は `e2e/package.json` の `packageManager`、Playwright の版は `e2e/pnpm-lock.yaml` が決める（公開から 2 日たっていない版は入れない。`e2e/pnpm-workspace.yaml`）。初めに `cd e2e && pnpm install --frozen-lockfile && pnpm exec playwright install chromium`。設定は `e2e/playwright.config.ts`。Node と Playwright は image にも binary にも入らない。
+
 ```sh
 cargo fmt --all --check
 cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
 cargo test --locked -p castlist_client -p pagetray_client          # 定義の例から作った、生成した crate の中の試験（protocol の試験）
 ci/check-wording.sh                                                # 公開する字と画面の字が、決めた字か
+ci/check-vendor.sh                                                 # 取り込んだ cytoscape が npm の物と同じか（static/vendor/SOURCES.md）
+(cd e2e && CALLBOARD_E2E_CASTLIST=<castlist-server の binary> pnpm test)   # 画面を、本物の castlist を相手に、本物の browser で見る（下の「browser の試験の相手」）
 CALLBOARD_LISTEN=127.0.0.1:18813 CALLBOARD_CASTLIST_URL=http://127.0.0.1:8802 CALLBOARD_PAGETRAY_URL=http://127.0.0.1:8801 cargo run --bin callboard-server   # 手元で起こす（動いている callboard の 8803 とは別の port。castlist と pagetray は読むだけ）
 mdbook build docs                                                  # この本を作る
 ci/gen.sh                                                          # castlist と pagetray の定義を tag から取り直し、呼ぶ側の crate を作り直す
@@ -18,14 +22,23 @@ ci/gen.sh --check                                                  # 取った�
 
 手元で起こすのは、試しの callboard だけにする。動いている callboard の container を起こす・止めるのは、DevOps Engineer 担当だけ（[動かす](run.md)）。
 
+### browser の試験の相手
+
+`e2e/` の試験は、出した版の castlist の server を一時の DB で起こし、castlist の API で見本の記録を置いてから、callboard の画面を開く。castlist の画面（古い画面）と callboard の画面の中身を比べる試験（新旧の比べ）も、この castlist を相手にする。
+
+- CI（job `e2e`）は、`ci/castlist-binary.sh` が、出した版の image（`ci/upstream.env`）から binary を取り出す（arm64 の Linux の binary なので、同じ種類の機械で流す）。
+- ほかの機械では、castlist の同じ版の tag を build した binary を、`CALLBOARD_E2E_CASTLIST` に渡す。castlist の repo を変えないように、tag を別の folder に取り出して build する: `git -C <castlist の repo> archive v1.0.0 | tar -x -C <空の folder>` の後、その folder で `cargo build --locked -p castlist-next`（v1.0.0 の tag では、image に入る server の package の名が `castlist-next`。binary は `target/debug/castlist-next`）。
+- pagetray は起こさない（今ある画面は castlist だけを呼ぶ）。
+
 ## 置き場所
 
 | 所 | 中身 |
 |---|---|
-| `crates/server/` | server（package `callboard`・binary `callboard-server`）。`src/config.rs` 設定・`src/guard.rs` 入口の守り・`src/upstream/` castlist と pagetray を呼ぶ所・`src/ui.rs` 画面 |
+| `crates/server/` | server（package `callboard`・binary `callboard-server`）。`src/config.rs` 設定・`src/guard.rs` 入口の守り・`src/upstream/` castlist と pagetray を呼ぶ所・`src/ui.rs` と `src/ui/` 画面 |
 | `crates/castlist-client/`・`crates/pagetray-client/` | castlist と pagetray の定義から作った、呼ぶ側の crate。**手で直さない** |
 | `model/` | castlist と pagetray の release の tag から取った定義（`model/castlist/`・`model/pagetray/`）と、生成器の設定（`smithy-build.json`） |
-| `templates/`・`static/` | 画面の template（askama）と、配る CSS。binary に埋め込む |
+| `templates/`・`static/` | 画面の template（askama）と、配る CSS・script・取り込んだ cytoscape（`static/vendor/`）。binary に埋め込む |
+| `e2e/` | 画面の browser の試験（Playwright） |
 | `ci/` | 生成（`gen.sh`）と、出す image に入ってよい物だけが入っているか・動くかを見る script |
 | `docs/` | この本（mdBook。日本語だけ） |
 
@@ -40,7 +53,7 @@ callboard は自分の API の定義を持たない。castlist と pagetray の�
 
 ### castlist・pagetray の版を上げる時
 
-1. `ci/gen.sh` の tag と digest を替える（digest は、その tag の `model/model/` の file の SHA-256）。`ci/smoke-image.sh` の、呼ぶ先の image の digest と版も替える。
+1. `ci/gen.sh` の tag と digest を替える（digest は、その tag の `model/model/` の file の SHA-256）。`ci/upstream.env` の、呼ぶ先の image の digest と版も替える（`ci/smoke-image.sh` が、2 つの版が同じかを見る）。
 2. `ci/gen.sh` を流し、取った定義と作り直した crate を、同じ commit に入れる。
 3. 動いている castlist・pagetray が、その版より古くないことを見る（新しい操作を呼ぶと、古い server は 404 を返す）。
 
@@ -57,9 +70,10 @@ callboard は自分の API の定義を持たない。castlist と pagetray の�
 | 層 | 中身 | 在り処 |
 |---|---|---|
 | 受け入れ | 本物の binary を空いた port で起こし、HTTP で叩く（起きる・設定の誤りで起きない・止める合図で終わる） | `crates/server/tests/server.rs` |
-| 道筋 | castlist・pagetray の代わりに、決めた答えを返す偽の server を process の中に立て、Router を直に呼ぶ。偽の server が受けた要求（path・header）も見る | `crates/server/tests/` の `guard.rs`（守りの層）・`health.rs`・`home.rs`（入口）（道具は `crates/server/tests/common/mod.rs`） |
+| 道筋 | castlist・pagetray の代わりに、決めた答えを返す偽の server を process の中に立て、Router を直に呼ぶ。偽の server が受けた要求（path・header）も見る | `crates/server/tests/` の `guard.rs`（守りの層）・`health.rs`・`home.rs`（入口）・`profile.rs`（プロフィール）・`network.rs`（相関図と中継の道）（道具は `crates/server/tests/common/`） |
+| browser | 出した版の castlist と、同じ commit の callboard を空いた port で起こし、castlist の API で見本を置き、Chromium で開く。相関図の点と線の数・押した先・絞り・色・console の誤りと CSP の違反が 0、プロフィールの中身、castlist の画面との新旧の比べを見る | `e2e/`（Playwright。CI の job `e2e`。Node の依存の弱点は job `advisories` の `pnpm audit`） |
 | 単体 | 外に触らない純な関数 | 各 file の `#[cfg(test)]` |
-| image | 空の image の中で起き、出した版の castlist と pagetray の image に名で届き、断るべき物を断り、止める合図で終わる | `ci/smoke-image.sh <image>`（CI の job `image`） |
+| image | 空の image の中で起き、出した版の castlist と pagetray の image に名で届き、相関図と中継の道が本物の castlist を通して出て、断るべき物を断り、止める合図で終わる | `ci/smoke-image.sh <image>`（CI の job `image`） |
 
 ## 待たせない書き方
 

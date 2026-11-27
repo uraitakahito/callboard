@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # image が、空の image の中で起き、/healthz に答え、外の Host と browser からの書き込みを断り、
-# 入口の画面と CSS が CSP の決まりどおりに出て、castlist と pagetray に名で届き、止める合図で自分から終わり、
-# 起こし直しても答えるかを見る。
+# 入口の画面と CSS が CSP の決まりどおりに出て、castlist と pagetray に名で届き、相関図とプロフィールが castlist の API を
+# 通して出て、止める合図で自分から終わり、起こし直しても答えるかを見る。
 # 呼ぶ先は、出した版の castlist と pagetray の image（ghcr.io の物を digest で取る）を、同じ network に起こす。
 # 使い方: ci/smoke-image.sh <image>
 # container の名は smoke-callboard で始める（callboard・castlist・pagetray の設定の守りの match（--name callboard など）に当てないため）。
@@ -20,16 +20,18 @@ port=${SMOKE_PORT:-18813}
 url=http://127.0.0.1:$port
 tmp=${RUNNER_TEMP:-/tmp}
 here=$(cd "$(dirname "$0")" && pwd)
-# 呼ぶ先（出した版。release の本文の digest で固める）。版は、定義を取った tag（ci/gen.sh）と同じにする（下で突き合わせる）。
-castlist=ghcr.io/uraitakahito/castlist@sha256:ae9ebbe8371f4f3abd5d4d8121c15aa43ce57d06e0466e61f9e8006c2a20b05d
-castlist_version=1.0.0
-pagetray=ghcr.io/uraitakahito/pagetray@sha256:1561e7322d050674f42718db2de2f7048d083571d1dfa3dfef936e6959a5cba7
-pagetray_version=1.1.1
+# 呼ぶ先（出した版の image と版。ci/upstream.env）。版は、定義を取った tag（ci/gen.sh）と同じにする（下で突き合わせる）。
+# shellcheck source=ci/upstream.env
+. "$here/upstream.env"
+castlist=$CASTLIST_IMAGE
+castlist_version=$CASTLIST_VERSION
+pagetray=$PAGETRAY_IMAGE
+pagetray_version=$PAGETRAY_VERSION
 # 定義を取った版と、ここで起こす image の版がずれていないか（片方だけ上げると、古い image を相手に通ってしまう）。
 for pair in "CASTLIST_TAG:$castlist_version" "PAGETRAY_TAG:$pagetray_version"; do
   tag=$(sed -n "s/^${pair%%:*}=v\(.*\)\$/\1/p" "$here/gen.sh")
   if [ "$tag" != "${pair#*:}" ]; then
-    echo "NG: ci/gen.sh の ${pair%%:*}（v${tag}）と、ci/smoke-image.sh の版（${pair#*:}）が違う" >&2
+    echo "NG: ci/gen.sh の ${pair%%:*}（v${tag}）と、ci/upstream.env の版（${pair#*:}）が違う" >&2
     exit 1
   fi
 done
@@ -98,6 +100,44 @@ tr -d '\r' <"$tmp/css-head.txt" | grep -qi '^content-type: text/css'
 tr -d '\r' <"$tmp/css-head.txt" | grep -qix 'x-content-type-options: nosniff'
 test -s "$tmp/site.css"
 test "$(code "$url/no/such")" = 404
+# 相関図: 同じ CSP が付き、inline の style が無く、script は callboard が配る 2 つ（cytoscape と network.js）を src で読むだけ。
+curl -fsS -D "$tmp/network-head.txt" -o "$tmp/network.html" "$url/graph/network"
+tr -d '\r' <"$tmp/network-head.txt" | grep -qixF "content-security-policy: $csp"
+if grep -qiE '<style|style=' "$tmp/network.html"; then
+  echo "NG: 相関図に inline の style がある" >&2
+  exit 1
+fi
+scripts=$(grep -oiE '<script[^>]*>' "$tmp/network.html" | sed -E 's/\?v=[0-9a-f]+"/"/' | LC_ALL=C sort)
+want_scripts='<script src="/static/network.js">
+<script src="/static/vendor/cytoscape-3.35.0.min.js">'
+if [ "$scripts" != "$want_scripts" ]; then
+  echo "NG: 相関図の script が、callboard の配る 2 つでない: $scripts" >&2
+  exit 1
+fi
+grep -qF 'data-src="/api/castlist/graph"' "$tmp/network.html"
+# 相関図の script と cytoscape: JavaScript の型で、cytoscape は static/vendor/ の物と同じ字。
+for path in static/network.js static/vendor/cytoscape-3.35.0.min.js; do
+  curl -fsS -D "$tmp/js-head.txt" -o "$tmp/got.js" "$url/$path"
+  tr -d '\r' <"$tmp/js-head.txt" | grep -qi '^content-type: application/javascript'
+  tr -d '\r' <"$tmp/js-head.txt" | grep -qix 'x-content-type-options: nosniff'
+  cmp -s "$tmp/got.js" "$here/../$path" || {
+    echo "NG: 配る $path が repo の物と違う" >&2
+    exit 1
+  }
+done
+curl -fsS -D "$tmp/icon-head.txt" -o /dev/null "$url/static/icon.svg"
+tr -d '\r' <"$tmp/icon-head.txt" | grep -qi '^content-type: image/svg+xml'
+# 中継の道: 本物の castlist の図の API（GetGraph）の答えが、そのまま返る（空の台帳なので、点も線も無い）。
+curl -fsS -D "$tmp/graph-head.txt" -o "$tmp/graph.json" "$url/api/castlist/graph"
+tr -d '\r' <"$tmp/graph-head.txt" | grep -qix 'content-type: application/json'
+jq -e '.nodes == [] and .edges == [] and (.asOf | length > 0)' "$tmp/graph.json" >/dev/null
+# castlist が断る引数は、castlist の誤りの形のまま返る。
+test "$(curl -s -D "$tmp/graph-head.txt" -o "$tmp/graph.json" -w '%{http_code}' "$url/api/castlist/graph?label=x")" = 400
+tr -d '\r' <"$tmp/graph-head.txt" | grep -qi '^x-amzn-errortype: '
+jq -e '.message | length > 0' "$tmp/graph.json" >/dev/null
+# プロフィール: castlist に無いアクターは 404 の画面（castlist に聞いた答え）。
+test "$(curl -s -o "$tmp/profile.html" -w '%{http_code}' "$url/actors/019a0000-0000-7000-8000-0000000000ff")" = 404
+grep -qF 'そのアクターは無い' "$tmp/profile.html"
 # 呼ぶ先を止めても、callboard は生きていると答え、入口は届かないと出す。
 docker stop "$name-pagetray" >/dev/null
 curl -fsS "$url/healthz" >/dev/null
