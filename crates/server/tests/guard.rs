@@ -203,6 +203,7 @@ async fn 時間切れを過ぎた問い合わせは_unavailable_の形で返す(
         common::pagetray_routes(),
         callboard::Config {
             timeout: Duration::from_millis(200),
+            ..callboard::Config::default()
         },
     )
     .await;

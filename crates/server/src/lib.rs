@@ -18,6 +18,9 @@ use axum::middleware;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 
+/// 止める合図を受けた印。付いたら、流し続ける答え（新着の知らせの中継）を閉じる。
+pub use tokio_util::sync::CancellationToken as Closing;
+
 use crate::config::Settings;
 use crate::upstream::castlist::Castlist;
 use crate::upstream::pagetray::Pagetray;
@@ -37,12 +40,18 @@ pub const BODY_LIMIT: usize = 2 * 1024 * 1024;
 pub struct Config {
     /// 1 つの問い合わせにかけてよい長さ（既定は [`REQUEST_TIMEOUT`]。試験は短くする）。
     pub timeout: Duration,
+    /// 新着の知らせの中継で、pagetray の答えの頭を待つ長さ（既定は [`upstream::TIMEOUT`]。試験は短くする）。
+    pub events_wait: Duration,
+    /// 止める合図を受けた印（binary が付ける）。付いたら、新着の知らせの流れを閉じる。
+    pub closing: Closing,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             timeout: REQUEST_TIMEOUT,
+            events_wait: upstream::TIMEOUT,
+            closing: Closing::new(),
         }
     }
 }
