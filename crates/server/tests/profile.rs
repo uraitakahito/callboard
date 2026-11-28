@@ -655,6 +655,12 @@ async fn 使用量の節の線は_時ごとの本体のいちばん長い文脈�
     assert!(svg.contains("role=\"img\""), "{svg}");
     // 使用量の画面の額の棒と同じ macro で描くが、押す link（区切りに絞る）は、プロフィールの図には無い。
     assert!(!svg.contains("<a "), "{svg}");
+    // 棒の下の升（区切りごと × 役割）も、プロフィールの図には無い。図の高さも今のまま。
+    assert!(
+        !svg.contains("class=\"role\"") && !svg.contains("class=\"cell"),
+        "{svg}"
+    );
+    assert!(svg.contains("height=\"220\""), "{svg}");
     assert!(
         svg.contains(
             "aria-label=\"文脈の長さの段々の線（1 時間ごとの、本体の回のいちばん長い文脈）。"

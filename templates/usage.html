@@ -73,6 +73,24 @@
 </table>
 </div>
 </details>
+{% if !t.charts.roles.is_empty() %}
+<div id="by-role">
+<ul class="legend keys">{% for (class, key) in t.charts.role_keys %}<li><span class="swatch {{ class }}"></span><span{{ key.attrs()|safe }}>{{ key }}</span></li>{% endfor %}</ul>
+<p class="legend"><span data-i18n="usage.byRole.legend">{{ "usage.byRole.legend"|t }}</span>{% if t.charts.cell_links %}<span data-i18n="usage.byRole.links">{{ "usage.byRole.links"|t }}</span>{% else %}<span data-i18n="usage.byRole.noLinks">{{ "usage.byRole.noLinks"|t }}</span>{% endif %}</p>
+<details class="slots"><summary data-i18n="usage.byRole.table">{{ "usage.byRole.table"|t }}</summary>
+<div class="scroll">
+<table class="usage">
+<thead><tr><th{{ t.charts.slot_col.attrs()|safe }}>{{ t.charts.slot_col }}</th>{% for role in t.charts.roles %}<th class="num">{% if let Some(name) = role %}{{ name }}{% else %}<span data-i18n="usage.noName">{{ "usage.noName"|t }}</span>{% endif %}</th>{% endfor %}<th class="num" data-i18n="usage.col.sum">{{ "usage.col.sum"|t }}</th></tr></thead>
+<tbody>
+{% for r in t.charts.role_rows %}
+<tr><td>{{ r.name }}</td>{% for cell in r.cells %}<td class="num">{% if let Some((cost, href)) = cell %}<a href="{{ href }}">{{ cost }}</a>{% else %}<span class="none">—</span>{% endif %}</td>{% endfor %}<td class="num">{{ r.total }}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+</details>
+</div>
+{% endif %}
 </section>
 <section id="models">
 <h2 data-i18n="usage.models.heading">{{ "usage.models.heading"|t }}</h2>
