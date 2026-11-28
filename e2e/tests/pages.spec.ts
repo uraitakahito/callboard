@@ -180,6 +180,8 @@ test('Key の画面: file の枠に file が出て、form から上げると、�
   await box.getByRole('checkbox').check();
   await box.getByRole('button', { name: '送る' }).click();
   await expect(box.locator('form > .say')).toContainText('上げられなかった（415）');
+  // pagetray（2.1.0 から）は、言語を付けない頼みに英語で返す。callboard が画面の言語（日本語）を伝えるので、訳は日本語で届く（AI-48）。
+  await expect(box.locator('form > .say')).toContainText('中身が .png の形でない');
   await expect(fileRows(page)).toHaveCount(2);
 
   // ほかの所（API）から、この Key に file が置かれると、押さずに枠に入る。

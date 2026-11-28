@@ -22,7 +22,7 @@ impl crate::operation::get_actor::builders::GetActorInputBuilder {
 }
 /// Fluent builder constructing a request to `GetActor`.
 ///
-/// 1 つのアクターの全部（札・付随する id・出来事・model と effort・線・今の状態）。1 つの読む transaction の中で、揃った写しを読む。 札は map（JSON の鍵の順は決まらない。並べる時は client の側で）、ほかの並びは受けた順（seq）。`currentBindings` は種類ごとの最新を種類の順に、`currentSettings` は最新の 1 つ（無ければ無い）。
+/// 1 つのアクターの全部（ラベル・付随する id・出来事・model と effort・線・今の状態）。1 つの読む transaction の中で、揃った写しを読む。 ラベルは map（JSON の鍵の順は決まらない。並べる時は client の側で）、ほかの並びは受けた順（seq）。`currentBindings` は種類ごとの最新を種類の順に、`currentSettings` は最新の 1 つ（無ければ無い）。
 #[derive(::std::clone::Clone, ::std::fmt::Debug)]
 pub struct GetActorFluentBuilder {
     handle: ::std::sync::Arc<crate::client::Handle>,

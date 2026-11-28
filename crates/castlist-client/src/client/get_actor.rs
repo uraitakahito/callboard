@@ -12,7 +12,7 @@ impl super::Client {
     ///   - [`sent_at(DateTime)`](crate::operation::get_actor::GetActorOutput::sent_at): 登録の送り手の時刻。
     ///   - [`received_at(DateTime)`](crate::operation::get_actor::GetActorOutput::received_at): 登録を受けた castlist の時刻。
     ///   - [`clock_skew(bool)`](crate::operation::get_actor::GetActorOutput::clock_skew): 送り手の時刻と受けた時刻が 5 分より離れていたか。
-    ///   - [`labels(HashMap::<String, String>)`](crate::operation::get_actor::GetActorOutput::labels): 札（登録の時に書いた物）。
+    ///   - [`labels(HashMap::<String, String>)`](crate::operation::get_actor::GetActorOutput::labels): ラベル（登録の時に書いた物）。
     ///   - [`bindings(Vec::<ActorBinding>)`](crate::operation::get_actor::GetActorOutput::bindings): 付随する id の全部（受けた順）。
     ///   - [`current_bindings(Vec::<ActorBinding>)`](crate::operation::get_actor::GetActorOutput::current_bindings): 種類ごとの最新（種類の順）。
     ///   - [`events(Vec::<Event>)`](crate::operation::get_actor::GetActorOutput::events): 出来事の全部（受けた順）。
