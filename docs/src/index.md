@@ -6,7 +6,7 @@ castlist（アクターの台帳）と pagetray（ページの置き場）の画
 - data は持たない（DB も volume も無い）。止めても、起こし直しても、失う物は無い。
 - 画面は、サーバーが HTML を組んで返す。
 
-v1.1.0 を出した（image は `ghcr.io/uraitakahito/callboard:v1.1.0`。画面を日本語と英語で出す版。ブラウザーの言語に従い、頭の帯で選び直せる。castlist と pagetray の画面は、1.0.0 でみな移し終えた。変えたことは repo の `CHANGELOG.md`）。今あるのは、入口（`/`。castlist と pagetray が生きているかと版、それぞれの画面への link）と、castlist から移した 4 つの画面（アクターの一覧 `/actors/`・プロフィール `/actors/{id}`・タイムライン `/graph/timeline`・相関図 `/graph/network`）と、pagetray から移した 2 つの画面（メッセージの一覧 `/messages`・ページの一覧 `/pages/`）と、callboard で初めて作った使用量の画面（`/usage/`）。castlist は 1.1.0 から（使用量は 2.1.0 から）、pagetray は 1.3.0 からが要る。
+v1.2.0 を出した（image は `ghcr.io/uraitakahito/callboard:v1.2.0`。使用量の画面の絞り込みで、役割と課題を一覧から選び、ほかのラベルを候補から選べる版。画面は日本語と英語で出す（1.1.0 から）。castlist と pagetray の画面は、1.0.0 でみな移し終えた。変えたことは repo の `CHANGELOG.md`）。今あるのは、入口（`/`。castlist と pagetray が生きているかと版、それぞれの画面への link）と、castlist から移した 4 つの画面（アクターの一覧 `/actors/`・プロフィール `/actors/{id}`・タイムライン `/graph/timeline`・相関図 `/graph/network`）と、pagetray から移した 2 つの画面（メッセージの一覧 `/messages`・ページの一覧 `/pages/`）と、callboard で初めて作った使用量の画面（`/usage/`）。castlist は 1.1.0 から（使用量は 2.1.0 から）、pagetray は 1.3.0 からが要る。
 
 ## 守り
 

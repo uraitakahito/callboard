@@ -2,6 +2,17 @@
 
 版ごとに、画面と、呼ぶ先（castlist・pagetray）の要る版と、動かし方（設定・image）が変わったかを書く。release の workflow は、tag の版の節（`## <版>`）が無いと何も出さない（`ci/check-release-version.sh`）。
 
+## 1.2.0
+
+使用量の画面の絞り込みで、ラベルを覚えていなくても選べるようにした版（t-nd3w。Product Manager の答え「案Bでお願いします。」）。
+
+- **役割と課題は選ぶ一覧**: 使用量の画面（`/usage/`）の「役割」（`tpm.role`）と「課題」（`tpm.subject`）を、選ぶ一覧にした（「software-engineer（79 席）」の形。席の多い順。「すべて」で外す）。
+- **ほかのラベルは候補付きの欄**: 「ほかのラベル」の欄に、候補（「tpm.key:devops（22 席）」の形）を付けた。`tpm.launch`（起こした回の id）は候補にしない。
+- **候補の元**: 表示と同じ期間に稼働した席を、castlist の `ListActors`（`activeFrom`・`activeTo`。ラベルの絞りは付けない）で、使用量の行と並べて聞く。絞っても候補は減らない。候補は 1 秒で切り、引けなくても使用量の画面はそのまま出す。
+- URL の引数（`label=鍵:値`）と castlist への渡し方は変わらない（前の link はそのまま効く）。script は足していない（CSP も同じ）。アクターの一覧（`/actors/`）の「ラベル」の欄は変わらない。
+- **呼ぶ先の要る版は変わらない**: castlist は 1.1.0 から（使用量は 2.1.0 から。`ListActors` の `activeFrom`・`activeTo` は前から在る）、pagetray は 1.3.0 から。
+- 設定・image の中身（binary 1 つ）は変わらない。
+
 ## 1.1.0
 
 画面を日本語と英語で出す版（AI-34・AI-50）。
