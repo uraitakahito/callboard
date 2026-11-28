@@ -17,8 +17,8 @@ pub use pagetray_client::operation::list_pages::ListPagesOutput;
 pub use pagetray_client::types::{FacetCount, File, Message, Page, ReviewOf, Sender};
 
 use super::{
-    Failure, Health, Raw, SLOW, TIMEOUT, UNREACHABLE, UNREADABLE, http_client, raw_client, reason,
-    returned, unreadable, within,
+    Failure, Health, Raw, SLOW, TIMEOUT, UNREACHABLE, UNREADABLE, ask, http_client, raw_client,
+    reason, returned, unreadable, within,
 };
 use crate::Closing;
 use crate::config::Base;
@@ -83,9 +83,7 @@ impl Pagetray {
                 .client
                 .get_health()
                 .customize()
-                .mutate_request(|request| {
-                    request.headers_mut().insert("host", "127.0.0.1");
-                })
+                .mutate_request(ask())
                 .send()
                 .await
                 .map_err(|e| reason(NAME, &self.api, &e))?;
@@ -112,9 +110,7 @@ impl Pagetray {
             .set_next_token(search.after.clone())
             .max_results(search.limit)
             .customize()
-            .mutate_request(|request| {
-                request.headers_mut().insert("host", "127.0.0.1");
-            })
+            .mutate_request(ask())
             .send()
             .await
             .map_err(|e| match e.as_service_error() {
@@ -139,9 +135,7 @@ impl Pagetray {
             .set_from(from.map(str::to_owned))
             .set_key(key.map(str::to_owned))
             .customize()
-            .mutate_request(|request| {
-                request.headers_mut().insert("host", "127.0.0.1");
-            })
+            .mutate_request(ask())
             .send()
             .await
             .map_err(|e| match e.as_service_error() {
@@ -278,9 +272,7 @@ impl Pagetray {
             .set_next_token(search.after.clone())
             .max_results(search.limit)
             .customize()
-            .mutate_request(|request| {
-                request.headers_mut().insert("host", "127.0.0.1");
-            })
+            .mutate_request(ask())
             .send()
             .await
             .map_err(failed!(self))
@@ -291,9 +283,7 @@ impl Pagetray {
         self.client
             .get_page_facets()
             .customize()
-            .mutate_request(|request| {
-                request.headers_mut().insert("host", "127.0.0.1");
-            })
+            .mutate_request(ask())
             .send()
             .await
             .map_err(|e| Failure::Unavailable(reason(NAME, &self.api, &e)))
@@ -308,9 +298,7 @@ impl Pagetray {
             .list_reviews()
             .set_target(Some(targets))
             .customize()
-            .mutate_request(|request| {
-                request.headers_mut().insert("host", "127.0.0.1");
-            })
+            .mutate_request(ask())
             .send()
             .await
             .map(|output| output.reviews)
@@ -325,9 +313,7 @@ impl Pagetray {
             .key(key)
             .max_results(limit)
             .customize()
-            .mutate_request(|request| {
-                request.headers_mut().insert("host", "127.0.0.1");
-            })
+            .mutate_request(ask())
             .send()
             .await
             .map(|output| output.files)
@@ -339,9 +325,7 @@ impl Pagetray {
         self.client
             .get_file_rules()
             .customize()
-            .mutate_request(|request| {
-                request.headers_mut().insert("host", "127.0.0.1");
-            })
+            .mutate_request(ask())
             .send()
             .await
             .map_err(|e| Failure::Unavailable(reason(NAME, &self.api, &e)))
@@ -376,7 +360,10 @@ impl Pagetray {
             self.api,
             escape(name)
         );
-        let mut request = Request::post(&uri).header(header::HOST, "127.0.0.1");
+        let mut request = Request::post(&uri)
+            .header(header::HOST, "127.0.0.1")
+            // pagetray が断った訳の字の言語（[`crate::lang`]）。
+            .header(header::ACCEPT_LANGUAGE, crate::lang::asked().code());
         if let Some(content_type) = content_type {
             request = request.header(header::CONTENT_TYPE, content_type);
         }

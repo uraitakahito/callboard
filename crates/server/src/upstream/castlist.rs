@@ -17,8 +17,8 @@ use castlist_client::types::{Usage, UsageActor};
 use http_body_util::BodyExt;
 
 use super::{
-    Failure, Health, Raw, SLOW, TIMEOUT, UNREACHABLE, http_client, raw_client, reason, unreadable,
-    within,
+    Failure, Health, Raw, SLOW, TIMEOUT, UNREACHABLE, ask, http_client, raw_client, reason,
+    unreadable, within,
 };
 use crate::errors::{reply, with_code};
 use crate::ui::i18n::Text;
@@ -123,9 +123,7 @@ impl Castlist {
                 .client
                 .get_health()
                 .customize()
-                .mutate_request(|request| {
-                    request.headers_mut().insert("host", "127.0.0.1");
-                })
+                .mutate_request(ask())
                 .send()
                 .await
                 .map_err(|e| reason(NAME, &self.api, &e))?;
@@ -146,9 +144,7 @@ impl Castlist {
             .get_actor()
             .actor_id(id)
             .customize()
-            .mutate_request(|request| {
-                request.headers_mut().insert("host", "127.0.0.1");
-            })
+            .mutate_request(ask())
             .send()
             .await
             .map_err(|e| match e.as_service_error() {
@@ -163,9 +159,7 @@ impl Castlist {
             .get_lineage()
             .actor_id(id)
             .customize()
-            .mutate_request(|request| {
-                request.headers_mut().insert("host", "127.0.0.1");
-            })
+            .mutate_request(ask())
             .send()
             .await
             .map_err(|e| match e.as_service_error() {
@@ -194,9 +188,7 @@ impl Castlist {
             .set_max_results(search.limit)
             .set_next_token(search.after.clone())
             .customize()
-            .mutate_request(|request| {
-                request.headers_mut().insert("host", "127.0.0.1");
-            })
+            .mutate_request(ask())
             .send()
             .await
             .map_err(|e| match e.as_service_error() {
@@ -231,9 +223,7 @@ impl Castlist {
             .set_from(time(from))
             .set_to(time(to))
             .customize()
-            .mutate_request(|request| {
-                request.headers_mut().insert("host", "127.0.0.1");
-            })
+            .mutate_request(ask())
             .send()
             .await
             .map_err(|e| match e.as_service_error() {
@@ -323,9 +313,7 @@ impl Castlist {
             .max_results(USAGE_PAGE_SIZE)
             .set_next_token(next)
             .customize()
-            .mutate_request(|request| {
-                request.headers_mut().insert("host", "127.0.0.1");
-            })
+            .mutate_request(ask())
             .send()
             .await
             .map_err(|e| match e.as_service_error() {
@@ -339,7 +327,8 @@ impl Castlist {
     }
 
     /// 図の点と線（GetGraph。`GET /api/graph`）の答えを、そのまま返す（相関図の script が browser から引く）。
-    /// `query` は、問い合わせの引数の字（`label=…&from=…`。castlist が確かめる）。渡すのは引数だけで、browser の header は渡さない。
+    /// `query` は、問い合わせの引数の字（`label=…&from=…`。castlist が確かめる）。渡すのは引数だけで、browser の header は渡さない
+    /// （言語だけは、`ja`・`en` に直して `Accept-Language` で伝える。castlist が断った訳の字の言語になる。[`crate::lang`]）。
     /// 返すのは、状態・本文の型・誤りの型の名（`X-Amzn-Errortype`）・本文。聞けなければ（つながらない・本文を読み終えるまで
     /// [`TIMEOUT`]）503 `Unavailable`。
     pub async fn graph(&self, query: Option<&str>) -> Response {
@@ -358,6 +347,7 @@ impl Castlist {
         };
         let request = match Request::get(&uri)
             .header(header::HOST, "127.0.0.1")
+            .header(header::ACCEPT_LANGUAGE, crate::lang::asked().code())
             .header(header::ACCEPT, "application/json")
             .body(Body::empty())
         {

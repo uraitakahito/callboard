@@ -62,6 +62,18 @@ fn http_client() -> castlist_client::config::SharedHttpClient {
         .build_http()
 }
 
+/// 生成した client の頼みに付ける頭（`.customize().mutate_request(ask())`）: `Host: 127.0.0.1`（上の決まり）と、
+/// 今の要求の言語（`Accept-Language: ja` か `en`。[`crate::lang`]）。言語は、呼ぶ先が断った訳の字の言語になる。
+/// 言語は、頼みを組む時（要求を捌いている task の内）に読んで持たせる。
+fn ask() -> impl Fn(&mut castlist_client::config::http::HttpRequest) + Send + Sync + 'static {
+    let language = crate::lang::asked().code();
+    move |request| {
+        let headers = request.headers_mut();
+        headers.insert("host", "127.0.0.1");
+        headers.insert("accept-language", language);
+    }
+}
+
 /// 聞けなかった訳（画面に出す決まった字）。詳しい字（聞く先と、中の誤り）は、ここで記録に書く。
 /// castlist の client と pagetray の client の誤りは、同じ型（smithy の `SdkError`）。
 fn reason<E, R>(name: &str, api: &str, e: &SdkError<E, R>) -> Text
