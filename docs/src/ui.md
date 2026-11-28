@@ -3,7 +3,7 @@
 callboard が HTML を組んで返す画面（askama。`templates/`）。callboard を動かす機械の browser で `http://127.0.0.1:8803/` を開く。
 
 - 字はみな HTML として逃がす（ラベル・名・出来事の `detail` など、送り手が書いた字も）。
-- どの画面も、`<head>` で字の差し替えの script（取り込んだ i18next・訳 2 つ・`GET /static/i18n.js`。下の「画面の字の言語」）を読む。そのほかに script を使うのは相関図（`GET /static/network.js` と、取り込んだ cytoscape）・メッセージの一覧（`GET /static/messages.js`）・課題の筋（`GET /static/tasks.js`）・ページの一覧（`GET /static/pages.js`）だけで、callboard が配る file だけを読む。JavaScript を切っても、相関図のほかは日本語で読める。inline の script は無い。style は callboard が配る CSS（`GET /static/site.css`）だけで、inline の style も無い。どの file も binary に埋め込む。
+- どの画面も、`<head>` で字の差し替えの script（取り込んだ i18next・訳 2 つ・`GET /static/i18n.js`。下の「画面の字の言語」）を読む。そのほかに script を使うのは相関図（`GET /static/network.js` と、取り込んだ cytoscape）・メッセージの一覧（`GET /static/messages.js`）・課題の一覧と課題の筋（`GET /static/tasks.js`）・ページの一覧（`GET /static/pages.js`）だけで、callboard が配る file だけを読む。JavaScript を切っても、相関図のほかは日本語で読める。inline の script は無い。style は callboard が配る CSS（`GET /static/site.css`）だけで、inline の style も無い。どの file も binary に埋め込む。
 - どの画面にも Content-Security-Policy を付ける: `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`。browser は、castlist と pagetray の API に直には聞かない（`connect-src 'self'`）。ページの一覧だけは、pagetray が持つページの本文と file を browser が直に読むので、`img-src` と `frame-src` に pagetray の link の頭を足した物を付ける（下の「ページの一覧」）。
 - 時刻は、日本時間（UTC+9）で表示する（castlist の画面は castlist が受け取った時刻、メッセージの一覧は送り手が書いた時刻、ページの一覧は pagetray が受け取った時刻）。ISO 8601 の字（UTC・ミリ秒まで）は `<time datetime>` と `title` に置く（時刻にマウスを重ねると表示される）。
 - 明るい色と暗い色の両方を持つ（`prefers-color-scheme`）。
@@ -336,7 +336,7 @@ id は英語のまま（castlist の API）。名は画面だけで、字は訳�
 
 AI の担当どうしのメッセージ（roster が配る）の記録を、送った時刻の新しい順に表示する。pagetray の `/messages` を移した物で、記録は pagetray の API（`ListMessages` と、絞り込みの候補と件数の `GetMessageFacets`。pagetray 1.2.0 から）で読む。callboard は見せるだけ（状態は、pagetray が残した字を、画面の字にして出す）。
 
-- **操作の帯**: 「メッセージの記録」（条件の無い一覧へ）・「ページ」（ページの一覧へ）・「まだ届いていない n 件」（押すと、ほかの絞り込みを外して、まだ届いていない物だけに絞る。0 件なら出さない。tab の題にも出す）・「絞り込みを外す」（絞っている時だけ）・新着の印。
+- **操作の帯**: 「メッセージの記録」（条件の無い一覧へ）・「課題ごと」（課題の一覧 `/messages/tasks` へ）・「ページ」（ページの一覧へ）・「まだ届いていない n 件」（押すと、ほかの絞り込みを外して、まだ届いていない物だけに絞る。0 件なら出さない。tab の題にも出す）・「絞り込みを外す」（絞っている時だけ）・新着の印。
 - **絞り込みの列**: 状態・受け手・送り手・Key・project の候補と件数。件数は、絞りに関わらず置き場の全部。押すと今の条件に重ね、選んである候補をもう 1 度押すと外す。条件は URL に出る（`project`・`key`・`to`・`from`・`state`）。受け手・送り手・Key の候補は 100 件まで（今絞っている値は、その外でも出す）。
 - **行**: 送った時刻・Key（押すと、その課題の筋 `/messages/tasks/<Key>` へ。下の「課題の筋」）・見出し・状態（まだ届いていない・届いた・渡せない・期限切れ・ほかの道具で運んだ）・「送り手 → 受け手」・届いた時刻・渡した時（`gate` は「検査が止めた後」、`wake` は「起こした」、`prompt` は「人の入力の時」、`max-deliveries` は「渡し直しの上限を超えた」、`ttl` は「期限で消えた」、`closed` は「席を閉じた」。ほかの名は書かれた字のまま）・渡し直しの数・本文。本文は HTML として出さない。200 字か 5 行を超える本文は、頭の 120 字だけを見せ、開くと全部。
 - **続き**: 1 度に 200 件。続きがあれば「続きを出す」の link（`at` に、pagetray の続きの印を付ける）。
@@ -355,6 +355,19 @@ script（`/static/messages.js`）が、`GET /api/pagetray/events` を `EventSour
 
 pagetray の画面との違いは 3 つ: 時刻を callboard が日本時間で組むこと（pagetray の画面は、UTC の字を出して、script がその機械の時刻に書き替える）・値の形が違う引数と読めない続きの印を 400 の画面にすること（pagetray の画面は、条件が無い物として出す）・頭の帯。外す前（pagetray 1.3.0 まで）は、CI の browser の試験が、同じ pagetray を相手に、pagetray の画面と中身を比べていた（動いている置き場の 109 画面でも、違いは 0）。比べる相手が無くなったので、その試験は外した（1.0.0）。
 
+
+## `GET /messages/tasks` 課題の一覧
+
+メッセージの記録を課題ごとにまとめ、最新の 1 通が新しい課題から並べる（1.5.0 から）。課題の筋（下）の入口。
+
+- **読む範囲**: pagetray の API（`ListMessages`）で、新しい順に 1,000 通を 1 度読み、その中で課題ごとにまとめる（読んだ数を頭に出す）。それより古い課題は「続きを出す」の link（`at` に、pagetray の続きの印を付ける）。新しい頁では、返事は頼みより後に送られるので、範囲の中の頼みの返事はみな範囲に入る（範囲より前に送った頼みの返事待ちは、ここには出ない。課題の筋を開けば出る）。**続きの頁では、今の様子と返事待ちを出さない**（頼みの返事が、読んでいない新しい側に在りうるので、うその返事待ちになる。頭の注にそう書き、「新しい頁へ」の link を出す。「返事待ちだけ」も効かせない）。同じ課題が、新しい頁と続きの頁の両方に出ることがある（続きの頁の行は、その頁の記録だけの通数と期間）。
+- **課題**: project と、Key の点の前の字の組でまとめる（`<Key>.staff`・`<Key>.<repo の席>` の記録は、親の課題へ）。Key の無い記録・課題の Key の形でない記録は、数えない。読んだ記録に project がいくつもある時は、行に project の名を出し、課題の筋への link に project を付ける。
+- **行**: Key（押すと、その課題の筋へ）・今の様子（課題の筋と同じ決め: 「<誰> の返事待ち」・「済み」・「次の依頼待ち」）・返事待ちなら、いつから（その者への、いちばん古い返事待ちの頼みの時刻）と、ほかの返事待ちの数・通数・期間・最新の 1 通の見出しと本文の頭（URL は外す。本文は HTML として出さない）。
+- **操作の帯**: 「メッセージの記録」「1 通ずつ」（メッセージの一覧へ）・「返事待ちだけ n 件」（返事待ちの課題の数。押すと、その課題だけに絞る。もう 1 度押すと外す。0 件なら出さないが、絞っている時は 0 件でも出す）・新着の印。
+- **引数**: `project`（その project の記録だけ。課題の筋への link にも付ける）・`waiting`（`1` なら、返事待ちの課題だけ）・`at`。知らない引数は、書かないのと同じ。値の形が違う物（読めない続きの印など）は、pagetray が断り、その訳を書いた 400 の画面。
+- **新着**: script（`/static/tasks.js`）が、メッセージの記録が置かれる・書き足されると「● 新しい記録（読み直す）」を出す（どの課題の記録でも。一覧が数えない記録と、`project` で絞っている時のほかの project の記録では出さない。行は差し替えない）。
+- メッセージの一覧と課題の筋の操作の帯に、「課題ごと」の link を出す（課題の筋を `project` で絞っていれば、同じ project の一覧へ）。
+- pagetray に聞けない時は 503 の画面で、訳を書く。
 
 ## `GET /messages/tasks/{key}` 課題の筋
 

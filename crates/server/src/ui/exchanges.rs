@@ -1,4 +1,4 @@
-//! 往復を作る（課題の筋 `GET /messages/tasks/{key}` の元）。
+//! 往復を作る（課題の筋 `GET /messages/tasks/{key}` と、課題の一覧 `GET /messages/tasks` の元）。
 //!
 //! メッセージの記録（pagetray の `Message`）を、頼みから返事までの往復と、片道の知らせに分ける。画面は持たない（字と位置は `thread.rs`）。
 //!

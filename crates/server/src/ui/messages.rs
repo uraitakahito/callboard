@@ -20,7 +20,7 @@ use axum::response::Response;
 use super::i18n::{Text, filters};
 use super::params::{self, PageError, Pairs, bad_request, strict};
 use super::time::{Time, short};
-use super::{CSS_HREF, MESSAGES_JS_HREF, Nav, error_page, render, thread};
+use super::{CSS_HREF, MESSAGES_JS_HREF, Nav, error_page, render, tasks, thread};
 use crate::App;
 use crate::upstream::pagetray::{FacetCount, Message, MessageSearch};
 
@@ -188,6 +188,8 @@ struct MessagesPage<'a> {
     nav: &'a Nav,
     script: &'static str,
     events: &'static str,
+    /// 課題の一覧（`/messages/tasks`）の URL。
+    tasks_href: &'static str,
     /// まだ届いていないメッセージの数（絞り込みに関わらず、置き場の全部）。tab の題と、操作の帯の釦に出す。
     waiting: i64,
     /// 「まだ届いていない n 件」の釦の先（ほかの絞り込みを外して、まだ届いていない物だけに絞る）と、今そう絞っているか。
@@ -298,6 +300,7 @@ async fn page(
         nav: &app.nav,
         script: &MESSAGES_JS_HREF,
         events: EVENTS_PATH,
+        tasks_href: tasks::PATH,
         waiting,
         waiting_href: View {
             state: Some("waiting".to_owned()),

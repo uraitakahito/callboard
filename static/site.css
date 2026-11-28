@@ -527,3 +527,23 @@ body.fill footer { padding: 4px 16px; border-top: 1px solid var(--line); }
 @media (max-width: 900px) {
   .thread .xrow > summary, .thread .xrow.ball, .thread .xrow.axis { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* 課題の一覧（/messages/tasks）: 課題 1 つが 1 行。今の様子の印は、課題の筋（.thread .status）と同じ色。 */
+.tasks .thread-body { min-height: 0; overflow: auto; padding: 8px 0 12px; }
+.tasks .thread-note { margin: 0 16px 6px; font-size: 0.8rem; color: var(--muted); }
+.tasks .rows li { display: grid; gap: 2px; }
+.tasks .rows .top { align-items: center; gap: 4px 10px; }
+.tasks .rows a.key { font-size: 0.95rem; font-weight: 700; color: var(--fg); min-width: 7rem; }
+.tasks .rows a.key:hover { color: var(--accent); }
+.tasks .status { padding: 0 8px; border: 1px solid; border-radius: 999px; font-size: 0.75rem; font-weight: 700; white-space: nowrap; color: var(--muted); }
+.tasks .status.h-pm { color: var(--warn); background: var(--warn-bg); }
+.tasks .status.h-staff { color: var(--m-other); }
+.tasks .status.h-tpm, .tasks .status.h-seat { color: var(--accent); }
+.tasks .status.done { color: var(--on); }
+.tasks .rows .span { margin-left: auto; font-variant-numeric: tabular-nums; }
+.tasks .latest-line { font-size: 0.85rem; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.tasks .latest-line .name { color: var(--accent); }
+.tasks #waiting { color: var(--warn); font-weight: 700; border-color: var(--warn); }
+.tasks #waiting.on { background: var(--chip); }
+.tasks .empty, .tasks .more { display: block; margin: 8px 16px; }
+.tasks .rows .project { color: var(--muted); font-size: 0.75rem; padding: 0 6px; border: 1px solid var(--line); border-radius: 4px; }

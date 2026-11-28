@@ -6,6 +6,7 @@
 <div class="tray messages" data-events="{{ events }}">
 <div class="toolbar" id="toolbar" role="group" aria-label="{{ "common.tray.toolbar"|t }}" data-i18n-attr="aria-label:common.tray.toolbar">
 <h1><a href="/messages" data-i18n="messages.heading">{{ "messages.heading"|t }}</a></h1>
+<a class="btn" href="{{ tasks_href }}" data-i18n="messages.toTasks">{{ "messages.toTasks"|t }}</a>
 <a class="btn" href="{{ nav.pages }}" data-i18n="nav.pages">{{ "nav.pages"|t }}</a>
 <a class="btn{% if waiting_active %} on{% endif %}" id="undelivered" href="{{ waiting_href }}" title="{{ "messages.undeliveredTitle"|t }}"{% if waiting_active %} aria-current="true"{% endif %}{% if waiting == 0 %} hidden{% endif %} data-i18n="messages.undelivered" data-i18n-options="{{ "n"|opts1(waiting) }}" data-i18n-attr="title:messages.undeliveredTitle">{{ "messages.undelivered"|t1("n", waiting) }}</a>
 {% if filtered %}<a class="btn" href="{{ reset_href }}" data-i18n="common.tray.reset">{{ "common.tray.reset"|t }}</a>{% endif %}
