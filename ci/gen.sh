@@ -187,13 +187,21 @@ for pair in $crates; do
   [ -f "$lib" ] || ng "$plugin の lib.rs が無い"
   { echo '#![allow(clippy::all)]'; cat "$lib"; } >"$lib.new" && mv "$lib.new" "$lib"
   # 呼ぶ側の crate は、既定で https の client（rustls と aws-lc）を引く。callboard が castlist と pagetray を呼ぶのは、
-  # 同じ機械の中の http:// だけなので、既定の features から外す（TLS の crate を build せず、license の見張りにも入れない）。
+  # 同じ機械の中の http:// だけなので、既定の features から外し、その 2 つの features（rustls・default-https-client）も消す
+  # （TLS の crate を build せず、license の見張りにも入れない）。features を残すと、workspace の member の features は
+  # みな Cargo.lock の解決に入るので、build しない古い rustls（0.21。features の rustls が引く）の名が Cargo.lock に載り、
+  # GitHub の弱点の知らせと、Dependabot の上げられない回が出た（t-x5y5）。
   # HTTP の client は、使う側（crates/server）が設定で渡す。
   manifest="$made/Cargo.toml"
-  grep -qx 'default = \["rt-tokio", "rustls", "default-https-client"\]' "$manifest" \
-    || ng "$plugin の Cargo.toml の既定の features が、思った形でない（ci/gen.sh を見直す）"
-  sed 's/^default = \["rt-tokio", "rustls", "default-https-client"\]$/default = ["rt-tokio"]/' "$manifest" >"$manifest.new" \
-    && mv "$manifest.new" "$manifest"
+  for line in 'default = \["rt-tokio", "rustls", "default-https-client"\]' \
+    'rustls = \["aws-smithy-runtime/tls-rustls"\]' \
+    'default-https-client = \["aws-smithy-runtime/default-https-client"\]'; do
+    grep -qx "$line" "$manifest" || ng "$plugin の Cargo.toml の features が、思った形でない（ci/gen.sh を見直す）: $line"
+  done
+  sed -e 's/^default = \["rt-tokio", "rustls", "default-https-client"\]$/default = ["rt-tokio"]/' \
+    -e '/^rustls = \["aws-smithy-runtime\/tls-rustls"\]$/d' \
+    -e '/^default-https-client = \["aws-smithy-runtime\/default-https-client"\]$/d' \
+    "$manifest" >"$manifest.new" && mv "$manifest.new" "$manifest"
   if $check; then
     if ! diff -r "$made" "$out" >"$work/diff.txt"; then
       head -50 "$work/diff.txt" >&2

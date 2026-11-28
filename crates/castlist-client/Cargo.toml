@@ -54,8 +54,6 @@ legacy-test-util = ["test-util", "aws-smithy-runtime/legacy-test-util"]
 rt-tokio = ["aws-smithy-async/rt-tokio", "aws-smithy-types/rt-tokio"]
 test-util = []
 behavior-version-latest = []
-rustls = ["aws-smithy-runtime/tls-rustls"]
-default-https-client = ["aws-smithy-runtime/default-https-client"]
 gated-tests = []
 default = ["rt-tokio"]
 
