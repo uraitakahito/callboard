@@ -134,8 +134,11 @@ fn candidates((from, to): (OffsetDateTime, OffsetDateTime)) -> ActorSearch {
     }
 }
 
-/// 絞りの候補を作る席の数の上限（castlist の 1 頁の上限）。越えた分の、古く登場した席のラベルは候補に出ない。
+/// 絞りの候補を作る席の数の上限（castlist の 1 頁の上限）。越えた分の、古く登場した席のラベルは候補に出ない（log に 1 行）。
 const CANDIDATE_LIMIT: i32 = 1000;
+
+/// 絞りの候補を待つ長さ。候補は飾りで、使用量の数は ListUsage だけで決まるので、一覧の額の列と同じく短く切る。
+const CANDIDATE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
 
 /// 揃えた期間の、castlist への条件。
 pub(super) fn search(
@@ -742,7 +745,7 @@ impl Form {
 /// 一覧と欄の候補 1 つ（値・字・選んであるか）。
 struct ChoiceView {
     value: String,
-    /// 一覧では「名（N 席）」、欄の候補では「N 席」。席の数が無ければ（候補に無かった今の値）名だけ。
+    /// 一覧では「名（N 席）」、欄の候補では「鍵:値（N 席）」。席の数が無ければ（候補に無かった今の値）名だけ。
     text: Text,
     selected: bool,
 }
@@ -777,8 +780,11 @@ impl ChoicesView {
             others: choices
                 .others
                 .into_iter()
+                // 字にも値を書く（Firefox は、候補に値の代わりに字を出す）。
                 .map(|c| ChoiceView {
-                    text: Text::new("usage.filters.seats").with_num("count", c.seats.unwrap_or(0)),
+                    text: Text::new("usage.filters.choice")
+                        .with("name", &c.value)
+                        .with_num("count", c.seats.unwrap_or(0)),
                     value: c.value,
                     selected: false,
                 })
@@ -858,14 +864,31 @@ async fn usage_page(
     let search = search((from, to), labels, None);
     // 絞りの候補は、同じ期間に稼働した席から（ラベルの絞りは付けない。絞っても候補が減らないように）。使用量の行と並べて聞く。
     let active = candidates((from, to));
-    let (answer, active) = tokio::join!(app.castlist.usage(&search), app.castlist.actors(&active));
+    let (answer, active) = tokio::join!(
+        app.castlist.usage(&search),
+        tokio::time::timeout(CANDIDATE_TIMEOUT, app.castlist.actors(&active))
+    );
     // castlist が引数を断った時（callboard の確かめを通った物なので、ふつうは起きない）は、castlist の訳を、そのまま書く。
     let answer = answer.map_err(|e| params::failed("castlist", e))?;
-    // 候補を引けなくても、使用量の数は出す（一覧は今の値だけ、欄は候補無し）。
+    // 候補を引けなくても（断られた・期限を過ぎた）、使用量の数は出す（一覧は今の値だけ、欄は候補無し）。
     let choices = match active {
-        Ok(output) => labels::choices(output.actors.iter().map(|a| &a.labels)),
-        Err(e) => {
+        Ok(Ok(output)) => {
+            if output.next_token.is_some() {
+                tracing::warn!(
+                    "使用量の絞りの候補は、新しく登場した {CANDIDATE_LIMIT} 席の分だけです（期間に稼働した席が、それより多い）"
+                );
+            }
+            labels::choices(output.actors.iter().map(|a| &a.labels))
+        }
+        Ok(Err(e)) => {
             tracing::warn!("使用量の絞りの候補を引けません: {e:?}");
+            Choices::default()
+        }
+        Err(_) => {
+            tracing::warn!(
+                "使用量の絞りの候補を、{} ms の内に引けませんでした",
+                CANDIDATE_TIMEOUT.as_millis()
+            );
             Choices::default()
         }
     };

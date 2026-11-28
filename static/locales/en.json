@@ -399,9 +399,7 @@
       "subject": "Issue",
       "otherLabel": "Other label",
       "choice_one": "{{name}} ({{count}} seat)",
-      "choice_other": "{{name}} ({{count}} seats)",
-      "seats_one": "{{count}} seat",
-      "seats_other": "{{count}} seats"
+      "choice_other": "{{name}} ({{count}} seats)"
     },
     "window": {
       "after": " (Japan time; records are hourly, so the period is aligned to the hour).",

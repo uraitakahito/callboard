@@ -398,8 +398,7 @@
       "role": "役割",
       "subject": "課題",
       "otherLabel": "ほかのラベル",
-      "choice_other": "{{name}}（{{count}} 席）",
-      "seats_other": "{{count}} 席"
+      "choice_other": "{{name}}（{{count}} 席）"
     },
     "window": {
       "after": " まで（日本時間。記録が 1 時間ごとなので、期間を時の境に揃えています）。",
