@@ -312,6 +312,18 @@ pub fn with_actors(routes: Router, actors: Vec<Value>) -> Router {
     )
 }
 
+/// [`with_actors`] と同じだが、答えに次の頁の印（`nextToken`）を付ける（期間に稼働した席が、1 頁の上限より多い castlist）。
+pub fn with_actors_more(routes: Router, actors: Vec<Value>) -> Router {
+    let page = json!({"asOf": "2026-11-22T06:00:00Z", "actors": actors, "nextToken": "more"});
+    routes.route(
+        "/api/actors",
+        get(move || {
+            let page = page.clone();
+            async move { answer(StatusCode::OK, &page.to_string()) }
+        }),
+    )
+}
+
 /// ほかの道に、ListActors を断る（503）道を足す（候補を引けない castlist）。
 pub fn with_actors_down(routes: Router) -> Router {
     routes.route(

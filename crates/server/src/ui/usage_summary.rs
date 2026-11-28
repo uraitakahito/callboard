@@ -2,7 +2,7 @@
 //!
 //! - 行は、castlist の `ListUsage` の行（アクター 1 人の、時計の 1 時間の内の、同じ種類の回のまとめ）。同じアクター・同じ時・
 //!   同じ種類の行は 2 つ以上在りうるので、数は足し、いちばん長い文脈は大きい方を取り、段は番号ごとに足す。
-//! - 本体の回（`helper` が false）と、手伝い（subagent）の回を分ける。文脈の長さの数（中央・上から 1 割・いちばん長い文脈・
+//! - 本体の回（`agent` が無い）と、手伝い（subagent）の回（`agent` が手伝いの種類）を分ける。文脈の長さの数（中央・上から 1 割・いちばん長い文脈・
 //!   20 万以上の回）は、本体の回だけで出す（手伝いは自分の短い文脈で動くので、混ぜると中央が下がる）。
 //! - 中央と上から 1 割は、段（2.5 万刻み）から出す近い値: 回を文脈の短い順に並べた時の、その順位の回が入る段の下の端。
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -35,14 +35,23 @@ pub struct Row {
     pub actor_id: String,
     /// 区間の終わりの時刻（castlist の `toAt`。UNIX の時からの秒）。行の日と時は、これで決める。
     pub to_at: i64,
-    /// 手伝い（subagent）の回か（castlist の行に `agent` が在る）。
-    pub helper: bool,
+    /// model の名（castlist の行の `model`）。
+    pub model: String,
+    /// 手伝い（subagent）の種類の名（castlist の行の `agent`）。本体の回なら無い。手伝いかは [`Row::helper`] で見る。
+    pub agent: Option<String>,
     pub turns: i64,
     /// 額（100 万分の 1 ドル）。
     pub cost: i64,
     /// いちばん長い文脈（トークン）。
     pub max_context: i64,
     pub buckets: Vec<Bucket>,
+}
+
+impl Row {
+    /// 手伝い（subagent）の回か（castlist の行に `agent` が在る）。
+    pub fn helper(&self) -> bool {
+        self.agent.is_some()
+    }
 }
 
 /// 行に出てきたアクター（役割と課題は、ラベルから読む）。
@@ -186,7 +195,7 @@ pub fn summarize(rows: &[Row], actors: &[Actor]) -> Summary {
         subject.turns = subject.turns.saturating_add(row.turns);
         subject.cost = subject.cost.saturating_add(row.cost);
 
-        if row.helper {
+        if row.helper() {
             total.helper_turns = total.helper_turns.saturating_add(row.turns);
             total.helper_cost = total.helper_cost.saturating_add(row.cost);
             role.helper_cost = role.helper_cost.saturating_add(row.cost);
@@ -259,7 +268,7 @@ pub fn summarize(rows: &[Row], actors: &[Actor]) -> Summary {
 /// 段ごとの、本体の回の数と額（添字が段の番号。0 から [`LAST_BUCKET`] までの 41 個）。手伝いの回は混ぜない（文脈の長さの数は本体だけ）。
 pub fn by_bucket(rows: &[Row]) -> Vec<(i64, i64)> {
     let mut out = vec![(0i64, 0i64); usize::try_from(LAST_BUCKET).unwrap_or(0) + 1];
-    for b in rows.iter().filter(|r| !r.helper).flat_map(|r| &r.buckets) {
+    for b in rows.iter().filter(|r| !r.helper()).flat_map(|r| &r.buckets) {
         if let Some(sum) = usize::try_from(b.bucket).ok().and_then(|i| out.get_mut(i)) {
             sum.0 = sum.0.saturating_add(b.turns);
             sum.1 = sum.1.saturating_add(b.cost);
@@ -277,7 +286,7 @@ pub fn by_slot(rows: &[Row], starts: &[i64], end: i64) -> Vec<(i64, i64)> {
             continue;
         };
         let sum = &mut out[i];
-        if row.helper {
+        if row.helper() {
             sum.1 = sum.1.saturating_add(row.cost);
         } else {
             sum.0 = sum.0.saturating_add(row.cost);
@@ -301,7 +310,7 @@ pub fn by_seat(rows: &[Row]) -> BTreeMap<String, Seat> {
     for row in rows {
         let seat = out.entry(row.actor_id.clone()).or_default();
         seat.cost = seat.cost.saturating_add(row.cost);
-        if !row.helper {
+        if !row.helper() {
             seat.max_context = seat.max_context.max(row.max_context);
         }
     }
@@ -311,12 +320,60 @@ pub fn by_seat(rows: &[Row]) -> BTreeMap<String, Seat> {
 /// 時（`to_at` を時の初めに切り下げた時刻。秒）ごとの、本体の回のいちばん長い文脈（時の順）。本体の回の無い時は入れない。
 pub fn context_by_hour(rows: &[Row]) -> Vec<(i64, i64)> {
     let mut hours: BTreeMap<i64, i64> = BTreeMap::new();
-    for row in rows.iter().filter(|r| !r.helper) {
+    for row in rows.iter().filter(|r| !r.helper()) {
         let hour = row.to_at - row.to_at.rem_euclid(3600);
         let max = hours.entry(hour).or_default();
         *max = (*max).max(row.max_context);
     }
     hours.into_iter().collect()
+}
+
+/// 行列の地の色の段の境（升の額の、全体の額に対する比の %。下の端）。[0] 以上は段 3、[1] 以上は段 2、0 より大きければ段 1。
+pub const HEAT: [i64; 2] = [10, 1];
+
+/// 行列の升 1 つ（回の数と額。額は 100 万分の 1 ドル）。
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Cell {
+    pub turns: i64,
+    pub cost: i64,
+}
+
+/// 行列の行。
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct MatrixRow {
+    /// 上の組は役割の名（ラベル `tpm.role`。無ければ無い）、下の組は手伝いの種類の名。
+    pub name: Option<String>,
+    /// 列（[`Matrix::models`]）の順の升。その行に、その model の行が無ければ無い。
+    pub cells: Vec<Option<Cell>>,
+    /// 行の計。
+    pub total: Cell,
+    /// 上の組だけ: その行の本体の回を持つ席の、最新の effort ごとの席の数（席の多い順、同じなら名の順）。effort の分からない席は数えない。
+    pub efforts: Vec<(String, usize)>,
+}
+
+/// 「役割（本体）と手伝いの種類」×「model」の行列。
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Matrix {
+    /// 列: model の名と、その列の計（本体と手伝い）。列の額の大きい順、同じなら名の順。
+    pub models: Vec<(String, Cell)>,
+    /// 上の組: 本体の回を、役割ごとに（役割ごとの表と同じ並び: 本体の額の大きい順・同じなら名の順・「無し」は後ろ）。
+    pub roles: Vec<MatrixRow>,
+    /// 下の組: 手伝いの回を、手伝いの種類ごとに（役割では分けない。額の大きい順・同じなら名の順）。
+    pub helpers: Vec<MatrixRow>,
+    /// 全体の計。
+    pub total: Cell,
+}
+
+/// 升の地の色の段（1〜3）。全体の額が 0 か、升の額が 0 なら無い。
+pub fn heat(cost: i64, whole: i64) -> Option<u8> {
+    let _ = (cost, whole);
+    None
+}
+
+/// 行とアクターと、席の id ごとの最新の effort から、行列を作る。`actors` に無いアクターの行は、役割「無し」に入れる。
+pub fn by_model(rows: &[Row], actors: &[Actor], efforts: &HashMap<String, String>) -> Matrix {
+    let _ = (rows, actors, efforts);
+    Matrix::default()
 }
 
 #[cfg(test)]
@@ -338,7 +395,8 @@ mod tests {
         Row {
             actor_id: actor_id.to_owned(),
             to_at: 0,
-            helper: false,
+            model: "claude-opus-5-5".to_owned(),
+            agent: None,
             turns: buckets.iter().map(|b| b.1).sum(),
             cost: buckets.iter().map(|b| b.2).sum(),
             max_context,
@@ -355,7 +413,7 @@ mod tests {
 
     fn helper(actor_id: &str, max_context: i64, buckets: &[(i32, i64, i64)]) -> Row {
         Row {
-            helper: true,
+            agent: Some("Explore".to_owned()),
             ..main(actor_id, max_context, buckets)
         }
     }
@@ -628,5 +686,254 @@ mod tests {
         ];
         assert_eq!(context_by_hour(&rows), [(H, 230_000), (3 * H, 120_000)]);
         assert!(context_by_hour(&[]).is_empty());
+    }
+
+    // --- model と役割ごとの行列 ---
+
+    /// model と手伝いの種類を決めた 1 行（段は 0 に、回の数と額をみな入れる）。
+    fn of(actor_id: &str, model: &str, agent: Option<&str>, turns: i64, cost: i64) -> Row {
+        Row {
+            model: model.to_owned(),
+            agent: agent.map(str::to_owned),
+            ..main(actor_id, 0, &[(0, turns, cost)])
+        }
+    }
+
+    fn cell(turns: i64, cost: i64) -> Option<Cell> {
+        Some(Cell { turns, cost })
+    }
+
+    fn no_efforts() -> HashMap<String, String> {
+        HashMap::new()
+    }
+
+    #[test]
+    fn 行が無ければ_行列は空() {
+        assert_eq!(by_model(&[], &[], &no_efforts()), Matrix::default());
+        let actors = [actor("a", &[("tpm.role", "se")])];
+        assert_eq!(by_model(&[], &actors, &no_efforts()), Matrix::default());
+    }
+
+    #[test]
+    fn 列は_model_の額の大きい順で_同じなら名の順_行と升と計を出す() {
+        const OPUS: &str = "claude-opus-5-5";
+        const FABLE: &str = "claude-fable-5-2";
+        const HAIKU: &str = "claude-haiku-5-5";
+        let actors = [
+            actor("a", &[("tpm.role", "se")]),
+            actor("b", &[("tpm.role", "tpm")]),
+            actor("c", &[]),
+        ];
+        let rows = [
+            of("a", OPUS, None, 3, 300),
+            of("a", FABLE, None, 2, 400),
+            of("b", OPUS, None, 1, 500),
+            of("c", HAIKU, None, 1, 100),
+            // 手伝いは、種類ごとに 1 行。役割（a と b）では分けない。
+            of("a", OPUS, Some("general-purpose"), 4, 40),
+            of("b", OPUS, Some("general-purpose"), 1, 10),
+            of("a", HAIKU, Some("Explore"), 5, 5),
+        ];
+        let matrix = by_model(&rows, &actors, &no_efforts());
+        // 列の計: opus 850・fable 400・haiku 105。
+        assert_eq!(
+            matrix.models,
+            vec![
+                (
+                    OPUS.to_owned(),
+                    Cell {
+                        turns: 9,
+                        cost: 850
+                    }
+                ),
+                (
+                    FABLE.to_owned(),
+                    Cell {
+                        turns: 2,
+                        cost: 400
+                    }
+                ),
+                (
+                    HAIKU.to_owned(),
+                    Cell {
+                        turns: 6,
+                        cost: 105
+                    }
+                ),
+            ]
+        );
+        // 上の組は、役割ごとの表と同じ並び（本体の額: se 700・tpm 500・無し 100）。
+        let roles: Vec<_> = matrix
+            .roles
+            .iter()
+            .map(|r| (r.name.as_deref(), r.cells.clone(), r.total))
+            .collect();
+        assert_eq!(
+            roles,
+            vec![
+                (
+                    Some("se"),
+                    vec![cell(3, 300), cell(2, 400), None],
+                    Cell {
+                        turns: 5,
+                        cost: 700
+                    }
+                ),
+                (
+                    Some("tpm"),
+                    vec![cell(1, 500), None, None],
+                    Cell {
+                        turns: 1,
+                        cost: 500
+                    }
+                ),
+                (
+                    None,
+                    vec![None, None, cell(1, 100)],
+                    Cell {
+                        turns: 1,
+                        cost: 100
+                    }
+                ),
+            ]
+        );
+        // 下の組は、手伝いの種類ごと（額の大きい順）。
+        let helpers: Vec<_> = matrix
+            .helpers
+            .iter()
+            .map(|r| (r.name.as_deref(), r.cells.clone(), r.total, r.efforts.len()))
+            .collect();
+        assert_eq!(
+            helpers,
+            vec![
+                (
+                    Some("general-purpose"),
+                    vec![cell(5, 50), None, None],
+                    Cell { turns: 5, cost: 50 },
+                    0
+                ),
+                (
+                    Some("Explore"),
+                    vec![None, None, cell(5, 5)],
+                    Cell { turns: 5, cost: 5 },
+                    0
+                ),
+            ]
+        );
+        assert_eq!(
+            matrix.total,
+            Cell {
+                turns: 17,
+                cost: 1_355
+            }
+        );
+    }
+
+    #[test]
+    fn 列の額が同じなら_model_の名の順_手伝いの額が同じなら種類の名の順() {
+        let actors = [actor("a", &[("tpm.role", "se")])];
+        let rows = [
+            of("a", "m-b", None, 1, 100),
+            of("a", "m-a", None, 1, 100),
+            of("a", "m-a", Some("z"), 1, 7),
+            of("a", "m-a", Some("y"), 1, 7),
+        ];
+        let matrix = by_model(&rows, &actors, &no_efforts());
+        let models: Vec<_> = matrix.models.iter().map(|(m, _)| m.as_str()).collect();
+        assert_eq!(models, ["m-a", "m-b"]);
+        let helpers: Vec<_> = matrix.helpers.iter().map(|r| r.name.as_deref()).collect();
+        assert_eq!(helpers, [Some("y"), Some("z")]);
+    }
+
+    #[test]
+    fn 同じ席_同じ時_同じ_model_の行は足す() {
+        let actors = [actor("a", &[("tpm.role", "se")])];
+        let rows = [of("a", "m", None, 3, 300), of("a", "m", None, 2, 200)];
+        let matrix = by_model(&rows, &actors, &no_efforts());
+        assert_eq!(matrix.roles.len(), 1);
+        assert_eq!(matrix.roles[0].cells, vec![cell(5, 500)]);
+        assert_eq!(
+            matrix.models,
+            vec![(
+                "m".to_owned(),
+                Cell {
+                    turns: 5,
+                    cost: 500
+                }
+            )]
+        );
+    }
+
+    #[test]
+    fn 段は全体の額に対する比で_10_以上は_3_1_以上は_2_0_より大きければ_1() {
+        assert_eq!(heat(1_000, 10_000), Some(3));
+        assert_eq!(heat(999, 10_000), Some(2));
+        assert_eq!(heat(100, 10_000), Some(2));
+        assert_eq!(heat(99, 10_000), Some(1));
+        assert_eq!(heat(1, 10_000), Some(1));
+        assert_eq!(heat(0, 10_000), None);
+        assert_eq!(heat(10_000, 10_000), Some(3));
+        // 全体の額が 0（額 0 で回だけ在る期間）なら、どの升も段なし。
+        assert_eq!(heat(0, 0), None);
+        // 大きな額でも溢れない。
+        assert_eq!(heat(i64::MAX / 2, i64::MAX), Some(3));
+    }
+
+    #[test]
+    fn effort_は_行の本体の回を持つ席を_effort_ごとに数え_多い順_同じなら名の順() {
+        let actors = [
+            actor("a", &[("tpm.role", "se")]),
+            actor("b", &[("tpm.role", "se")]),
+            actor("c", &[("tpm.role", "se")]),
+            actor("d", &[("tpm.role", "se")]),
+            actor("e", &[("tpm.role", "tpm")]),
+        ];
+        let rows = [
+            of("a", "m", None, 1, 1),
+            // 同じ席の行が 2 つでも、席は 1 つ。
+            of("a", "m2", None, 1, 1),
+            of("b", "m", None, 1, 1),
+            of("c", "m", None, 1, 1),
+            // effort の分からない席（d）は数えない。
+            of("d", "m", None, 1, 1),
+            // 手伝いの回だけの席（e）は、上の組の行を持たない。
+            of("e", "m", Some("Explore"), 1, 1),
+        ];
+        let efforts: HashMap<String, String> = [
+            ("a", "medium"),
+            ("b", "low"),
+            ("c", "medium"),
+            ("e", "high"),
+        ]
+        .into_iter()
+        .map(|(id, e)| (id.to_owned(), e.to_owned()))
+        .collect();
+        let matrix = by_model(&rows, &actors, &efforts);
+        assert_eq!(matrix.roles.len(), 1);
+        assert_eq!(
+            matrix.roles[0].efforts,
+            vec![("medium".to_owned(), 2), ("low".to_owned(), 1)]
+        );
+        // 下の組は effort を持たない。
+        assert!(matrix.helpers.iter().all(|r| r.efforts.is_empty()));
+
+        // 席の数が同じなら、名の順。
+        let tie: HashMap<String, String> = [("a", "medium"), ("b", "high")]
+            .into_iter()
+            .map(|(id, e)| (id.to_owned(), e.to_owned()))
+            .collect();
+        let matrix = by_model(&rows[..3], &actors, &tie);
+        assert_eq!(
+            matrix.roles[0].efforts,
+            vec![("high".to_owned(), 1), ("medium".to_owned(), 1)]
+        );
+    }
+
+    #[test]
+    fn 額が_0_でも_回の在る升は出す() {
+        let actors = [actor("a", &[("tpm.role", "se")])];
+        let matrix = by_model(&[of("a", "m", None, 2, 0)], &actors, &no_efforts());
+        assert_eq!(matrix.roles[0].cells, vec![cell(2, 0)]);
+        assert_eq!(matrix.total, Cell { turns: 2, cost: 0 });
     }
 }

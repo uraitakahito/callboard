@@ -5,8 +5,10 @@
 // 点は 5 つ、線は 4 本（起動した 3・引き継いだ 1）。
 // 時刻ずれ（送り手の時刻が 10 分前。castlist は 5 分より離れた行に印を立てる）は、出どころごとに別のアクターに 1 つずつ:
 //   pm.1 は登録・tpm.1 は出来事（登場）・other.1 は model と effort（実際の値）。se.1 と se.2 には無い。
-// トークンの使用量の行（castlist 2.1.0 から。使用量の画面 /usage/ が読む）は 3 つ: se.1 の本体（3 回・$1.50）と
-// 手伝い（Explore。2 回・$0.25）、other.1 の本体（1 回・$0.01）。どれも、今の時（UTC）の内の行。
+// トークンの使用量の行（castlist 2.1.0 から。使用量の画面 /usage/ が読む）は 4 つ: se.1 の本体（Opus。3 回・$1.50）と
+// 手伝い 2 つ（どちらも Opus。Explore 1 回・$0.10 と general-purpose 1 回・$0.15。計は 2 回・$0.25）、other.1 の本体
+// （Haiku。1 回・$0.01）。どれも、今の時（UTC）の内の行。model と手伝いの種類は model と役割ごとの行列（t-dues）のため。
+// 行の数の計（全体・役割・課題・一覧・プロフィールの数）は、行列を足す前と同じにしてある。
 import { expect, test as setup, type APIRequestContext } from '@playwright/test';
 import { CASTLIST } from './helpers';
 
@@ -35,12 +37,12 @@ const event = (by: string, type: string) => ({ issuer: 'tpm', by, type, sentAt: 
 const line = (type: string, from: string, to: string) => ({ issuer: 'tpm', type, from, to, sentAt: now() });
 
 /** 数の 1 行（PutUsage の本文）。区間は、今の時（UTC）の初め。`buckets` は `[段, 回の数, 額]`（和は、行の回の数と額に合わせる）。 */
-function usage(by: string, agent: string | undefined, maxContext: number, buckets: [number, number, number][]): Record<string, unknown> {
+function usage(by: string, model: string, agent: string | undefined, maxContext: number, buckets: [number, number, number][]): Record<string, unknown> {
   const hour = new Date(Math.floor(Date.now() / 3_600_000) * 3_600_000).toISOString();
   return {
     issuer: 'tpm',
     by,
-    model: 'claude-opus-5-5',
+    model,
     ...(agent ? { agent } : {}),
     speed: 'standard',
     serviceTier: 'standard',
@@ -108,9 +110,10 @@ setup('見本の記録を置く', async ({ request }) => {
   });
 
   // トークンの使用量の行（使用量の画面）。
-  await send(request, 'put', '/api/usage/u-se1-main', usage(SE1, undefined, 230_000, [[1, 1, 500_000], [9, 2, 1_000_000]]));
-  await send(request, 'put', '/api/usage/u-se1-explore', usage(SE1, 'Explore', 30_000, [[1, 2, 250_000]]));
-  await send(request, 'put', '/api/usage/u-other-main', usage(OTHER, undefined, 10_000, [[0, 1, 10_000]]));
+  await send(request, 'put', '/api/usage/u-se1-main', usage(SE1, 'claude-opus-5-5', undefined, 230_000, [[1, 1, 500_000], [9, 2, 1_000_000]]));
+  await send(request, 'put', '/api/usage/u-se1-explore', usage(SE1, 'claude-opus-5-5', 'Explore', 30_000, [[1, 1, 100_000]]));
+  await send(request, 'put', '/api/usage/u-se1-general', usage(SE1, 'claude-opus-5-5', 'general-purpose', 30_000, [[1, 1, 150_000]]));
+  await send(request, 'put', '/api/usage/u-other-main', usage(OTHER, 'claude-haiku-5-5', undefined, 10_000, [[0, 1, 10_000]]));
 
   const graph = await (await request.get(`${CASTLIST}/api/graph`)).json();
   expect(graph.nodes.map((n: { name: string }) => n.name).sort()).toEqual(['other.1', 'pm.1', 'se.1', 'se.2', 'tpm.1']);

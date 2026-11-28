@@ -6,7 +6,8 @@ mod common;
 use axum::http::{StatusCode, header};
 use common::castlist::{
     PM, SE1, SE2, TPM, actor_row, usage_actor, usage_buckets, usage_page, usage_routes,
-    usage_routes_slow, usage_row, with_actors, with_actors_down, with_actors_slow,
+    usage_routes_slow, usage_row, with_actors, with_actors_down, with_actors_more,
+    with_actors_slow,
 };
 use common::{App, get};
 use serde_json::{Value, json};
@@ -1209,4 +1210,218 @@ async fn 候補を引くのが遅くても_使用量の画面は待たせず_一
         [("", "すべて"), ("tpm.role:tpm", "tpm")]
     );
     assert!(datalist(&body).is_empty());
+}
+
+// --- model と役割ごとの行列（t-dues） ---
+
+/// 行列の見本の行: [`rows`] の se.2 の本体の行だけを Fable にする（ほかは Opus）。額の計は $7.26 のまま。
+fn model_rows() -> Vec<Value> {
+    let mut rows = rows();
+    rows[3]["model"] = json!("claude-fable-5-2");
+    rows
+}
+
+/// [`active`] の席に、最新の effort を付けた物（se.1 は medium・se.2 は high・tpm.1 は medium。pm.1 は無し）。
+fn active_efforts() -> Vec<Value> {
+    let mut active = active();
+    for (row, effort) in active.iter_mut().zip(["medium", "high", "medium"]) {
+        row["model"] = json!("claude-opus-5-5");
+        row["effort"] = json!(effort);
+    }
+    active
+}
+
+/// 表の行ごとの欄の字（`<td>`。`<br>` は空白にし、ほかの tag は外す）。`part` は `thead`・`tbody`・`tfoot`。
+fn grid(section: &str, part: &str) -> Vec<Vec<String>> {
+    let start = section
+        .find(&format!("<{part}>"))
+        .unwrap_or_else(|| panic!("{part} が無い: {section}"));
+    let body = &section[start..start + section[start..].find(&format!("</{part}>")).unwrap()];
+    body.split("<tr>")
+        .skip(1)
+        .map(|row| {
+            row.split("<t")
+                .skip(1)
+                .filter(|cell| cell.starts_with('d') || cell.starts_with('h'))
+                .map(|cell| {
+                    let inner = &cell[cell.find('>').unwrap() + 1..];
+                    let inner = &inner[..inner.find("</t").unwrap_or(inner.len())];
+                    strip(&inner.replace("<br>", " "))
+                })
+                .collect()
+        })
+        .collect()
+}
+
+/// tag を外し、空白を 1 つにまとめる（字の実体参照は戻さない）。
+fn strip(html: &str) -> String {
+    let mut out = String::new();
+    let mut inside = false;
+    for c in html.chars() {
+        match c {
+            '<' => inside = true,
+            '>' => inside = false,
+            _ if !inside => out.push(c),
+            _ => {}
+        }
+    }
+    out.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// 表の本体の行ごとの、升の class（`heat-N` だけ。無ければ空の字）。
+fn heats(section: &str) -> Vec<Vec<String>> {
+    let start = section.find("<tbody>").unwrap();
+    let body = &section[start..start + section[start..].find("</tbody>").unwrap()];
+    body.split("<tr>")
+        .skip(1)
+        .map(|row| {
+            row.split("<td class=\"num")
+                .skip(1)
+                .map(|cell| {
+                    let class = &cell[..cell.find('"').unwrap()];
+                    class
+                        .split_whitespace()
+                        .find(|c| c.starts_with("heat-"))
+                        .unwrap_or("")
+                        .to_owned()
+                })
+                .collect()
+        })
+        .collect()
+}
+
+async fn matrix_app(actors_route: fn(axum::Router, Vec<Value>) -> axum::Router) -> App {
+    App::start_with(
+        actors_route(
+            usage_routes(vec![usage_page(model_rows(), actors(), None)]),
+            active_efforts(),
+        ),
+        common::pagetray_routes(),
+        callboard::Config::default(),
+    )
+    .await
+}
+
+#[tokio::test]
+async fn model_と役割ごとの行列は_役割と手伝いの種類を行に_model_を額の大きい順の列に出す() {
+    let app = matrix_app(with_actors).await;
+    let (status, _, body) = app.send(get(WINDOW)).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    // 節は「日ごと」と「役割ごと」の間。
+    let at = |id: &str| body.find(&format!("<section id=\"{id}\">")).unwrap();
+    assert!(
+        at("by-day") < at("models") && at("models") < at("roles"),
+        "{body}"
+    );
+    let models = section(&body, "models");
+    assert!(models.contains(">model と役割ごと</h2>"), "{models}");
+    assert_eq!(
+        grid(models, "thead"),
+        [["役割・手伝い", "claude-opus-5-5", "claude-fable-5-2", "計"]]
+    );
+    // 上の組は役割ごとの表と同じ並び、effort は席の数の多い順（同じなら名の順）。下の組は手伝いの種類ごと。
+    assert_eq!(
+        grid(models, "tbody"),
+        [
+            vec![
+                "software-engineer high（1 席）・medium（1 席）",
+                "$2.00 5 回",
+                "$2.00 5 回",
+                "$4.00"
+            ],
+            vec![
+                "technical-program-manager medium",
+                "$3.00 1 回",
+                "—",
+                "$3.00"
+            ],
+            vec!["（無し）", "$0.01 1 回", "—", "$0.01"],
+            vec!["手伝い: Explore", "$0.25 4 回", "—", "$0.25"],
+        ]
+    );
+    // 下の行: model ごとの計・全体の額に対する比・1 回あたり（小数 3 桁）。
+    assert_eq!(
+        grid(models, "tfoot"),
+        [
+            ["計", "$5.26", "$2.00", "$7.26"],
+            ["全体の額に対する比", "72.5%", "27.5%", "100.0%"],
+            ["1 回あたり", "$0.478", "$0.400", "$0.454"],
+        ]
+    );
+    // 地の色: 全体の額 $7.26 に対して、10% 以上は 3・1% 以上は 2・それより下は 1。升の無い所は無し。
+    assert_eq!(
+        heats(models),
+        [
+            vec!["heat-3", "heat-3", ""],
+            vec!["heat-3", "", ""],
+            vec!["heat-1", "", ""],
+            vec!["heat-2", "", ""],
+        ]
+    );
+    // 升にマウスを重ねると 1 回あたり（英語にも替わるよう、鍵と値を付ける）。
+    assert!(
+        models
+            .contains("title=\"1 回あたり $0.400\" data-i18n-attr=\"title:usage.models.perTurn\""),
+        "{models}"
+    );
+    // 凡例は、段の境の数を値で受ける。effort と手伝いの model の注。
+    assert!(models.contains("10% 以上"), "{models}");
+    assert!(
+        models.contains("effort は、役割の行の席の今の値"),
+        "{models}"
+    );
+    assert!(models.contains("本体の model を受け継ぐ物"), "{models}");
+    assert!(!models.contains("時間内に引けませんでした"), "{models}");
+    // 色は class で付け、inline の style は使わない。
+    assert!(!models.contains("style="), "{models}");
+}
+
+#[tokio::test]
+async fn effort_を引けなければ_effort_を出さず注を書き_ほかの数は出す() {
+    let app = App::start_with(
+        with_actors_slow(
+            usage_routes(vec![usage_page(model_rows(), actors(), None)]),
+            active_efforts(),
+            std::time::Duration::from_secs(3),
+        ),
+        common::pagetray_routes(),
+        callboard::Config::default(),
+    )
+    .await;
+    let (status, _, body) = app.send(get(WINDOW)).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let models = section(&body, "models");
+    assert_eq!(
+        grid(models, "tbody")[0],
+        ["software-engineer", "$2.00 5 回", "$2.00 5 回", "$4.00"]
+    );
+    assert!(
+        models.contains("effort を、時間内に引けませんでした"),
+        "{models}"
+    );
+}
+
+#[tokio::test]
+async fn 席が_1_頁の上限を越えたら_effort_は新しく登場した席の分だけと書く() {
+    let app = matrix_app(with_actors_more).await;
+    let (status, _, body) = app.send(get(WINDOW)).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let models = section(&body, "models");
+    // 引けた分の effort は出す。
+    assert_eq!(
+        grid(models, "tbody")[1][0],
+        "technical-program-manager medium"
+    );
+    assert!(
+        models.contains("effort は、新しく登場した 1000 席の分だけです"),
+        "{models}"
+    );
+}
+
+#[tokio::test]
+async fn 行が無ければ_行列の節も出さない() {
+    let app = start(vec![usage_page(vec![], vec![], None)]).await;
+    let (status, _, body) = app.send(get(WINDOW)).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(!body.contains("<section id=\"models\">"), "{body}");
 }

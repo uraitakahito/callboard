@@ -324,7 +324,8 @@ pub(super) fn rows_of(usage: Vec<Usage>) -> Vec<summary::Row> {
         .map(|u| summary::Row {
             to_at: u.to_at.secs(),
             actor_id: u.actor_id,
-            helper: u.agent.is_some(),
+            model: u.model,
+            agent: u.agent,
             turns: u.turns,
             cost: u.cost_micro_usd,
             max_context: u.max_context,

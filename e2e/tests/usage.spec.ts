@@ -1,5 +1,6 @@
 // 使用量（/usage/）を、本物の castlist（2.1.0 から）を相手に、本物の browser で見る。数の行は seed.setup.ts が castlist の API
-// （PutUsage）で置く: se.1 の本体（3 回・$1.50。段 1 に 1 回・段 9 に 2 回）と手伝い（2 回・$0.25）、other.1 の本体（1 回・$0.01）。
+// （PutUsage）で置く: se.1 の本体（Opus。3 回・$1.50。段 1 に 1 回・段 9 に 2 回）と手伝い（Opus。Explore 1 回・$0.10 と
+// general-purpose 1 回・$0.15）、other.1 の本体（Haiku。1 回・$0.01）。席の最新の effort は se.1 が high・other.1 が low。
 // 見本のアクターに役割のラベル（tpm.role）は無いので、役割は「（無し）」の 1 行。課題は tpm.key（t-23zs・t-99）。
 import { expect, test, type Page } from '@playwright/test';
 import { CASTLIST, collectProblems } from './helpers';
@@ -146,6 +147,91 @@ test('英語の画面では、絞りの欄の名と「すべて」と席の数�
     'tpm.key:t-23zs (3 seats)',
     'tpm.key:t-99 (1 seat)',
   ]);
+  expect(problems).toEqual([]);
+  await context.close();
+});
+
+/** model と役割ごとの行列（`#models`）の、`part`（thead・tbody・tfoot）の行ごとの欄の字。 */
+const grid = (page: Page, part: string) =>
+  page.locator(`#models ${part} tr`).evaluateAll((rows) =>
+    rows.map((row) =>
+      [...row.querySelectorAll('th, td')].map((cell) => {
+        const copy = cell.cloneNode(true) as HTMLElement;
+        copy.querySelectorAll('br').forEach((br) => br.replaceWith(' '));
+        return (copy.textContent ?? '').replace(/\s+/g, ' ').trim();
+      }),
+    ),
+  );
+
+test('model と役割ごとの行列は、役割と手伝いの種類を行に、model を額の大きい順の列に出す（script は使わない）', async ({ page }) => {
+  const problems = collectProblems(page);
+  await page.goto('/usage/');
+  await expect(page.locator('#models h2')).toHaveText('model と役割ごと');
+  expect(await grid(page, 'thead')).toEqual([['役割・手伝い', 'claude-opus-5-5', 'claude-haiku-5-5', '計']]);
+  expect(await grid(page, 'tbody')).toEqual([
+    ['（無し） high（1 席）・low（1 席）', '$1.50 3 回', '$0.01 1 回', '$1.51'],
+    ['手伝い: general-purpose', '$0.15 1 回', '—', '$0.15'],
+    ['手伝い: Explore', '$0.10 1 回', '—', '$0.10'],
+  ]);
+  expect(await grid(page, 'tfoot')).toEqual([
+    ['計', '$1.75', '$0.01', '$1.76'],
+    ['全体の額に対する比', '99.4%', '0.6%', '100.0%'],
+    ['1 回あたり', '$0.350', '$0.010', '$0.293'],
+  ]);
+  await expect(page.locator('#models tbody td.heat-3')).toHaveCount(1);
+  await expect(page.locator('#models tbody td.heat-2')).toHaveCount(2);
+  await expect(page.locator('#models tbody td.heat-1')).toHaveCount(1);
+  await expect(page.locator('#models tbody td.heat-3')).toHaveAttribute('title', '1 回あたり $0.500');
+  // 絞ると、行列も同じ行から作る（other.1 の本体だけ）。
+  await page.goto('/usage/?label=tpm.key:t-99');
+  expect(await grid(page, 'tbody')).toEqual([['（無し） low', '$0.01 1 回', '$0.01']]);
+  expect(await page.locator('body script').count()).toBe(0);
+  expect(problems).toEqual([]);
+});
+
+test('行列の地の色は、明るい色と暗い色の両方で、site.css の変数の色', async ({ page }) => {
+  const colours = () =>
+    page.evaluate(() => {
+      const css = (name: string) => {
+        const probe = document.createElement('div');
+        probe.style.color = `var(${name})`;
+        document.body.append(probe);
+        const rgb = getComputedStyle(probe).color;
+        probe.remove();
+        return rgb.replace(/\s/g, '');
+      };
+      const cell = (n: number) => getComputedStyle(document.querySelector(`#models tbody td.heat-${n}`)!).backgroundColor.replace(/\s/g, '');
+      return { got: [cell(1), cell(2), cell(3)], want: [css('--heat-1'), css('--heat-2'), css('--heat-3')] };
+    });
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.goto('/usage/');
+  const light = await colours();
+  expect(light.got).toEqual(light.want);
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await expect.poll(async () => (await colours()).got).not.toEqual(light.got);
+  const dark = await colours();
+  expect(dark.got).toEqual(dark.want);
+});
+
+test('英語の画面では、行列の見出しと行の名と下の行と effort の席の数を英語で出す', async ({ browser }) => {
+  const context = await browser.newContext({ locale: 'en-US', baseURL: test.info().project.use.baseURL });
+  const page = await context.newPage();
+  const problems = collectProblems(page);
+  await page.goto('/usage/');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await expect(page.locator('#models h2')).toHaveText('By model and role');
+  await expect.poll(() => grid(page, 'thead')).toEqual([['Role / helper', 'claude-opus-5-5', 'claude-haiku-5-5', 'Total']]);
+  await expect.poll(() => grid(page, 'tbody')).toEqual([
+    ['(none) high (1 seat), low (1 seat)', '$1.50 3 turns', '$0.01 1 turn', '$1.51'],
+    ['Helper: general-purpose', '$0.15 1 turn', '—', '$0.15'],
+    ['Helper: Explore', '$0.10 1 turn', '—', '$0.10'],
+  ]);
+  await expect.poll(() => grid(page, 'tfoot')).toEqual([
+    ['Total', '$1.75', '$0.01', '$1.76'],
+    ['Share of total cost', '99.4%', '0.6%', '100.0%'],
+    ['Per turn', '$0.350', '$0.010', '$0.293'],
+  ]);
+  await expect(page.locator('#models tbody td.heat-3')).toHaveAttribute('title', '$0.500 per turn');
   expect(problems).toEqual([]);
   await context.close();
 });
