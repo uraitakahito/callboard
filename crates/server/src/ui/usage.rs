@@ -649,6 +649,8 @@ pub(super) struct BarView {
 }
 
 /// 棒の区切り 1 つ（押すと、その区切りに期間を絞る link。額の在る区切りだけ）。棒と、区切りの縦いっぱいの、押す所。
+/// 図（`role="img"`）の中の link は読み上げに出ないので、マウスの近道だけにする（`tabindex="-1"`・`aria-hidden`。キーボードの
+/// 止まる所を、1 日の 144 本ぶん増やさない）。キーボードと読み上げは、図の下の字の表の行の、同じ link を使う。
 pub(super) struct ColumnView {
     pub href: String,
     pub x: u32,
@@ -943,6 +945,9 @@ fn slot_chart(
     );
     let slots = chart::slots(starts.len());
     let every = chart::label_every(starts.len(), LABEL_PX);
+    // 時ごと・10 分ごとで、期間が 1 日より長い時（1 時間の幅の 2〜7 日）は、時刻だけの目盛りでは、どの日かが分からない。
+    // 目盛りを、日の初め（日本時間の 0 時）と、初めの区切りだけにして、日付を書く。
+    let many_days = width != Width::Day && end - start > chart::DAY;
     let (mut filled, mut estimated) = (0, 0);
     let mut names = Vec::with_capacity(starts.len());
     for (i, ((slot, at), sum)) in slots.iter().zip(&starts).zip(&sums).enumerate() {
@@ -956,10 +961,29 @@ fn slot_chart(
             Width::Hour | Width::TenMin => format!("{date} {clock}"),
         };
         names.push(name.clone());
-        if i % every == 0 {
+        let day_start = t.hour() == 0 && t.minute() == 0;
+        let (tick, label) = if many_days {
+            (i == 0 || day_start, date)
+        } else {
+            (
+                i % every == 0,
+                if width == Width::Day { date } else { clock },
+            )
+        };
+        // 初めの区切りの字が、すぐ後の日の初めの字と重ならないように、近ければ書かない。
+        let crowded = many_days
+            && i == 0
+            && !day_start
+            && starts
+                .iter()
+                .zip(&slots)
+                .skip(1)
+                .find(|(s, _)| (*s + i64::from(OFFSET.whole_seconds())).rem_euclid(chart::DAY) == 0)
+                .is_some_and(|(_, next)| next.mid() - slot.mid() < LABEL_PX);
+        if tick && !crowded {
             view.x_ticks.push(TickView {
-                at: slot.mid(),
-                label: Text::plain(if width == Width::Day { date } else { clock }),
+                at: if many_days { slot.left } else { slot.mid() },
+                label: Text::plain(label),
             });
         }
         if sum.total() <= 0 {
