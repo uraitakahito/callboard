@@ -7,6 +7,7 @@
 //! - CSP（[`crate::CSP`]）が inline の script と style を断るので、style は callboard が配る CSS の file だけ。
 //! - ページの本文と file の中身は pagetray が持つ。ページの一覧の、本文の枠と file の link は、pagetray の link の頭
 //!   （[`crate::config`]）で組む（[`pages`]）。
+mod exchanges;
 pub(crate) mod i18n;
 mod list;
 mod messages;
@@ -14,6 +15,7 @@ mod network;
 mod pages;
 mod params;
 mod profile;
+mod thread;
 mod time;
 mod timeline;
 mod timeline_layout;
@@ -280,6 +282,7 @@ pub fn routes(app: Arc<App>) -> Router {
         .route(usage::PATH, get(usage::usage))
         .route(messages::PATH, get(messages::messages))
         .route(messages::EVENTS_PATH, get(messages::events))
+        .route(thread::ROUTE, get(thread::thread))
         .route(pages::PATH, get(pages::pages))
         .route("/pages", get(pages::redirect))
         .route(pages::UPLOAD_ROUTE, axum::routing::post(pages::upload))

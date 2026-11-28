@@ -173,7 +173,8 @@ async fn 行は_記録を_状態の字にして出す() {
     for part in [
         // UTC の 00:00 は、日本の時刻で 09:00。
         r#"<time datetime="2026-11-02T00:00:00.000Z" title="2026-11-02T00:00:00.000Z">11-02 09:00</time>"#,
-        "<span>A-1</span>",
+        // Key は、その課題の筋への link（project も渡す）。
+        r#"<a class="task" href="/messages/tasks/A-1?project=p" title="この課題の筋（頼みから返事までの往復）を見る" data-i18n-attr="title:messages.toThread">A-1</a>"#,
         r#"<span class="name">answer</span>"#,
         r#"<span class="state delivered" data-i18n="messages.delivered">届いた</span>"#,
         r#"<span class="route">t-1.swe.1 → pm.1</span>"#,
@@ -193,7 +194,7 @@ async fn 行は_記録を_状態の字にして出す() {
         "{line}"
     );
     assert!(!line.contains(r#"class="who""#), "{line}");
-    assert!(!line.contains("<span>A-1</span>"), "{line}");
+    assert!(!line.contains("A-1"), "{line}");
     assert!(!page.contains("合うメッセージは無い"), "{page}");
     assert!(!page.contains("続きを出す"), "{page}");
 }

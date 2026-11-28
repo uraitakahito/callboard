@@ -131,6 +131,7 @@ pub fn settings(castlist: &str, pagetray: &str) -> Settings {
             api: pagetray.to_owned(),
             link: PAGETRAY_LINK.to_owned(),
         },
+        exchanges_since: None,
     }
 }
 

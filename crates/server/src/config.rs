@@ -33,6 +33,8 @@ pub struct Settings {
     /// castlist に聞く先（`http://<host>:<port>`）。
     pub castlist: String,
     pub pagetray: Base,
+    /// 送る側が返事の先を付け始めた時刻（UNIX のミリ秒）。
+    pub exchanges_since: Option<i64>,
 }
 
 impl Settings {
@@ -54,6 +56,8 @@ impl Settings {
         let link =
             get("CALLBOARD_PAGETRAY_LINK_URL").unwrap_or_else(|| DEFAULT_PAGETRAY_LINK.to_owned());
         Ok(Self {
+            // まだ読まない（試験を先に書いた）。
+            exchanges_since: None,
             listen: get("CALLBOARD_LISTEN").unwrap_or_else(|| DEFAULT_LISTEN.to_owned()),
             castlist: api("CASTLIST")?,
             pagetray: Base {
@@ -156,5 +160,33 @@ mod tests {
             let error = read(&pairs).unwrap_err();
             assert!(error.contains(name) && error.contains(value), "{error}");
         }
+    }
+
+    #[test]
+    fn 返事の先を付け始めた時刻は_rfc_3339_で読み_無ければ無い_形が違えば起きない() {
+        let base = [
+            ("CALLBOARD_CASTLIST_URL", "http://c:1"),
+            ("CALLBOARD_PAGETRAY_URL", "http://p:2"),
+        ];
+        assert_eq!(read(&base).unwrap().exchanges_since, None);
+        let with = |value: &'static str| {
+            let mut pairs = base.to_vec();
+            pairs.push(("CALLBOARD_EXCHANGES_SINCE", value));
+            read(&pairs)
+        };
+        // 2026-11-28T04:00:00Z（日本の時刻で書いても同じ時）。
+        assert_eq!(
+            with("2026-11-28T04:00:00Z").unwrap().exchanges_since,
+            Some(1_795_838_400_000)
+        );
+        assert_eq!(
+            with("2026-11-28T13:00:00+09:00").unwrap().exchanges_since,
+            Some(1_795_838_400_000)
+        );
+        assert_eq!(with("").unwrap().exchanges_since, None);
+        assert_eq!(
+            with("2026-11-28 04:00").unwrap_err(),
+            "CALLBOARD_EXCHANGES_SINCE は RFC 3339 の時刻（2026-11-28T08:00:00Z の形。2026-11-28 04:00）"
+        );
     }
 }
