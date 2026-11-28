@@ -6,6 +6,7 @@
 pub mod config;
 mod errors;
 mod guard;
+mod lang;
 mod ui;
 pub mod upstream;
 
@@ -100,6 +101,8 @@ pub fn app_with(settings: &Settings, config: Config) -> Router {
     });
     ui::routes(app)
         .route("/healthz", get(healthz))
+        // 画面の言語を決めて、呼ぶ先への頼みに付けられるようにする（道のすぐ外。守りの層が通した要求だけ）。
+        .layer(middleware::from_fn(lang::scope))
         .layer(middleware::from_fn(guard::limit))
         .layer(middleware::from_fn_with_state(
             config.timeout,

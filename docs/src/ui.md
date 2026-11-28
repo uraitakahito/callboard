@@ -243,7 +243,7 @@ castlist の `ListUsage` を、アクターの 2 つの問いと一緒に、3 �
 
 castlist の `GetGraph`（`GET /api/graph`）の答えの、状態・型・本文を返す道（断った答えの本文には `code`・`values` を足す）。相関図の script が使う（browser は castlist に直には聞かない）。
 
-- 渡すのは、問い合わせの引数の字だけ（castlist が確かめる）。browser の header（`Cookie`・`Referer` など）は渡さず、`Host: 127.0.0.1` で聞く。
+- 渡すのは、問い合わせの引数の字だけ（castlist が確かめる）。browser の header（`Cookie`・`Referer` など）は渡さず、`Host: 127.0.0.1` で聞く。言語だけは、`ja` か `en` に直して `Accept-Language` で伝える（下の「画面の字の言語」の「呼ぶ先に頼む言語」）。
 - 返すのは、castlist の答えの状態・本文の型・誤りの型の名（`X-Amzn-Errortype`）・本文。castlist の誤り（400 など）は、状態・型・本文を返す（断った答えの本文には `code`・`values` を足す。下の「画面の字の言語」の「誤りの JSON」）。
 - castlist に聞けない時（つながらない・答えを読み終えるまで 4 秒）は、503 `Unavailable`（`{"message":"castlist に聞けません（…）","code":"errors.unreachable","values":{…}}`。下の「画面の字の言語」）。castlist が断った答えには、`code`（型の名の鍵）と `values`（`detail` に castlist の訳）を足す。
 - 読むだけ（`GET`・`HEAD`）。castlist のほかの道は中継しない。
@@ -291,6 +291,7 @@ id は英語のまま（castlist の API）。名は画面だけで、字は訳�
 - **サーバーは日本語の字だけを組む。** 英語の字は組まない（英語の字は、ブラウザーが同じ鍵と値で組む）。 template は字を書く要素に鍵を付け（`<a href="/actors/" data-i18n="nav.actors">{{ "nav.actors"|t }}</a>`）、filter `t`（`crates/server/src/ui/i18n.rs`）が `ja.json` から日本語の字を引く。JavaScript を切っても日本語で読め、日本語の人には開いた時の字の空きが無い。属性は `data-i18n-attr="aria-label:<鍵>;title:<鍵>"`、差し込む値は `data-i18n-options='{"n":3}'`。
 - **英語はブラウザーで差し替える。** どの画面も `<head>` で、取り込んだ i18next・`/static/locales/ja.js`・`/static/locales/en.js`・`/static/i18n.js` の順に、`defer` を付けずに読む。訳の中身を同期の script で読むので、i18next は同期で起き、本文の script は起きた時から `window.callboardT(鍵, 値)` で字を引ける。
 - **言語の選び**: cookie `callboard-lang`（`ja` か `en` のほかの値は無い物とみなす）→ ブラウザーの言語の並びの初めの 1 つ（`en-US` は `en` に寄せる）→ 日本語。`ja`・`en` のほかは日本語。頭の帯の右の「日本語 / English」で選び直せ、選んだ物は cookie（1 年・`SameSite=Lax`）に残る。切り替えは JavaScript が出す（JavaScript が無い時は出さない）。選んだ言語の訳が届かなければ日本語のまま。i18next が届かない時も日本語のままで、`callboardT` は日本語の字を返す（本文の script が止まらないように、`i18n.js` が i18next を起こす前に出す仮の物。`{{名}}` に値を入れるだけ）。
+- **呼ぶ先に頼む言語**: castlist・pagetray が断った訳の字（誤りの `message`）は、呼ぶ先が言語を見て文にする（castlist 2.2.0・pagetray 2.1.0 から。それより前の版は、頭を読まずに日本語で返す）。callboard のサーバーは、画面の言語を上の「言語の選び」と同じ順（cookie `callboard-lang` → browser の `Accept-Language` の初めの 1 つ → 日本語。重み `;q=` は見ない）で決め、呼ぶ先へのどの頼みにも `Accept-Language: ja` か `Accept-Language: en` を付ける（`crates/server/src/lang.rs`。付ける所は `upstream.rs` の `ask` と、手で組む 2 つの頼み: 相関図の中継・file を上げる中継）。browser の header の字は、そのままでは渡さない。新着の知らせの中継（SSE）は、訳の字を運ばないので付けない。callboard は、ここでも英語を組まない（呼ぶ先の字を、値 `detail` として運ぶだけ）。JavaScript を切った英語の browser と、英語の訳（`/static/locales/en.js`）が届かなかった英語の browser では、日本語の画面に、呼ぶ先の英語の訳が入ることがある（サーバーは、browser が日本語に戻したことを知れない）。
 - **英語の時**: `<head>` の内に `<html>` へ `i18n-wait` を付けて本文を隠し、読み終えたら `[data-i18n]` と `[data-i18n-attr]` を差し替え、`lang="en"` にして外す。差し替えは `textContent` と属性でだけする（`innerHTML` は使わない）。途中で止まっても、`site.css` の守り（CSS だけで効く）が 1.5 秒で本文を日本語のまま見せる。
 - **JavaScript の決まり**: 新着で server の HTML を読み直す script は、比べと差し替えの前に `window.callboardLocalize(読み直した木)` で訳す。JavaScript は、起きた時に DOM の字を読まない（本文の終わりの script は差し替えより先に動くので、日本語を取る）。字は `callboardT` で引く。
 - **鍵を付ける要素の決まり**: `data-i18n` は、子の要素を持たない要素にだけ付ける（英語の時は字を丸ごと替えるので、子の link・強め・数の要素は消える）。字の中に link や時刻がある文は、その前と後で鍵を分け、それぞれを `<span>` に入れる。
