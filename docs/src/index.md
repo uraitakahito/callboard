@@ -15,5 +15,5 @@ castlist・pagetray と同じ守りを、callboard の入口に持つ。
 - host（callboard を動かす機械）の外からは届かない（`127.0.0.1` だけに出す）。`Host` が `127.0.0.1`・`localhost` でない要求と、`Origin` の付いた書く要求は 403（browser で開いたほかのページからの読み書きを断る物）。
 - 画面の応答には Content-Security-Policy を付け、callboard 自身が配る script と style だけを許す（inline の script と style も断る。form は callboard 自身へだけ送れる）。画面の字は日本語と英語で出す（サーバーが日本語を書き、英語はブラウザーの i18next が差し替える。JavaScript を切っても、相関図のほかは日本語で読める）。外の library（相関図の cytoscape と、字の i18next。どちらも MIT）も CDN から読まず、npm の物と同じかを CI で確かめて callboard が配る。
 - 1 つの問い合わせは 5 秒まで（過ぎれば 503）、本文は 2 MiB まで（超えれば 413）。
-- castlist と pagetray には、browser から来た header（`Origin`・`Cookie` など）を渡さない。`Host: 127.0.0.1` で聞く。
+- castlist と pagetray には、browser から来た header（`Origin`・`Cookie` など）を渡さない。`Host: 127.0.0.1` で聞く。言語だけは、`ja` か `en` に直して `Accept-Language` で伝える（[画面](ui.md) の「呼ぶ先に頼む言語」）。
 - container を起こす・止める・版を上げるのは、DevOps Engineer 担当だけ（repo の設定の `infra.callboard` は `tpm`。[動かす](run.md)）。
