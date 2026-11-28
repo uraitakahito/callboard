@@ -23,7 +23,7 @@ Apple Container（`container` CLI）で、release の image を動かす。host�
 | `CALLBOARD_CASTLIST_URL` | castlist に聞く先 | 無い（必ず書く） |
 | `CALLBOARD_PAGETRAY_URL` | pagetray に聞く先 | 無い（必ず書く） |
 | `CALLBOARD_PAGETRAY_LINK_URL` | browser が、pagetray の持つページの本文と file を開く URL の頭（ページの一覧の、本文の枠と file の link。その画面の CSP にも入る） | `http://127.0.0.1:8801` |
-| `CALLBOARD_EXCHANGES_SINCE` | メッセージを送る側（roster）が、返事の先（`replyTo`）を付け始めた時刻（RFC 3339。`2026-11-28T08:00:00Z` の形）。課題の筋（[画面](ui.md)）が、それより前に送った頼みを、返事が無くても待ちにしない | 無い（どの頼みも数える） |
+| `CALLBOARD_EXCHANGES_SINCE` | メッセージを送る側（roster）が、返事の先（`replyTo`）を付け始めた時刻（RFC 3339。`2026-11-28T08:00:00Z` の形）。課題の一覧と課題の筋（[画面](ui.md)）が、それより前に送った頼みを、返事が無くても待ちにしない。値は、送る側が、どの返事にも `replyTo` を付けるようになった時刻（roster なら、#295・#297・#298 のうち最後の #298 を、動かしている checkout に入れた時刻。早すぎる時刻にすると、その間の問いが返事待ちに見える） | 無い（どの頼みも数える） |
 
 - 聞く先と link の頭は、どれも `http://<host>:<port>` の形だけを受ける（path・`https://` は受けない）。
 - 0.1.0 にあった `CALLBOARD_CASTLIST_LINK_URL`（castlist の画面を開く URL の頭）は、0.2.0 で無くした（castlist の画面をみな移したので、指す先が無い）。書いてあっても読まない。
