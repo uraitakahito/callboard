@@ -138,7 +138,12 @@ fn asked_at(app: &App, at: &str) -> Vec<Vec<(String, String)>> {
     app.castlist
         .seen()
         .iter()
-        .filter(|seen| seen.uri.split_once('?').map_or(seen.uri.as_str(), |(p, _)| p) == at)
+        .filter(|seen| {
+            seen.uri
+                .split_once('?')
+                .map_or(seen.uri.as_str(), |(p, _)| p)
+                == at
+        })
         .map(|seen| {
             assert_eq!(seen.method, "GET");
             assert_eq!(seen.header("host"), Some("127.0.0.1"));
@@ -947,7 +952,7 @@ fn select(body: &str, key: &str) -> Vec<(String, String, bool)> {
     options(&body[start..end])
 }
 
-/// 選んである値（「（すべて）」なら無い）。
+/// 選んである値（「すべて」なら無い）。
 fn selected(options: &[(String, String, bool)]) -> Option<String> {
     let chosen: Vec<_> = options.iter().filter(|(_, _, s)| *s).collect();
     assert!(chosen.len() <= 1, "{options:?}");
@@ -1004,7 +1009,7 @@ async fn 役割と課題は_期間に稼働した席から_席の多い順の一
     assert_eq!(
         texts(&roles),
         [
-            ("", "（すべて）"),
+            ("", "すべて"),
             ("tpm.role:software-engineer", "software-engineer（2 席）"),
             ("tpm.role:tpm", "tpm（1 席）"),
         ]
@@ -1013,7 +1018,7 @@ async fn 役割と課題は_期間に稼働した席から_席の多い順の一
     assert_eq!(
         texts(&select(&body, "subject")),
         [
-            ("", "（すべて）"),
+            ("", "すべて"),
             ("tpm.subject:t-j4pp", "t-j4pp（2 席）"),
             ("tpm.subject:t-23zs", "t-23zs（1 席）"),
         ]
@@ -1036,15 +1041,17 @@ async fn 役割と課題は_期間に稼働した席から_席の多い順の一
     );
     // 英語は、ブラウザーが同じ鍵と値で差し替える（数は count で言い分ける）。
     assert!(
-        body.contains("data-i18n=\"usage.filters.choice\" data-i18n-options=\"{&#34;name&#34;:&#34;software-engineer&#34;,&#34;count&#34;:2}\""),
+        body.contains("data-i18n=\"usage.filters.choice\" data-i18n-options=\"{&#34;count&#34;:2,&#34;name&#34;:&#34;software-engineer&#34;}\""),
         "{body}"
     );
     assert!(
-        body.contains("data-i18n=\"usage.filters.seats\" data-i18n-options=\"{&#34;count&#34;:1}\""),
+        body.contains(
+            "data-i18n=\"usage.filters.seats\" data-i18n-options=\"{&#34;count&#34;:1}\""
+        ),
         "{body}"
     );
     assert!(
-        body.contains("<option value=\"\" data-i18n=\"usage.filters.all\">（すべて）</option>"),
+        body.contains("<option value=\"\" data-i18n=\"filters.all\">すべて</option>"),
         "{body}"
     );
 }
@@ -1052,8 +1059,10 @@ async fn 役割と課題は_期間に稼働した席から_席の多い順の一
 #[tokio::test]
 async fn 候補は_表示と同じ期間で_ラベルの絞りを付けずに_listactors_に_1_度聞く() {
     let app = sample().await;
-    app.html("/usage/?from=2026-11-22T10:30&to=2026-11-22T12:10&label=tpm.role:tpm&label=tpm.key:t-1")
-        .await;
+    app.html(
+        "/usage/?from=2026-11-22T10:30&to=2026-11-22T12:10&label=tpm.role:tpm&label=tpm.key:t-1",
+    )
+    .await;
     let usage = asked(&app);
     let actors = asked_at(&app, "/api/actors");
     assert_eq!(actors.len(), 1, "{actors:?}");
@@ -1108,16 +1117,14 @@ async fn 候補を引けなくても_使用量の画面は出し_一覧は今の
         callboard::Config::default(),
     )
     .await;
-    let (status, _, body) = app
-        .send(get(&format!("{WINDOW}&label=tpm.role:tpm")))
-        .await;
+    let (status, _, body) = app.send(get(&format!("{WINDOW}&label=tpm.role:tpm"))).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(body.contains("<section id=\"total\">"), "{body}");
     assert_eq!(
         texts(&select(&body, "role")),
-        [("", "（すべて）"), ("tpm.role:tpm", "tpm")]
+        [("", "すべて"), ("tpm.role:tpm", "tpm")]
     );
-    assert_eq!(texts(&select(&body, "subject")), [("", "（すべて）")]);
+    assert_eq!(texts(&select(&body, "subject")), [("", "すべて")]);
     assert!(datalist(&body).is_empty());
 }
 
