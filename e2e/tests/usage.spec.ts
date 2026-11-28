@@ -106,9 +106,9 @@ test('ラベルの絞りは、役割と課題の一覧と、候補付きの欄�
   await expect(field).toHaveAttribute('list', 'label-choices');
   const choices = page.locator('datalist#label-choices option');
   expect(await choices.evaluateAll((os) => os.map((o) => [(o as HTMLOptionElement).value, o.textContent]))).toEqual([
-    ['project:castlist', '5 席'],
-    ['tpm.key:t-23zs', '3 席'],
-    ['tpm.key:t-99', '1 席'],
+    ['project:castlist', 'project:castlist（5 席）'],
+    ['tpm.key:t-23zs', 'tpm.key:t-23zs（3 席）'],
+    ['tpm.key:t-99', 'tpm.key:t-99（1 席）'],
   ]);
   // 候補の値を欄に入れて送ると絞れる（castlist が絞る）。絞っても候補は減らない。
   await field.fill('tpm.key:t-99');
@@ -141,7 +141,11 @@ test('英語の画面では、絞りの欄の名と「すべて」と席の数�
   await expect(page.getByLabel('Issue').locator('option')).toHaveText(['All']);
   await expect(page.getByLabel('Other label')).toHaveAttribute('list', 'label-choices');
   // 数は 1 と 2 以上で言い分ける。値（ラベル）は訳さない。
-  await expect(page.locator('datalist#label-choices option')).toHaveText(['5 seats', '3 seats', '1 seat']);
+  await expect(page.locator('datalist#label-choices option')).toHaveText([
+    'project:castlist (5 seats)',
+    'tpm.key:t-23zs (3 seats)',
+    'tpm.key:t-99 (1 seat)',
+  ]);
   expect(problems).toEqual([]);
   await context.close();
 });

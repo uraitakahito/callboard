@@ -325,3 +325,18 @@ pub fn with_actors_down(routes: Router) -> Router {
         }),
     )
 }
+
+/// [`with_actors`] と同じだが、答える前に `delay` 待つ（候補を引くのが遅い castlist）。
+pub fn with_actors_slow(routes: Router, actors: Vec<Value>, delay: std::time::Duration) -> Router {
+    let page = json!({"asOf": "2026-11-22T06:00:00Z", "actors": actors});
+    routes.route(
+        "/api/actors",
+        get(move || {
+            let page = page.clone();
+            async move {
+                tokio::time::sleep(delay).await;
+                answer(StatusCode::OK, &page.to_string())
+            }
+        }),
+    )
+}

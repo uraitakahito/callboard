@@ -6,7 +6,7 @@ mod common;
 use axum::http::{StatusCode, header};
 use common::castlist::{
     PM, SE1, SE2, TPM, actor_row, usage_actor, usage_buckets, usage_page, usage_routes,
-    usage_routes_slow, usage_row, with_actors, with_actors_down,
+    usage_routes_slow, usage_row, with_actors, with_actors_down, with_actors_slow,
 };
 use common::{App, get};
 use serde_json::{Value, json};
@@ -1023,13 +1023,24 @@ async fn 役割と課題は_期間に稼働した席から_席の多い順の一
             ("tpm.subject:t-23zs", "t-23zs（1 席）"),
         ]
     );
-    // ほかの鍵は欄の候補。起こした回の id（tpm.launch）は出さない。
+    // 一覧の名は label で、送る値は「鍵:値」（URL は欄に打った時と同じ形）。
+    assert_eq!(body.matches("<select name=\"label\">").count(), 2, "{body}");
+    // ほかの鍵は欄の候補。起こした回の id（tpm.launch）は出さない。字にも値を書く（Firefox は候補に値の代わりに字を出すため）。
     assert_eq!(
         datalist(&body),
         [
-            ("tpm.key:t-23zs".to_owned(), "1 席".to_owned()),
-            ("tpm.key:t-j4pp".to_owned(), "1 席".to_owned()),
-            ("tpm.key:t-j4pp.staff".to_owned(), "1 席".to_owned()),
+            (
+                "tpm.key:t-23zs".to_owned(),
+                "tpm.key:t-23zs（1 席）".to_owned()
+            ),
+            (
+                "tpm.key:t-j4pp".to_owned(),
+                "tpm.key:t-j4pp（1 席）".to_owned()
+            ),
+            (
+                "tpm.key:t-j4pp.staff".to_owned(),
+                "tpm.key:t-j4pp.staff（1 席）".to_owned()
+            ),
         ]
     );
     assert!(!body.contains("tpm.launch"), "{body}");
@@ -1046,7 +1057,7 @@ async fn 役割と課題は_期間に稼働した席から_席の多い順の一
     );
     assert!(
         body.contains(
-            "data-i18n=\"usage.filters.seats\" data-i18n-options=\"{&#34;count&#34;:1}\""
+            "data-i18n=\"usage.filters.choice\" data-i18n-options=\"{&#34;count&#34;:1,&#34;name&#34;:&#34;tpm.key:t-23zs&#34;}\""
         ),
         "{body}"
     );
@@ -1157,4 +1168,33 @@ async fn 候補の字は_html_で逃がす() {
         "{body}"
     );
     assert!(body.contains("<option value=\"a:&#60;b&#62;\""), "{body}");
+}
+
+#[tokio::test]
+async fn 候補を引くのが遅くても_使用量の画面は待たせず_一覧は今の値だけ() {
+    let app = App::start_with(
+        with_actors_slow(
+            usage_routes(vec![usage_page(rows(), actors(), None)]),
+            active(),
+            std::time::Duration::from_secs(3),
+        ),
+        common::pagetray_routes(),
+        callboard::Config::default(),
+    )
+    .await;
+    let started = std::time::Instant::now();
+    let (status, _, body) = app.send(get(&format!("{WINDOW}&label=tpm.role:tpm"))).await;
+    // 候補は 1 秒で切る（使用量の数は ListUsage だけで決まる）。
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(2),
+        "{:?}",
+        started.elapsed()
+    );
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body.contains("<section id=\"total\">"), "{body}");
+    assert_eq!(
+        texts(&select(&body, "role")),
+        [("", "すべて"), ("tpm.role:tpm", "tpm")]
+    );
+    assert!(datalist(&body).is_empty());
 }
