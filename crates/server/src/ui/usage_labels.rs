@@ -44,22 +44,72 @@ pub struct Picked {
 
 /// 席ごとのラベル（鍵 → 値。席ごとに 1 つずつ）から、候補を作る。
 pub fn choices<'a>(actors: impl IntoIterator<Item = &'a HashMap<String, String>>) -> Choices {
-    let _ = actors;
-    Choices::default()
+    let mut seats: HashMap<(&str, &str), usize> = HashMap::new();
+    for labels in actors {
+        for (key, value) in labels {
+            if !SKIPPED.contains(&key.as_str()) {
+                *seats.entry((key.as_str(), value.as_str())).or_default() += 1;
+            }
+        }
+    }
+    let mut out = Choices::default();
+    for ((key, value), n) in seats {
+        let choice = Choice {
+            value: format!("{key}:{value}"),
+            name: value.to_owned(),
+            seats: Some(n),
+        };
+        match key {
+            ROLE => out.roles.push(choice),
+            SUBJECT => out.subjects.push(choice),
+            _ => out.others.push(choice),
+        }
+    }
+    for list in [&mut out.roles, &mut out.subjects, &mut out.others] {
+        list.sort_by(|a, b| b.seats.cmp(&a.seats).then_with(|| a.value.cmp(&b.value)));
+    }
+    out
 }
 
 /// URL の `label`（確かめた `鍵:値`）を、一覧と欄に振り分ける。
 pub fn pick(labels: &[String]) -> Picked {
-    Picked {
-        others: labels.to_vec(),
-        ..Picked::default()
+    let mut picked = Picked::default();
+    for label in labels {
+        let slot = match label.split_once(':') {
+            Some((ROLE, _)) => &mut picked.role,
+            Some((SUBJECT, _)) => &mut picked.subject,
+            _ => {
+                picked.others.push(label.clone());
+                continue;
+            }
+        };
+        if slot.is_none() {
+            *slot = Some(label.clone());
+        } else {
+            picked.others.push(label.clone());
+        }
     }
+    picked
 }
 
 impl Choices {
     /// 一覧に入れた今の値が候補に無ければ、席の数を付けずに足す。
     pub fn keep(&mut self, picked: &Picked) {
-        let _ = picked;
+        for (list, value) in [
+            (&mut self.roles, &picked.role),
+            (&mut self.subjects, &picked.subject),
+        ] {
+            let Some(value) = value else { continue };
+            if list.iter().any(|c| &c.value == value) {
+                continue;
+            }
+            let name = value.split_once(':').map_or(value.as_str(), |(_, v)| v);
+            list.push(Choice {
+                value: value.clone(),
+                name: name.to_owned(),
+                seats: None,
+            });
+        }
     }
 }
 
@@ -83,7 +133,10 @@ mod tests {
     }
 
     fn values(choices: &[Choice]) -> Vec<(&str, Option<usize>)> {
-        choices.iter().map(|c| (c.value.as_str(), c.seats)).collect()
+        choices
+            .iter()
+            .map(|c| (c.value.as_str(), c.seats))
+            .collect()
     }
 
     #[test]

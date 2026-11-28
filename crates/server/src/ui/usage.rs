@@ -26,11 +26,12 @@ use super::params::{self, LABEL_SHAPE, PageError, Pairs, Params, bad_request};
 use super::time::{OFFSET, Time, local, stamp, time};
 use super::timeline_layout;
 use super::usage_chart::{self as chart, Axis};
+use super::usage_labels::{self as labels, Choice, Choices, Picked};
 use super::usage_summary::{self as summary, BUCKET_WIDTH, LAST_BUCKET, OVER_BUCKET, Summary};
 use super::{CSS_HREF, Nav, error_page, render};
 use crate::App;
 use crate::upstream::Failure;
-use crate::upstream::castlist::{Cut, UsageAnswer, UsageSearch};
+use crate::upstream::castlist::{ActorSearch, Cut, UsageAnswer, UsageSearch};
 
 /// 使用量の道。
 pub const PATH: &str = "/usage/";
@@ -120,6 +121,21 @@ pub(super) fn recent(now: OffsetDateTime) -> (OffsetDateTime, OffsetDateTime) {
     let to = ceil_hour(now);
     (to - time::Duration::days(MAX_DAYS), to)
 }
+
+/// 絞りの候補を作る席の条件: 期間に稼働した席を、新しく登場した順に 1 頁（[`CANDIDATE_LIMIT`] まで）。ラベルの絞りは付けない。
+fn candidates((from, to): (OffsetDateTime, OffsetDateTime)) -> ActorSearch {
+    ActorSearch {
+        active_from: Some(DateTime::from_secs(from.unix_timestamp())),
+        active_to: Some(DateTime::from_secs(to.unix_timestamp())),
+        sort: "entered".to_owned(),
+        order: "desc".to_owned(),
+        limit: Some(CANDIDATE_LIMIT),
+        ..ActorSearch::default()
+    }
+}
+
+/// 絞りの候補を作る席の数の上限（castlist の 1 頁の上限）。越えた分の、古く登場した席のラベルは候補に出ない。
+const CANDIDATE_LIMIT: i32 = 1000;
 
 /// 揃えた期間の、castlist への条件。
 pub(super) fn search(
@@ -698,10 +714,10 @@ struct Charts {
     slot_col: Text,
 }
 
-/// 絞りの form に、今の値を入れて出す。
+/// 絞りの form に、今の値を入れて出す。ラベルは、役割と課題の一覧と「ほかのラベル」の欄に振り分ける（[`labels::pick`]）。
 #[derive(Default)]
 struct Form {
-    labels: Vec<String>,
+    picked: Picked,
     from: String,
     to: String,
 }
@@ -709,15 +725,65 @@ struct Form {
 impl Form {
     fn new(pairs: &Pairs) -> Self {
         let mut form = Self::default();
+        let mut given = Vec::new();
         for (name, value) in pairs {
             match name.as_str() {
-                "label" => form.labels.push(value.clone()),
+                "label" => given.push(value.clone()),
                 "from" => form.from = params::to_local(value),
                 "to" => form.to = params::to_local(value),
                 _ => {}
             }
         }
+        form.picked = labels::pick(&given);
         form
+    }
+}
+
+/// 一覧と欄の候補 1 つ（値・字・選んであるか）。
+struct ChoiceView {
+    value: String,
+    /// 一覧では「名（N 席）」、欄の候補では「N 席」。席の数が無ければ（候補に無かった今の値）名だけ。
+    text: Text,
+    selected: bool,
+}
+
+/// 絞りの候補（役割と課題の一覧・「ほかのラベル」の欄の候補）。
+struct ChoicesView {
+    roles: Vec<ChoiceView>,
+    subjects: Vec<ChoiceView>,
+    others: Vec<ChoiceView>,
+}
+
+impl ChoicesView {
+    fn new(mut choices: Choices, picked: &Picked) -> Self {
+        choices.keep(picked);
+        let listed = |list: Vec<Choice>, chosen: &Option<String>| -> Vec<ChoiceView> {
+            list.into_iter()
+                .map(|c| ChoiceView {
+                    selected: chosen.as_deref() == Some(c.value.as_str()),
+                    text: match c.seats {
+                        Some(n) => Text::new("usage.filters.choice")
+                            .with("name", &c.name)
+                            .with_num("count", n),
+                        None => Text::plain(c.name),
+                    },
+                    value: c.value,
+                })
+                .collect()
+        };
+        Self {
+            roles: listed(choices.roles, &picked.role),
+            subjects: listed(choices.subjects, &picked.subject),
+            others: choices
+                .others
+                .into_iter()
+                .map(|c| ChoiceView {
+                    text: Text::new("usage.filters.seats").with_num("count", c.seats.unwrap_or(0)),
+                    value: c.value,
+                    selected: false,
+                })
+                .collect(),
+        }
     }
 }
 
@@ -727,6 +793,8 @@ struct UsagePage<'a> {
     css: &'static str,
     nav: &'a Nav,
     form: Form,
+    /// 絞りの候補（表示と同じ期間に稼働した席のラベル）。
+    choices: ChoicesView,
     /// 期間をすぐ選ぶ link（名と URL）。
     quick: Vec<(Text, String)>,
     /// castlist に送った期間（時の境に揃えた後）。
@@ -788,12 +856,20 @@ async fn usage_page(
     let form = Form::new(&pairs);
     let quick = params::quick_links(PATH, &pairs, PERIOD, now);
     let search = search((from, to), labels, None);
+    // 絞りの候補は、同じ期間に稼働した席から（ラベルの絞りは付けない。絞っても候補が減らないように）。使用量の行と並べて聞く。
+    let active = candidates((from, to));
+    let (answer, active) = tokio::join!(app.castlist.usage(&search), app.castlist.actors(&active));
     // castlist が引数を断った時（callboard の確かめを通った物なので、ふつうは起きない）は、castlist の訳を、そのまま書く。
-    let answer = app
-        .castlist
-        .usage(&search)
-        .await
-        .map_err(|e| params::failed("castlist", e))?;
+    let answer = answer.map_err(|e| params::failed("castlist", e))?;
+    // 候補を引けなくても、使用量の数は出す（一覧は今の値だけ、欄は候補無し）。
+    let choices = match active {
+        Ok(output) => labels::choices(output.actors.iter().map(|a| &a.labels)),
+        Err(e) => {
+            tracing::warn!("使用量の絞りの候補を引けません: {e:?}");
+            Choices::default()
+        }
+    };
+    let choices = ChoicesView::new(choices, &form.picked);
     tokio::task::spawn_blocking(move || {
         let as_of = time(&answer.as_of);
         let too_many = answer.truncated == Some(Cut::Pages);
@@ -818,6 +894,7 @@ async fn usage_page(
             css: &CSS_HREF,
             nav: &app.nav,
             form,
+            choices,
             quick,
             from: time_of(from),
             to: time_of(to),

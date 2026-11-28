@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
+{% macro choice_options(list) %}<option value="" data-i18n="filters.all">{{ "filters.all"|t }}</option>{% for c in list %}<option value="{{ c.value }}"{% if c.selected %} selected{% endif %}{{ c.text.attrs()|safe }}>{{ c.text }}</option>{% endfor %}{% endmacro %}
 {% block title_attrs %} data-i18n="usage.title"{% endblock %}
 {% block title %}{{ "usage.title"|t }}{% endblock %}
 {% block main %}
@@ -8,10 +9,13 @@
 <fieldset>
 <legend data-i18n="filters.legend">{{ "filters.legend"|t }}</legend>
 <div class="fields">
-{% for label in form.labels %}
-<label><span data-i18n="filters.label">{{ "filters.label"|t }}</span> <input name="label" value="{{ label }}" placeholder="tpm.role:software-engineer"></label>
+<label><span data-i18n="usage.filters.role">{{ "usage.filters.role"|t }}</span> <select name="label">{% call choice_options(choices.roles) %}{% endcall %}</select></label>
+<label><span data-i18n="usage.filters.subject">{{ "usage.filters.subject"|t }}</span> <select name="label">{% call choice_options(choices.subjects) %}{% endcall %}</select></label>
+{% for label in form.picked.others %}
+<label><span data-i18n="usage.filters.otherLabel">{{ "usage.filters.otherLabel"|t }}</span> <input name="label" value="{{ label }}" list="label-choices" placeholder="tpm.key:t-23zs"></label>
 {% endfor %}
-<label><span data-i18n="filters.label">{{ "filters.label"|t }}</span> <input name="label" value="" placeholder="tpm.role:software-engineer"></label>
+<label><span data-i18n="usage.filters.otherLabel">{{ "usage.filters.otherLabel"|t }}</span> <input name="label" value="" list="label-choices" placeholder="tpm.key:t-23zs"></label>
+<datalist id="label-choices">{% for c in choices.others %}<option value="{{ c.value }}"{{ c.text.attrs()|safe }}>{{ c.text }}</option>{% endfor %}</datalist>
 <label><span data-i18n="usage.filters.from">{{ "usage.filters.from"|t }}</span> <input type="datetime-local" step="any" name="from" value="{{ form.from }}"></label>
 <label><span data-i18n="filters.to">{{ "filters.to"|t }}</span> <input type="datetime-local" step="any" name="to" value="{{ form.to }}"></label>
 </div>
