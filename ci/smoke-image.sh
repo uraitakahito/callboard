@@ -207,6 +207,15 @@ cmp -s "$tmp/got.js" "$here/../static/messages.js" || {
 # pagetray が断る引数は、pagetray の訳を書いた 400 の画面。
 test "$(curl -s -o "$tmp/messages.html" -w '%{http_code}' "$url/messages?at=zz")" = 400
 grep -qF 'pagetray が引数を断りました' "$tmp/messages.html"
+# 課題の一覧: 空の置き場なので、行が無い（同じ CSP・inline の style が無い・script は callboard が配る 1 つ）。
+curl -fsS -D "$tmp/tasks-head.txt" -o "$tmp/tasks.html" "$url/messages/tasks"
+tr -d '\r' <"$tmp/tasks-head.txt" | grep -qixF "content-security-policy: $csp"
+if grep -qiE '<style|style=' "$tmp/tasks.html"; then
+  echo "NG: 課題の一覧に inline の style がある" >&2
+  exit 1
+fi
+scripts_are "$tmp/tasks.html" 課題の一覧 '<script src="/static/tasks.js">'
+grep -qF '合う課題は無い' "$tmp/tasks.html"
 # 課題の筋: 空の置き場には記録が無いので、同じ CSP の付いた 404 の画面（pagetray の API に聞いた答え）。配る script は repo の物。
 test "$(curl -s -D "$tmp/thread-head.txt" -o "$tmp/thread.html" -w '%{http_code}' "$url/messages/tasks/K-1")" = 404
 tr -d '\r' <"$tmp/thread-head.txt" | grep -qixF "content-security-policy: $csp"

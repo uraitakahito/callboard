@@ -24,7 +24,7 @@ use super::exchanges::{self, Close, Exchange, Holder, Note};
 use super::i18n::{Text, filters};
 use super::params::{self, PageError, Pairs, bad_request, strict};
 use super::time::{Time, short};
-use super::{CSS_HREF, Nav, TASKS_JS_HREF, error_page, messages, render};
+use super::{CSS_HREF, Nav, TASKS_JS_HREF, error_page, messages, render, tasks};
 use crate::App;
 use crate::upstream::pagetray::{Message, MessageSearch};
 
@@ -231,9 +231,27 @@ struct Total {
 }
 
 /// 課題の今の様子。
-struct Status {
-    class: &'static str,
-    label: Text,
+pub(super) struct Status {
+    pub(super) class: &'static str,
+    pub(super) label: Text,
+}
+
+/// 課題の今の様子: 返事待ちがあれば「<誰> の返事待ち」（`waiting` は、帯と同じ順で前の者）、無くて `end` があれば「済み」、ほかは「次の依頼待ち」。
+pub(super) fn status(waiting: Option<Holder>, ended: bool) -> Status {
+    match waiting {
+        Some(holder) => Status {
+            class: holder.class(),
+            label: Text::new("thread.status.waiting").with_text("who", &holder.label()),
+        },
+        None if ended => Status {
+            class: "done",
+            label: Text::new("thread.status.done"),
+        },
+        None => Status {
+            class: "idle",
+            label: Text::new("thread.status.idle"),
+        },
+    }
 }
 
 #[derive(Template)]
@@ -245,6 +263,7 @@ struct ThreadPage<'a> {
     events: &'static str,
     key: String,
     messages_href: &'static str,
+    tasks_href: &'static str,
     reload_href: String,
     /// 絞っている時の、課題の全体へ戻る link。
     whole_href: Option<String>,
@@ -380,7 +399,7 @@ fn part(m: &Message) -> Part {
 }
 
 /// 本文の頭（見出しの【…】と URL を外し、空白をまとめた、初めの [`HEAD_CHARS`] 字）。URL は長く、要る物は短い名の link で出してある。
-fn head(m: &Message) -> String {
+pub(super) fn head(m: &Message) -> String {
     let body = m
         .text
         .strip_prefix(&format!("【{}】", m.heading))
@@ -568,32 +587,16 @@ async fn page<'a>(
     };
     let total = (whole.to - whole.from).max(0);
     let idle = total - spans.iter().map(|s| s.to - s.from).sum::<i64>();
-    let status = if waiting {
-        // 返事待ちがいくつもあれば、球の持ち手の帯と同じ順（PM・Staff・TPM・担当）で、前の者を出す。
-        let first_waiting = built
+    // 返事待ちがいくつもあれば、球の持ち手の帯と同じ順（PM・Staff・TPM・担当）で、前の者を出す。
+    let status = status(
+        built
             .exchanges
             .iter()
             .filter(|e| e.close == Close::Waiting)
             .map(|e| e.holder)
-            .min();
-        Status {
-            class: first_waiting.map_or("", Holder::class),
-            label: Text::new("thread.status.waiting").with_text(
-                "who",
-                &first_waiting.map_or_else(|| Text::plain(""), Holder::label),
-            ),
-        }
-    } else if found.iter().any(|m| m.heading == "end") {
-        Status {
-            class: "done",
-            label: Text::new("thread.status.done"),
-        }
-    } else {
-        Status {
-            class: "idle",
-            label: Text::new("thread.status.idle"),
-        }
-    };
+            .min(),
+        found.iter().any(|m| m.heading == "end"),
+    );
     Ok(ThreadPage {
         css: &CSS_HREF,
         nav: &app.nav,
@@ -601,6 +604,7 @@ async fn page<'a>(
         events: messages::EVENTS_PATH,
         key: key.to_owned(),
         messages_href: messages::PATH,
+        tasks_href: tasks::PATH,
         reload_href: here(at.as_deref()),
         whole_href: zoomed.map(|_| here(None)),
         status,

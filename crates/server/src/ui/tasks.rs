@@ -1,19 +1,35 @@
 //! 課題の一覧（`GET /messages/tasks`）: メッセージの記録を課題ごとにまとめ、最新の順に並べる。課題の筋（`/messages/tasks/{key}`）の入口。
-//! まだ作っていない（試験を先に書いた。形だけを置く）。
-#![allow(dead_code)]
+//!
+//! - 記録は、pagetray の API（ListMessages）で、新しい順に 1 度（[`PAGE_SIZE`] 通）読む。それより古い課題は、続きの link（`at`）で読む。
+//!   課題のまとめは、読んだ記録の中だけで作る（読んだ範囲より前に送った頼みの返事待ちは、ここには出ない。課題の筋を開けば出る）。
+//! - 課題は、Key の点の前の字でまとめる（[`super::thread::task_of`]）。Key の無い記録・課題の Key の形でない記録は、数えない。
+//! - 課題の今の様子は、課題の筋と同じ決め（往復の作り方は [`super::exchanges`]）: 返事待ちがあれば「<誰> の返事待ち」（帯と同じ順で前の者）、
+//!   無くて `end` があれば「済み」、ほかは「次の依頼待ち」。
+//! - 引数は `project`・`waiting`（`1` なら、返事待ちの課題だけ）・`at`（続きの印。ListMessages の `nextToken`）。知らない引数は無視する。
+//!   値の形は pagetray が確かめる（断られたら、pagetray の訳を書いた 400 の画面）。
 use std::sync::Arc;
 
-use axum::extract::State;
+use askama::Template;
+use aws_smithy_types::DateTime;
+use axum::extract::rejection::QueryRejection;
+use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::Response;
 
-use super::error_page;
-use super::exchanges::{Holder, Note};
-use super::i18n::Text;
+use super::exchanges::{self, Close, Holder, Note};
+use super::i18n::{Text, filters};
+use super::params::{self, PageError, Pairs, bad_request, strict};
+use super::thread::{self, Status};
+use super::time::{Time, short};
+use super::{CSS_HREF, Nav, TASKS_JS_HREF, error_page, messages, render};
 use crate::App;
+use crate::upstream::pagetray::MessageSearch;
 
 /// 一覧の道。
 pub const PATH: &str = "/messages/tasks";
+
+/// 1 度に読む数（ListMessages の上限）。
+const PAGE_SIZE: i32 = 1000;
 
 /// 課題の、返事待ち（球の持ち手は、帯と同じ順で前の者。`since` は、その者への、いちばん古い返事待ちの頼みの時刻）。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -41,17 +57,223 @@ pub struct Task {
 
 /// 記録（どの順でもよい）を、課題ごとにまとめる（最新の 1 通が新しい順）。`keys` は記録ごとの Key（無い記録・課題の Key の形でない記録は、数えない）。
 pub fn summarize(keys: &[Option<String>], notes: &[Note], since: Option<i64>) -> Vec<Task> {
-    let _ = (keys, notes, since);
-    Vec::new()
+    // 課題ごとの、記録の位置（出てきた順）。
+    let mut groups: Vec<(&str, Vec<usize>)> = Vec::new();
+    for (i, key) in keys.iter().enumerate().take(notes.len()) {
+        let Some(task) = key
+            .as_deref()
+            .map(thread::task_of)
+            .filter(|task| thread::is_task_key(task))
+        else {
+            continue;
+        };
+        match groups.iter_mut().find(|(name, _)| *name == task) {
+            Some((_, members)) => members.push(i),
+            None => groups.push((task, vec![i])),
+        }
+    }
+    let mut tasks: Vec<Task> = groups
+        .into_iter()
+        .map(|(key, mut members)| {
+            // 往復は、送った時刻の順（同じ時刻は id の順）で作る。
+            members.sort_by(|&a, &b| {
+                notes[a]
+                    .sent
+                    .cmp(&notes[b].sent)
+                    .then_with(|| notes[a].id.cmp(&notes[b].id))
+            });
+            let ordered: Vec<Note> = members.iter().map(|&i| notes[i].clone()).collect();
+            let built = exchanges::build(&ordered, since);
+            let open: Vec<_> = built
+                .exchanges
+                .iter()
+                .filter(|e| e.close == Close::Waiting)
+                .collect();
+            let waiting = open.iter().map(|e| e.holder).min().map(|holder| Waiting {
+                holder,
+                since: open
+                    .iter()
+                    .filter(|e| e.holder == holder)
+                    .map(|e| ordered[e.request].sent)
+                    .min()
+                    .unwrap_or_default(),
+                count: open.len(),
+            });
+            let latest = members[members.len() - 1];
+            Task {
+                key: key.to_owned(),
+                count: members.len(),
+                first: notes[members[0]].sent,
+                last: notes[latest].sent,
+                latest,
+                done: waiting.is_none() && ordered.iter().any(|n| n.heading == "end"),
+                waiting,
+            }
+        })
+        .collect();
+    tasks.sort_by(|a, b| b.last.cmp(&a.last).then_with(|| a.key.cmp(&b.key)));
+    tasks
+}
+
+/// 画面の引数（空でない値だけ）。
+#[derive(Clone, Default)]
+struct View {
+    project: Option<String>,
+    waiting: bool,
+    /// 並びの続きの印（前の頁の答えの `nextToken`）。
+    at: Option<String>,
+}
+
+impl View {
+    fn read(pairs: &Pairs) -> Self {
+        let one = |name: &str| {
+            pairs
+                .iter()
+                .find(|(n, v)| n == name && !v.trim().is_empty())
+                .map(|(_, v)| v.clone())
+        };
+        Self {
+            project: one("project"),
+            waiting: one("waiting").as_deref() == Some("1"),
+            at: one("at"),
+        }
+    }
+
+    /// この条件の一覧の URL。空の条件は出さない。
+    fn href(&self) -> String {
+        let mut query: Vec<String> = Vec::new();
+        if let Some(project) = &self.project {
+            query.push(format!("project={}", strict(project)));
+        }
+        if self.waiting {
+            query.push("waiting=1".to_owned());
+        }
+        if let Some(at) = &self.at {
+            query.push(format!("at={}", strict(at)));
+        }
+        if query.is_empty() {
+            PATH.to_owned()
+        } else {
+            format!("{PATH}?{}", query.join("&"))
+        }
+    }
+}
+
+/// 一覧の、課題 1 つの行。
+struct Row {
+    key: String,
+    href: String,
+    status: Status,
+    /// 返事待ちの、いつから（その者への、いちばん古い頼みの時刻）。
+    since: Option<Time>,
+    /// ほかの返事待ちの数（0 なら出さない）。
+    others: usize,
+    count: usize,
+    first: Time,
+    last: Time,
+    /// 最新の 1 通の見出しと、本文の頭。
+    heading: String,
+    head: String,
+}
+
+#[derive(Template)]
+#[template(path = "tasks.html")]
+struct TasksPage<'a> {
+    css: &'static str,
+    nav: &'a Nav,
+    script: &'static str,
+    events: &'static str,
+    messages_href: &'static str,
+    reload_href: String,
+    /// 返事待ちの課題の数（読んだ範囲の中）と、「返事待ちだけ」の釦の先（絞っていれば、外す先）・今絞っているか。
+    waiting: usize,
+    waiting_href: String,
+    waiting_active: bool,
+    /// 読んだ記録の数。
+    read: usize,
+    rows: Vec<Row>,
+    more_href: Option<String>,
 }
 
 /// `GET /messages/tasks`。
-pub async fn tasks(State(app): State<Arc<App>>) -> Response {
-    error_page(
-        &app.nav,
-        StatusCode::NOT_FOUND,
-        &Text::new("error.noSuchScreen"),
-    )
+pub async fn tasks(
+    State(app): State<Arc<App>>,
+    q: Result<Query<Pairs>, QueryRejection>,
+) -> Response {
+    match page(&app, q).await {
+        Ok(page) => render(StatusCode::OK, &page),
+        Err(PageError(status, message)) => error_page(&app.nav, status, &message),
+    }
+}
+
+/// 引数を読み、pagetray に聞き、画面を組む。
+async fn page(
+    app: &App,
+    q: Result<Query<Pairs>, QueryRejection>,
+) -> Result<TasksPage<'_>, PageError> {
+    let pairs = params::pairs(q).map_err(|_| bad_request(Text::new("errors.badArguments")))?;
+    let view = View::read(&pairs);
+    let found = app
+        .pagetray
+        .messages(&MessageSearch {
+            project: view.project.clone(),
+            after: view.at.clone(),
+            limit: PAGE_SIZE,
+            ..MessageSearch::default()
+        })
+        .await
+        .map_err(|e| params::failed("pagetray", e))?;
+    let keys: Vec<Option<String>> = found.messages.iter().map(|m| m.key.clone()).collect();
+    let notes = thread::notes(&found.messages);
+    let all = summarize(&keys, &notes, app.exchanges_since);
+    let waiting = all.iter().filter(|t| t.waiting.is_some()).count();
+    let rows = all
+        .into_iter()
+        .filter(|t| !view.waiting || t.waiting.is_some())
+        .map(|t| {
+            let latest = &found.messages[t.latest];
+            Row {
+                href: thread::href(&t.key, view.project.as_deref()),
+                status: thread::status(t.waiting.map(|w| w.holder), t.done),
+                since: t.waiting.map(|w| short(&DateTime::from_millis(w.since))),
+                others: t.waiting.map_or(0, |w| w.count - 1),
+                count: t.count,
+                first: short(&DateTime::from_millis(t.first)),
+                last: short(&DateTime::from_millis(t.last)),
+                heading: latest.heading.clone(),
+                head: thread::head(latest),
+                key: t.key,
+            }
+        })
+        .collect();
+    let with = |change: fn(&mut View)| {
+        let mut next = View {
+            at: None,
+            ..view.clone()
+        };
+        change(&mut next);
+        next.href()
+    };
+    Ok(TasksPage {
+        css: &CSS_HREF,
+        nav: &app.nav,
+        script: &TASKS_JS_HREF,
+        events: messages::EVENTS_PATH,
+        messages_href: messages::PATH,
+        reload_href: view.href(),
+        waiting,
+        waiting_href: with(|v| v.waiting = !v.waiting),
+        waiting_active: view.waiting,
+        read: found.messages.len(),
+        rows,
+        more_href: found.next_token.map(|at| {
+            View {
+                at: Some(at),
+                ..view.clone()
+            }
+            .href()
+        }),
+    })
 }
 
 #[cfg(test)]

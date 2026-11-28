@@ -146,6 +146,7 @@
     "again": "Redelivered: {{n}}",
     "empty": "No matching messages",
     "toThread": "Show the thread of this task (exchanges from request to reply)",
+    "toTasks": "By task",
     "foot": "Times are Japan time (UTC+9), as written by the sender. Hover over a time to see it in ISO 8601.",
     "state": {
       "waiting": "Not yet delivered",
@@ -213,6 +214,15 @@
       "minutes": "{{n}} min",
       "hours": "{{n}} h"
     }
+  },
+  "tasks": {
+    "title": "By task ・ Message log ・ callboard",
+    "waiting": "Waiting only ({{n}})",
+    "window": "Built from the newest {{n}} messages",
+    "since": "since",
+    "others": "{{n}} more waiting",
+    "count": "{{n}} messages",
+    "empty": "No matching tasks"
   },
   "network": {
     "title": "Network · callboard",

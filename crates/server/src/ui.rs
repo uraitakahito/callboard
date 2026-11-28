@@ -1,10 +1,10 @@
 //! 画面: 入口（`/`）・アクターの一覧（`/actors/`）・プロフィール（`/actors/{id}`）・タイムライン（`/graph/timeline`）・
-//! 相関図（`/graph/network`）・使用量（`/usage/`）・メッセージの一覧（`/messages`）・課題の筋（`/messages/tasks/{key}`）・
+//! 相関図（`/graph/network`）・使用量（`/usage/`）・メッセージの一覧（`/messages`）・課題の一覧（`/messages/tasks`）・課題の筋（`/messages/tasks/{key}`）・
 //! ページの一覧（`/pages/`）と、それが読む CSS（`/static/site.css`）と script（`/static/network.js` と取り込んだ cytoscape、
 //! `/static/messages.js`、`/static/tasks.js`、`/static/pages.js`、取り込んだ i18next）。
 //!
 //! - サーバーが HTML を組んで返す（askama。`templates/`）。字はみな HTML として逃がす。
-//!   script を使うのは相関図・メッセージの一覧・課題の筋・ページの一覧だけで、callboard が配る file だけを読む（inline の script は無い）。
+//!   script を使うのは相関図・メッセージの一覧・課題の一覧と課題の筋・ページの一覧だけで、callboard が配る file だけを読む（inline の script は無い）。
 //! - CSP（[`crate::CSP`]）が inline の script と style を断るので、style は callboard が配る CSS の file だけ。
 //! - ページの本文と file の中身は pagetray が持つ。ページの一覧の、本文の枠と file の link は、pagetray の link の頭
 //!   （[`crate::config`]）で組む（[`pages`]）。
@@ -75,7 +75,7 @@ static MESSAGES_JS_HREF: LazyLock<String> =
 const PAGES_JS: &str = include_str!("../../../static/pages.js");
 
 static PAGES_JS_HREF: LazyLock<String> = LazyLock::new(|| versioned("/static/pages.js", PAGES_JS));
-/// 課題の筋（`/messages/tasks/{key}`）の、新着の知らせの script。
+/// 課題の一覧（`/messages/tasks`）と課題の筋（`/messages/tasks/{key}`）の、新着の知らせの script。
 const TASKS_JS: &str = include_str!("../../../static/tasks.js");
 
 static TASKS_JS_HREF: LazyLock<String> = LazyLock::new(|| versioned("/static/tasks.js", TASKS_JS));
@@ -153,7 +153,7 @@ async fn pages_js() -> Response {
     asset("application/javascript; charset=utf-8", PAGES_JS)
 }
 
-/// `GET /static/tasks.js`: 課題の筋の script。
+/// `GET /static/tasks.js`: 課題の一覧と課題の筋の script。
 async fn tasks_js() -> Response {
     asset("application/javascript; charset=utf-8", TASKS_JS)
 }
