@@ -173,6 +173,7 @@
     "singles": "・ {{n}} one-way",
     "unlinked": "{{n}} older records have no reply target (they are not linked to a request, so they are not drawn as bars)",
     "partial": "This is an old task; only the records of the assignee and the review seat are shown",
+    "projects": "Records of several projects are mixed. Choose a project:",
     "latest": "Latest message",
     "ball": "Who held the ball",
     "idle": "Nobody",

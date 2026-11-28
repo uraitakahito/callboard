@@ -1,4 +1,4 @@
-//! 往復を作る（課題の筋 `GET /messages/tasks/{key}` と、課題の一覧 `GET /messages/tasks` の元）。
+//! 往復を作る（課題の筋 `GET /messages/tasks/{key}` の元）。
 //!
 //! メッセージの記録（pagetray の `Message`）を、頼みから返事までの往復と、片道の知らせに分ける。画面は持たない（字と位置は `thread.rs`）。
 //!
@@ -9,7 +9,8 @@
 //!   2. `dismiss`: その席への、まだ返事の無い `brief` をみな（取り消した）。
 //!   3. `end`: その席が送った・受けた、まだ返事の無い頼みをみな（返事なしで終わった）。
 //! - **古い記録**: 送る側が `replyTo` を付け始める前の記録は、頼みと返事がつながっていない。`since`（付け始めた時刻。設定
-//!   `CALLBOARD_EXCHANGES_SINCE`）より前に送った頼みで、返事の無い物は、待ちにせず片道として出す。見出しで往復を推すことはしない
+//!   `CALLBOARD_EXCHANGES_SINCE`）より前に送った頼みは、`replyTo` の返事でつながった時だけ往復にし、ほかは片道として出す
+//!   （返事が無い時も、`dismiss`・`end` が閉じた時も）。見出しで往復を推すことはしない
 //!   （うその待ち・うその往復を出さない）。
 
 use super::i18n::Text;
@@ -170,7 +171,9 @@ pub fn build(notes: &[Note], since: Option<i64>) -> Exchanges {
     let mut out = Exchanges::default();
     for (i, note) in notes.iter().enumerate() {
         let old = since.is_some_and(|since| note.sent < since);
-        if is_request(&note.heading) && !(old && close[i] == Close::Waiting) {
+        // 付け始めた時刻より前の頼みは、返事の先でつながった時だけ往復にする。返事が無い時も、前の記録の dismiss・end が閉じた時も、
+        // 片道で出す（前の版の依頼書には、返事の先の無い done が返っている。「取り消した」と出すと、うその往復になる）。
+        if is_request(&note.heading) && !(old && !matches!(close[i], Close::Replied(_))) {
             out.exchanges.push(Exchange {
                 request: i,
                 close: close[i],

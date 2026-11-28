@@ -95,10 +95,14 @@ test('英語にすると、種類・持ち手・長さ・課題の様子が英�
   // 知らせが browser に届くのを待つ（同じ流れで、後から置いたこの課題の席の記録で印が出るのを待てば、前の 2 つは届いている）。
   await putMessage(request, PROJECT, 'n0', message('review', 'TH-1.staff', 'TH-1', '04:07:00', '席の記録', { key: 'TH-1.staff' }));
   await expect(page.locator('#fresh')).toBeVisible();
+  const again = page.waitForResponse((r) => r.url().endsWith('/api/pagetray/events') && r.status() === 200);
   await page.reload();
-  await page.waitForResponse((r) => r.url().endsWith('/api/pagetray/events') && r.status() === 200);
+  await again;
   await expect(page.locator('#fresh')).toBeHidden();
   await putMessage(request, PROJECT, 'o3', message('notify', 'tpm', 'TH-10', '04:08:00', 'ほかの課題の知らせ'));
+  // ほかの課題の知らせが届く間を置いても、印は出ない（出ないことは、待って見るほかない）。
+  await page.waitForTimeout(500);
+  await expect(page.locator('#fresh')).toBeHidden();
   await putMessage(request, PROJECT, 'n1', message('notify', 'tpm', 'TH-1', '04:10:00', '後からの知らせ'));
   await expect(page.locator('#fresh')).toBeVisible();
   await expect(page.locator('#fresh')).toHaveText('● New records (reload)');

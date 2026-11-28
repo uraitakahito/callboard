@@ -88,8 +88,9 @@ fn chips(text: &str) -> Vec<Chip> {
         let end = tail
             .find(|c: char| c.is_whitespace() || "（）「」、。／・".contains(c))
             .unwrap_or(tail.len());
-        let url = &tail[..end];
         rest = &tail[end.max(4)..];
+        // 後ろに続く ASCII の記号（括弧・句読点・引用符）は、URL に入れない。
+        let url = tail[..end].trim_end_matches([')', ']', ',', '.', ';', '\'', '"', '>']);
         if !(url.starts_with("http://") || url.starts_with("https://")) {
             continue;
         }
@@ -255,8 +256,10 @@ struct ThreadPage<'a> {
     last: Time,
     /// 返事の先でつながらなかった、古い記録の数。
     unlinked: usize,
-    /// 候補に無い古い課題で、席の記録を読み切れていないかもしれない。
+    /// 候補に無い古い課題か、記録が多くて、読み切れていないかもしれない。
     partial: bool,
+    /// いくつもの project の記録が混ざっている時の、project ごとの link（名と URL）。1 つだけなら空。
+    projects: Vec<(String, String)>,
     latest: Part,
     holders: Vec<Total>,
     /// 誰も球を持っていなかった長さ（0 なら出さない）。
@@ -308,8 +311,9 @@ pub(super) async fn read(
         .map(|c| c.value.clone())
         .filter(|k| k == task || k.starts_with(&prefix))
         .collect();
-    // 候補は新しい 100 個まで。満ちている時は、古い課題の席の Key が漏れているかもしれない（Staff の席の分は、名が決まっているので読む）。
-    let partial = facets.keys.len() >= 100;
+    // 候補は新しい 100 個まで。名指した Key がその中に無い時だけ、pagetray が後ろに 1 つ足す（101 個になる）。その時は、古い課題で、
+    // 席の Key が候補から漏れているかもしれない（Staff の席の分は、名が決まっているので読む）。
+    let mut partial = facets.keys.len() > 100;
     for known in [task.to_owned(), format!("{task}.staff")] {
         if !keys.contains(&known) {
             keys.push(known);
@@ -336,6 +340,8 @@ pub(super) async fn read(
                 break;
             }
         }
+        // 頁が残ったまま終わった（Key 1 つで [`MAX_PAGES`] 頁を超える）。読み切れていない。
+        partial |= after.is_some();
     }
     found.sort_by(|a, b| {
         a.sent_at
@@ -413,6 +419,18 @@ async fn page<'a>(
     let (found, partial) = read(app, key, project.as_deref()).await?;
     let (Some(first), Some(last)) = (found.first(), found.last()) else {
         return Err(not_found());
+    };
+    // project を名指さずに開いて、いくつもの project の記録が当たった時は、選ぶ link を出す（返事の先は id で引くので、混ぜると取り違えうる）。
+    let mut names: Vec<&str> = found.iter().map(|m| m.project.as_str()).collect();
+    names.sort_unstable();
+    names.dedup();
+    let projects: Vec<(String, String)> = if names.len() > 1 {
+        names
+            .iter()
+            .map(|&p| (p.to_owned(), href(key, Some(p))))
+            .collect()
+    } else {
+        Vec::new()
     };
     let notes = notes(&found);
     let built = exchanges::build(&notes, app.exchanges_since);
@@ -593,6 +611,7 @@ async fn page<'a>(
         last: short(&last.sent_at),
         unlinked: built.unlinked,
         partial,
+        projects,
         latest: part(last),
         holders: Holder::ALL
             .into_iter()

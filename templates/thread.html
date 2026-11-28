@@ -3,7 +3,7 @@
 {% block title %}{{ "thread.title"|t1("key", key.as_str()) }}{% endblock %}
 {% block body %} class="fill"{% endblock %}
 {% block main %}
-<div class="tray thread" data-events="{{ events }}">
+<div class="tray thread" data-events="{{ events }}" data-key="{{ key }}">
 <div class="toolbar" id="toolbar" role="group" aria-label="{{ "common.tray.toolbar"|t }}" data-i18n-attr="aria-label:common.tray.toolbar">
 <h1><a href="{{ messages_href }}" data-i18n="messages.heading">{{ "messages.heading"|t }}</a></h1>
 <a class="btn" href="{{ messages_href }}" data-i18n="thread.toMessages">{{ "thread.toMessages"|t }}</a>
@@ -15,6 +15,7 @@
 <p class="thread-sum"><span data-i18n="thread.summary" data-i18n-options="{{ "n"|opts2(count, "exchanges", exchanges) }}">{{ "thread.summary"|t2("n", count, "exchanges", exchanges) }}</span> <span data-i18n="thread.singles" data-i18n-options="{{ "n"|opts1(singles) }}">{{ "thread.singles"|t1("n", singles) }}</span> <time datetime="{{ first.iso }}" title="{{ first.iso }}">{{ first.local }}</time> 〜 <time datetime="{{ last.iso }}" title="{{ last.iso }}">{{ last.local }}</time></p>
 {% if unlinked > 0 %}<p class="thread-note" data-i18n="thread.unlinked" data-i18n-options="{{ "n"|opts1(unlinked) }}">{{ "thread.unlinked"|t1("n", unlinked) }}</p>{% endif %}
 {% if partial %}<p class="thread-note" data-i18n="thread.partial">{{ "thread.partial"|t }}</p>{% endif %}
+{% if !projects.is_empty() %}<p class="thread-note"><span data-i18n="thread.projects">{{ "thread.projects"|t }}</span>{% for (name, href) in projects %} <a href="{{ href }}">{{ name }}</a>{% endfor %}</p>{% endif %}
 <section class="latest" aria-label="{{ "thread.latest"|t }}" data-i18n-attr="aria-label:thread.latest">
 <p class="meta"><strong data-i18n="thread.latest">{{ "thread.latest"|t }}</strong> <span class="name">{{ latest.heading }}</span> <span>{{ latest.from }} → {{ latest.to }}</span> <time datetime="{{ latest.sent.iso }}" title="{{ latest.sent.iso }}">{{ latest.sent.local }}</time>{% if let Some(at) = latest.delivered %} <span><span data-i18n="messages.delivered">{{ "messages.delivered"|t }}</span> <time datetime="{{ at.iso }}" title="{{ at.iso }}">{{ at.local }}</time></span>{% endif %}</p>
 <pre>{{ latest.text }}</pre>
