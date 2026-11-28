@@ -1,12 +1,14 @@
 //! 画面: 入口（`/`）・アクターの一覧（`/actors/`）・プロフィール（`/actors/{id}`）・タイムライン（`/graph/timeline`）・
-//! 相関図（`/graph/network`）・使用量（`/usage/`）・メッセージの一覧（`/messages`）・ページの一覧（`/pages/`）と、それが読む CSS
-//! （`/static/site.css`）と script（`/static/network.js` と取り込んだ cytoscape、`/static/messages.js`、`/static/pages.js`、取り込んだ i18next）。
+//! 相関図（`/graph/network`）・使用量（`/usage/`）・メッセージの一覧（`/messages`）・課題の筋（`/messages/tasks/{key}`）・
+//! ページの一覧（`/pages/`）と、それが読む CSS（`/static/site.css`）と script（`/static/network.js` と取り込んだ cytoscape、
+//! `/static/messages.js`、`/static/tasks.js`、`/static/pages.js`、取り込んだ i18next）。
 //!
 //! - サーバーが HTML を組んで返す（askama。`templates/`）。字はみな HTML として逃がす。
-//!   script を使うのは相関図・メッセージの一覧・ページの一覧だけで、callboard が配る file だけを読む（inline の script は無い）。
+//!   script を使うのは相関図・メッセージの一覧・課題の筋・ページの一覧だけで、callboard が配る file だけを読む（inline の script は無い）。
 //! - CSP（[`crate::CSP`]）が inline の script と style を断るので、style は callboard が配る CSS の file だけ。
 //! - ページの本文と file の中身は pagetray が持つ。ページの一覧の、本文の枠と file の link は、pagetray の link の頭
 //!   （[`crate::config`]）で組む（[`pages`]）。
+mod exchanges;
 pub(crate) mod i18n;
 mod list;
 mod messages;
@@ -14,6 +16,7 @@ mod network;
 mod pages;
 mod params;
 mod profile;
+mod thread;
 mod time;
 mod timeline;
 mod timeline_layout;
@@ -71,6 +74,10 @@ static MESSAGES_JS_HREF: LazyLock<String> =
 const PAGES_JS: &str = include_str!("../../../static/pages.js");
 
 static PAGES_JS_HREF: LazyLock<String> = LazyLock::new(|| versioned("/static/pages.js", PAGES_JS));
+/// 課題の筋（`/messages/tasks/{key}`）の、新着の知らせの script。
+const TASKS_JS: &str = include_str!("../../../static/tasks.js");
+
+static TASKS_JS_HREF: LazyLock<String> = LazyLock::new(|| versioned("/static/tasks.js", TASKS_JS));
 static CSS_HREF: LazyLock<String> = LazyLock::new(|| versioned("/static/site.css", SITE_CSS));
 static NETWORK_JS_HREF: LazyLock<String> =
     LazyLock::new(|| versioned("/static/network.js", NETWORK_JS));
@@ -143,6 +150,11 @@ async fn messages_js() -> Response {
 /// `GET /static/pages.js`: ページの一覧の script。
 async fn pages_js() -> Response {
     asset("application/javascript; charset=utf-8", PAGES_JS)
+}
+
+/// `GET /static/tasks.js`: 課題の筋の script。
+async fn tasks_js() -> Response {
+    asset("application/javascript; charset=utf-8", TASKS_JS)
 }
 
 /// `GET /static/network.js`: 相関図を描く script。
@@ -280,6 +292,7 @@ pub fn routes(app: Arc<App>) -> Router {
         .route(usage::PATH, get(usage::usage))
         .route(messages::PATH, get(messages::messages))
         .route(messages::EVENTS_PATH, get(messages::events))
+        .route(thread::ROUTE, get(thread::thread))
         .route(pages::PATH, get(pages::pages))
         .route("/pages", get(pages::redirect))
         .route(pages::UPLOAD_ROUTE, axum::routing::post(pages::upload))
@@ -288,6 +301,7 @@ pub fn routes(app: Arc<App>) -> Router {
         .route("/static/network.js", get(network_js))
         .route("/static/messages.js", get(messages_js))
         .route("/static/pages.js", get(pages_js))
+        .route("/static/tasks.js", get(tasks_js))
         .route(CYTOSCAPE_PATH, get(cytoscape_js))
         .route(i18n::I18NEXT_PATH, get(i18next_js))
         .route("/static/i18n.js", get(i18n_js))

@@ -6,11 +6,15 @@
 //! | `CALLBOARD_CASTLIST_URL` | castlist に聞く先 | 無い（要る） |
 //! | `CALLBOARD_PAGETRAY_URL` | pagetray に聞く先 | 無い（要る） |
 //! | `CALLBOARD_PAGETRAY_LINK_URL` | browser が pagetray を開く URL の頭 | `http://127.0.0.1:8801` |
+//! | `CALLBOARD_EXCHANGES_SINCE` | メッセージを送る側が、返事の先（`replyTo`）を付け始めた時刻（RFC 3339） | 無い |
 //!
 //! 聞く先と link の頭は別に持つ。callboard は container の中から聞き（`http://castlist.box:8080` など）、link は人が host の
 //! browser で開く（`http://127.0.0.1:8801` など）ので、届く所が違う。どれも `http://<host>:<port>` の形だけを受ける。
 //! castlist の link の頭（`CALLBOARD_CASTLIST_LINK_URL`。0.1.0 にあった）は、castlist の画面をみな callboard に移したので無くした
 //! （書いてあっても読まない）。
+//!
+//! `CALLBOARD_EXCHANGES_SINCE` は、課題の筋（`/messages/tasks/{key}`）が読む。それより前に送った頼みは、返事が無くても待ちにしない
+//! （返事の先を付ける前の記録は、頼みと返事がつながっていない）。無ければ、どの頼みも数える。
 
 /// 待ち受ける所の既定（container の中）。
 pub const DEFAULT_LISTEN: &str = "0.0.0.0:8080";
@@ -33,6 +37,8 @@ pub struct Settings {
     /// castlist に聞く先（`http://<host>:<port>`）。
     pub castlist: String,
     pub pagetray: Base,
+    /// 送る側が返事の先を付け始めた時刻（UNIX のミリ秒）。
+    pub exchanges_since: Option<i64>,
 }
 
 impl Settings {
@@ -53,7 +59,22 @@ impl Settings {
         };
         let link =
             get("CALLBOARD_PAGETRAY_LINK_URL").unwrap_or_else(|| DEFAULT_PAGETRAY_LINK.to_owned());
+        let exchanges_since = get("CALLBOARD_EXCHANGES_SINCE")
+            .map(|value| {
+                time::OffsetDateTime::parse(
+                    &value,
+                    &time::format_description::well_known::Rfc3339,
+                )
+                .map(|t| i64::try_from(t.unix_timestamp_nanos() / 1_000_000).unwrap_or(i64::MAX))
+                .map_err(|_| {
+                    format!(
+                        "CALLBOARD_EXCHANGES_SINCE は RFC 3339 の時刻（2026-11-28T08:00:00Z の形。{value}）"
+                    )
+                })
+            })
+            .transpose()?;
         Ok(Self {
+            exchanges_since,
             listen: get("CALLBOARD_LISTEN").unwrap_or_else(|| DEFAULT_LISTEN.to_owned()),
             castlist: api("CASTLIST")?,
             pagetray: Base {
@@ -156,5 +177,33 @@ mod tests {
             let error = read(&pairs).unwrap_err();
             assert!(error.contains(name) && error.contains(value), "{error}");
         }
+    }
+
+    #[test]
+    fn 返事の先を付け始めた時刻は_rfc_3339_で読み_無ければ無い_形が違えば起きない() {
+        let base = [
+            ("CALLBOARD_CASTLIST_URL", "http://c:1"),
+            ("CALLBOARD_PAGETRAY_URL", "http://p:2"),
+        ];
+        assert_eq!(read(&base).unwrap().exchanges_since, None);
+        let with = |value: &'static str| {
+            let mut pairs = base.to_vec();
+            pairs.push(("CALLBOARD_EXCHANGES_SINCE", value));
+            read(&pairs)
+        };
+        // 2026-11-28T04:00:00Z（日本の時刻で書いても同じ時）。
+        assert_eq!(
+            with("2026-11-28T04:00:00Z").unwrap().exchanges_since,
+            Some(1_795_838_400_000)
+        );
+        assert_eq!(
+            with("2026-11-28T13:00:00+09:00").unwrap().exchanges_since,
+            Some(1_795_838_400_000)
+        );
+        assert_eq!(with("").unwrap().exchanges_since, None);
+        assert_eq!(
+            with("2026-11-28 04:00").unwrap_err(),
+            "CALLBOARD_EXCHANGES_SINCE は RFC 3339 の時刻（2026-11-28T08:00:00Z の形。2026-11-28 04:00）"
+        );
     }
 }

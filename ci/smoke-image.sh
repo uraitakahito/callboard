@@ -207,6 +207,16 @@ cmp -s "$tmp/got.js" "$here/../static/messages.js" || {
 # pagetray が断る引数は、pagetray の訳を書いた 400 の画面。
 test "$(curl -s -o "$tmp/messages.html" -w '%{http_code}' "$url/messages?at=zz")" = 400
 grep -qF 'pagetray が引数を断りました' "$tmp/messages.html"
+# 課題の筋: 空の置き場には記録が無いので、同じ CSP の付いた 404 の画面（pagetray の API に聞いた答え）。配る script は repo の物。
+test "$(curl -s -D "$tmp/thread-head.txt" -o "$tmp/thread.html" -w '%{http_code}' "$url/messages/tasks/K-1")" = 404
+tr -d '\r' <"$tmp/thread-head.txt" | grep -qixF "content-security-policy: $csp"
+grep -qF 'その Key のメッセージの記録はありません' "$tmp/thread.html"
+curl -fsS -D "$tmp/js-head.txt" -o "$tmp/got.js" "$url/static/tasks.js"
+tr -d '\r' <"$tmp/js-head.txt" | grep -qi '^content-type: application/javascript'
+cmp -s "$tmp/got.js" "$here/../static/tasks.js" || {
+  echo "NG: 配る static/tasks.js が repo の物と違う" >&2
+  exit 1
+}
 # ページの一覧: この画面だけの CSP（本文の枠と図に、pagetray の link の頭を足した物。設定を書いていないので、既定の
 # http://127.0.0.1:8801）が付き、inline の style が無く、script は字の差し替えの 4 つと、callboard が配る 1 つ。本物の pagetray（空の置き場）の
 # API（ListPages と、1.3.0 からの GetPageFacets）に聞いた答えを出す。

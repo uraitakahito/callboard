@@ -145,6 +145,7 @@
     "via": "渡した時: {{via}}",
     "again": "渡し直し {{n}} 度",
     "empty": "合うメッセージは無い",
+    "toThread": "この課題の筋（頼みから返事までの往復）を見る",
     "foot": "時刻は日本時間（UTC+9）で、送り手が書いた時刻です。時刻にマウスを重ねると ISO 8601 の形で表示します。",
     "state": {
       "waiting": "まだ届いていない",
@@ -161,6 +162,57 @@
       "closed": "席を閉じた"
     },
     "freshPaged": "● 新しい記録（読み直す）"
+  },
+  "thread": {
+    "title": "{{key}} の筋 ・ メッセージの記録 ・ callboard",
+    "toMessages": "1 通ずつ",
+    "whole": "課題の全体に戻す",
+    "fresh": "● 新しい記録（読み直す）",
+    "notFound": "その Key のメッセージの記録はありません",
+    "summary": "{{n}} 通・往復 {{exchanges}}",
+    "singles": "・片道 {{n}}",
+    "unlinked": "返事の先の無い古い記録が {{n}} 通あります（頼みとつながらないので、棒にしていません）",
+    "partial": "古い課題のため、課題の担当とレビューの席の記録だけを出しています",
+    "projects": "いくつもの project の記録が混ざっています。project を選んでください:",
+    "latest": "最新の 1 通",
+    "ball": "球の持ち手",
+    "idle": "誰も持っていない",
+    "zoom": "時間の軸を、この往復に絞る",
+    "legend": {
+      "bar": "棒 = 頼みから返事までの往復。色 = その間、球を持っていた者",
+      "waiting": "まだ返事が無い",
+      "single": "片道の知らせ"
+    },
+    "holder": {
+      "seat": "担当",
+      "staff": "Staff（レビュー）",
+      "pm": "PM",
+      "tpm": "TPM"
+    },
+    "kind": {
+      "brief": "依頼書",
+      "dismiss": "片付け",
+      "askPm": "PM に確認",
+      "askReview": "レビュー",
+      "askTpm": "TPM に相談",
+      "askDevops": "DevOps に頼む",
+      "askLead": "Tech Lead に相談"
+    },
+    "outcome": {
+      "cancelled": "取り消した",
+      "ended": "返事なしで終わった",
+      "waiting": "まだ（返事待ち）"
+    },
+    "status": {
+      "waiting": "{{who}} の返事待ち",
+      "done": "済み",
+      "idle": "次の依頼待ち"
+    },
+    "duration": {
+      "seconds": "{{n}} 秒",
+      "minutes": "{{n}} 分",
+      "hours": "{{n}} 時間"
+    }
   },
   "network": {
     "title": "相関図 ・ callboard",

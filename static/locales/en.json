@@ -145,6 +145,7 @@
     "via": "Delivered via: {{via}}",
     "again": "Redelivered: {{n}}",
     "empty": "No matching messages",
+    "toThread": "Show the thread of this task (exchanges from request to reply)",
     "foot": "Times are Japan time (UTC+9), as written by the sender. Hover over a time to see it in ISO 8601.",
     "state": {
       "waiting": "Not yet delivered",
@@ -161,6 +162,57 @@
       "closed": "the seat was closed"
     },
     "freshPaged": "● New records (reload)"
+  },
+  "thread": {
+    "title": "Thread of {{key}} ・ Message log ・ callboard",
+    "toMessages": "One by one",
+    "whole": "Back to the whole task",
+    "fresh": "● New records (reload)",
+    "notFound": "No message records for that key",
+    "summary": "{{n}} messages ・ {{exchanges}} exchanges",
+    "singles": "・ {{n}} one-way",
+    "unlinked": "{{n}} older records have no reply target (they are not linked to a request, so they are not drawn as bars)",
+    "partial": "This is an old task; only the records of the assignee and the review seat are shown",
+    "projects": "Records of several projects are mixed. Choose a project:",
+    "latest": "Latest message",
+    "ball": "Who held the ball",
+    "idle": "Nobody",
+    "zoom": "Zoom the time axis to this exchange",
+    "legend": {
+      "bar": "Bar = an exchange from request to reply. Color = who held the ball meanwhile",
+      "waiting": "No reply yet",
+      "single": "One-way notice"
+    },
+    "holder": {
+      "seat": "Assignee",
+      "staff": "Staff (review)",
+      "pm": "PM",
+      "tpm": "TPM"
+    },
+    "kind": {
+      "brief": "Brief",
+      "dismiss": "Wrap-up",
+      "askPm": "Ask PM",
+      "askReview": "Review",
+      "askTpm": "Ask TPM",
+      "askDevops": "Ask DevOps",
+      "askLead": "Ask Tech Lead"
+    },
+    "outcome": {
+      "cancelled": "Cancelled",
+      "ended": "Ended without a reply",
+      "waiting": "Not yet (waiting)"
+    },
+    "status": {
+      "waiting": "Waiting for {{who}}",
+      "done": "Done",
+      "idle": "Waiting for the next brief"
+    },
+    "duration": {
+      "seconds": "{{n}} s",
+      "minutes": "{{n}} min",
+      "hours": "{{n}} h"
+    }
   },
   "network": {
     "title": "Network · callboard",
