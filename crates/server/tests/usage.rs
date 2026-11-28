@@ -1364,6 +1364,42 @@ async fn model_と役割ごとの行列は_役割と手伝いの種類を行に_
             .contains("title=\"1 回あたり $0.400\" data-i18n-attr=\"title:usage.models.perTurn\""),
         "{models}"
     );
+    // 役割と手伝いの名にマウスを重ねると、何をする物かの説明（t-3jkq）。英語にも替わるよう、鍵を付ける。
+    // 説明のある名には点線の下線（class の about）。書いていない名は「説明はまだありません」。名の無い行には付けない。
+    assert!(
+        models.contains(
+            "<span class=\"chip role about\" title=\"課題 1 つを受け持ち、調べ・提案・計画・実装・試験をする。席がいちばん多く、長い文脈で実装と試験を回すので、額が大きくなりやすい。\" data-i18n-attr=\"title:usage.about.role.softwareEngineer\">software-engineer</span>"
+        ),
+        "{models}"
+    );
+    assert!(
+        models.contains(
+            "<span class=\"chip role about\" title=\"説明はまだありません\" data-i18n-attr=\"title:usage.about.none\">technical-program-manager</span>"
+        ),
+        "{models}"
+    );
+    assert!(
+        models.contains(
+            " title=\"file や字を探して、在り処と抜き書きを返す、読むだけの手伝い。探しを何度も繰り返すので、回が多くなりやすい。\" data-i18n-attr=\"title:usage.about.helper.explore\">手伝い: Explore</span>"
+        ),
+        "{models}"
+    );
+    assert!(
+        models.contains("<span class=\"helper about\" data-i18n=\"usage.models.helper\""),
+        "{models}"
+    );
+    assert!(
+        models.contains("<span class=\"none\" data-i18n=\"usage.noName\">（無し）</span>"),
+        "{models}"
+    );
+    // 役割ごとの表の名にも、同じ説明を付ける。
+    let roles = section(&body, "roles");
+    assert!(
+        roles.contains(
+            "<span class=\"chip role about\" title=\"課題 1 つを受け持ち、調べ・提案・計画・実装・試験をする。席がいちばん多く、長い文脈で実装と試験を回すので、額が大きくなりやすい。\" data-i18n-attr=\"title:usage.about.role.softwareEngineer\">software-engineer</span>"
+        ),
+        "{roles}"
+    );
     // 凡例は、段の境の数を値で受ける。effort と手伝いの model の注。
     assert!(models.contains("10% 以上"), "{models}");
     assert!(

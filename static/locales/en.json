@@ -518,6 +518,9 @@
       "tooLong": "The period is limited to {{days}} days (after aligning to whole hours). Narrow the period.",
       "startsLater": "\"Period (from)\" is in the future.",
       "render": "Cannot show usage"
+    },
+    "about": {
+      "none": "No description yet"
     }
   },
   "upstream": {

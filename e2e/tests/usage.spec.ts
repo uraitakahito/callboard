@@ -182,6 +182,12 @@ test('model と役割ごとの行列は、役割と手伝いの種類を行に�
   await expect(page.locator('#models tbody td.heat-2')).toHaveCount(2);
   await expect(page.locator('#models tbody td.heat-1')).toHaveCount(1);
   await expect(page.locator('#models tbody td.heat-3')).toHaveAttribute('title', '1 回あたり $0.500');
+  // 手伝いの名にマウスを重ねると、何をする物かの説明（t-3jkq）。説明のある名には点線の下線。
+  const explore = page.locator('#models tbody .helper', { hasText: 'Explore' });
+  await expect(explore).toHaveAttribute('title', 'file や字を探して、在り処と抜き書きを返す、読むだけの手伝い。探しを何度も繰り返すので、回が多くなりやすい。');
+  expect(await explore.evaluate((el) => getComputedStyle(el).textDecorationStyle)).toBe('dotted');
+  // 名の無い行には説明を付けない。
+  await expect(page.locator('#models tbody td:first-child [title]')).toHaveCount(2);
   // 絞ると、行列も同じ行から作る（other.1 の本体だけ）。
   await page.goto('/usage/?label=tpm.key:t-99');
   expect(await grid(page, 'tbody')).toEqual([['（無し） low', '$0.01 1 回', '$0.01']]);
@@ -232,6 +238,10 @@ test('英語の画面では、行列の見出しと行の名と下の行と effo
     ['Per turn', '$0.350', '$0.010', '$0.293'],
   ]);
   await expect(page.locator('#models tbody td.heat-3')).toHaveAttribute('title', '$0.500 per turn');
+  await expect(page.locator('#models tbody .helper', { hasText: 'general-purpose' })).toHaveAttribute(
+    'title',
+    'A catch-all helper the main seat hands research or multi-step work to. The skill that fixes figures (figure-fix) also runs on it. The bigger the task handed over, the bigger the cost.',
+  );
   expect(problems).toEqual([]);
   await context.close();
 });

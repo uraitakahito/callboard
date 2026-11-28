@@ -290,6 +290,13 @@ struct CellView {
     per_turn: Text,
 }
 
+/// 役割（`helper` が false）か手伝いの種類（true）の名の説明。名にマウスを重ねると出す（`title`）。
+/// 書いていない名は「説明はまだありません」。
+fn about(name: &str, helper: bool) -> Text {
+    let _ = (name, helper);
+    Text::new("usage.about.none")
+}
+
 /// 行列の行。上の組は役割（`role`。ラベルが無ければ無い）、下の組は手伝い（`helper` に「手伝い: 種類」）。
 struct MatrixRowView {
     helper: Option<Text>,
@@ -1124,6 +1131,64 @@ mod tests {
 
     fn at(iso: &str) -> OffsetDateTime {
         OffsetDateTime::parse(iso, &Rfc3339).unwrap()
+    }
+
+    /// 説明を書く名（t-3jkq の confirm-1 の 14 名）。役割 7 つと手伝い 7 つ。
+    const ROLES_WITH_ABOUT: [&str; 7] = [
+        "tpm",
+        "software-engineer",
+        "staff-engineer",
+        "tech-lead",
+        "devops-engineer",
+        "sustaining-engineer",
+        "auditor",
+    ];
+    const HELPERS_WITH_ABOUT: [&str; 7] = [
+        "general-purpose",
+        "Explore",
+        "Plan",
+        "web-fetch",
+        "claude-code-guide",
+        "statusline-setup",
+        "audit-reader",
+    ];
+
+    #[test]
+    fn 役割と手伝いの説明は_名から引き_書いていない名は_説明はまだありません() {
+        assert_eq!(
+            about("software-engineer", false).key(),
+            "usage.about.role.softwareEngineer"
+        );
+        assert_eq!(
+            about("software-engineer", false),
+            "課題 1 つを受け持ち、調べ・提案・計画・実装・試験をする。席がいちばん多く、長い文脈で実装と試験を回すので、額が大きくなりやすい。"
+        );
+        assert_eq!(about("Explore", true).key(), "usage.about.helper.explore");
+        // 書いていない名・大文字と小文字の違う名・役割の名を手伝いとして引いた時は、説明が無い。
+        assert_eq!(
+            about("technical-program-manager", false).key(),
+            "usage.about.none"
+        );
+        assert_eq!(about("explore", true).key(), "usage.about.none");
+        assert_eq!(about("tpm", true).key(), "usage.about.none");
+        assert_eq!(about("Explore", false).key(), "usage.about.none");
+        assert_eq!(about("tpm", true), "説明はまだありません");
+    }
+
+    #[test]
+    fn 説明を書く_14_名には_日本語と英語の説明がみなある() {
+        let ja = super::super::i18n::table(super::super::i18n::JA_JSON);
+        let en = super::super::i18n::table(super::super::i18n::EN_JSON);
+        let names = ROLES_WITH_ABOUT
+            .iter()
+            .map(|n| (n, false))
+            .chain(HELPERS_WITH_ABOUT.iter().map(|n| (n, true)));
+        for (name, helper) in names {
+            let key = about(name, helper).key();
+            assert_ne!(key, "usage.about.none", "{name} の説明が無い");
+            assert!(ja.contains_key(key), "{name} の日本語の説明 {key} が無い");
+            assert!(en.contains_key(key), "{name} の英語の説明 {key} が無い");
+        }
     }
 
     #[test]
