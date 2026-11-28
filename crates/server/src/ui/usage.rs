@@ -1189,7 +1189,7 @@ pub(super) struct SlotRow {
 }
 
 /// 文脈の長さの段々の線（1 時間ごとの、本体の回のいちばん長い文脈）と、縦の印（時刻・字）。本体の回が無ければ無い。
-/// 横は、記録の在る初めの時から終わりの時まで（印がその外なら、印まで延ばす）。
+/// 横は、記録の在る初めの時から終わりの時まで（その外の印は描かない。横を印まで延ばさない）。
 pub(super) fn line_chart(rows: &[summary::Row], marks: &[(i64, Text)]) -> Option<ChartView> {
     let points = summary::context_by_hour(rows);
     let (first, last) = (points.first()?.0, points.last()?.0 + chart::HOUR);
