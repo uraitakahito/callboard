@@ -9,7 +9,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 /// 役割と課題を読むラベルの鍵。課題は `tpm.subject` を先に見て、無ければ `tpm.key`。
-const ROLE: &str = "tpm.role";
+pub(super) const ROLE: &str = "tpm.role";
 const SUBJECT: &str = "tpm.subject";
 const KEY: &str = "tpm.key";
 

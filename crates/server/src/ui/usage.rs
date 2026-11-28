@@ -897,9 +897,12 @@ pub(super) struct RoleTableRow {
 }
 
 /// 升に書く短い額: 10 ドルより下は小数 1 桁（`$0.4`）、それより上は整数（`$29`・`$1,016`）。四捨五入。
+/// 0 より大きく、丸めると 0 になる額は `<$0.1`（色の付いた升に `$0.0` と書くと、使っていないと読めるため）。
 fn short_dollars(micro: i64) -> String {
     let micro = micro.max(0);
-    if micro < 9_950_000 {
+    if (1..50_000).contains(&micro) {
+        "<$0.1".to_owned()
+    } else if micro < 9_950_000 {
         let dimes = micro.saturating_add(50_000) / 100_000;
         format!("${}.{}", dimes / 10, dimes % 10)
     } else {
@@ -1100,7 +1103,10 @@ fn slot_chart(
                         if rough { "≈" } else { "" },
                         dollars(*cost)
                     ),
-                    text: cell_links.then(|| short_dollars(*cost)),
+                    // 字は、升の幅に入る時だけ書く（10 px の字の 1 字を 6 px と見る。入らない升は、マウスを重ねた字と表に任せる）。
+                    text: cell_links.then(|| short_dollars(*cost)).filter(|text| {
+                        u32::try_from(text.len()).unwrap_or(u32::MAX) * 6 <= slot.width
+                    }),
                     text_x: slot.mid(),
                     text_y: top + GRID_NAME + GRID_CELL - 4,
                 })
@@ -1447,9 +1453,11 @@ async fn usage_page(
     // `role` が在れば、今の役割の絞り（`label=tpm.role:…`）を、その役割に替える。
     let link_to = move |start: i64, end: i64, step: Option<&str>, role: Option<&str>| {
         let mut link = kept.clone();
-        if let Some(role) = role {
-            link.retain(|(n, v)| !(n == "label" && v.starts_with("tpm.role:")));
-            link.push(("label".to_owned(), format!("tpm.role:{role}")));
+        // 値が空の役割（手で置いた空のラベル）は、絞りの値にできないので、区切りだけにする。
+        if let Some(role) = role.filter(|role| !role.is_empty()) {
+            let key = format!("{}:", summary::ROLE);
+            link.retain(|(n, v)| !(n == "label" && v.starts_with(&key)));
+            link.push(("label".to_owned(), format!("{key}{role}")));
         }
         link.push(("from".to_owned(), link_time(start)));
         link.push(("to".to_owned(), link_time(end)));
@@ -1763,6 +1771,20 @@ mod tests {
         // 1 日は、いつでも。
         assert_eq!(of(Some("1d"), hour), (Width::Day, None));
         assert_eq!(of(Some("1d"), 31 * day), (Width::Day, None));
+    }
+
+    #[test]
+    fn 升に書く短い額は_小数_1_桁か整数で_丸めて_0_になる額は_より小さいと書く() {
+        assert_eq!(short_dollars(0), "$0.0");
+        assert_eq!(short_dollars(1), "<$0.1");
+        assert_eq!(short_dollars(10_000), "<$0.1");
+        assert_eq!(short_dollars(49_999), "<$0.1");
+        assert_eq!(short_dollars(50_000), "$0.1");
+        assert_eq!(short_dollars(2_250_000), "$2.3");
+        assert_eq!(short_dollars(9_949_999), "$9.9");
+        assert_eq!(short_dollars(9_950_000), "$10");
+        assert_eq!(short_dollars(29_920_000), "$30");
+        assert_eq!(short_dollars(1_016_000_000), "$1,016");
     }
 
     #[test]

@@ -1391,7 +1391,7 @@ async fn 棒の下に_区切りごと_役割の升を_棒と同じ枠に描き_�
         "<rect class=\"cell heat-3\" x=\"128\" y=\"242\" width=\"64\" height=\"16\"><title>11-22 10:40 software-engineer: $2.25</title></rect><text class=\"cell-text\" x=\"160\" y=\"254\" text-anchor=\"middle\">$2.3</text>",
         "<title>11-22 11:10 software-engineer: $2.00</title>",
         "<rect class=\"cell heat-3\" x=\"128\" y=\"276\" width=\"64\" height=\"16\"><title>11-22 10:40 technical-program-manager: $3.00</title>",
-        "<rect class=\"cell heat-1\" x=\"128\" y=\"310\" width=\"64\" height=\"16\"><title>11-22 10:40 —: $0.01</title></rect><text class=\"cell-text\" x=\"160\" y=\"322\" text-anchor=\"middle\">$0.0</text>",
+        "<rect class=\"cell heat-1\" x=\"128\" y=\"310\" width=\"64\" height=\"16\"><title>11-22 10:40 —: $0.01</title></rect><text class=\"cell-text\" x=\"160\" y=\"322\" text-anchor=\"middle\">&#60;$0.1</text>",
     ] {
         assert!(svg.contains(cell), "{cell}: {svg}");
     }
@@ -1486,6 +1486,16 @@ async fn 升は_どの幅でも出し_区切りが_24_を越えると_押せず_
         chart.contains("<td class=\"num\"><a href=\"/usage/?label=tpm.role:software-engineer&#38;from=2026-11-22T10:40:00%2B09:00&#38;to=2026-11-22T10:50:00%2B09:00&#38;step=10m\">$2.25</a></td>"),
         "{chart}"
     );
+    // 升の幅に入らない字は書かない（1 時間の幅の 1 日 = 24 本。升は 26〜27 px で、5 字の `<$0.1` は入らない。4 字までは入る）。
+    let body = app
+        .html("/usage/?from=2026-11-22T00:00&to=2026-11-23T00:00&step=1h")
+        .await;
+    let svg = svg_of(&body);
+    assert!(
+        svg.contains("<title>11-22 10:00 —: $0.01</title></rect></a>"),
+        "{svg}"
+    );
+    assert!(svg.contains("text-anchor=\"middle\">$2.3</text>"), "{svg}");
     // ちょうど 24 の区切り（4 時間）までは、押せる。
     let body = app
         .html("/usage/?from=2026-11-22T09:00&to=2026-11-22T13:00&step=10m")
