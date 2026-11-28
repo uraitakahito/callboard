@@ -292,3 +292,36 @@ pub fn with_usage(routes: Router, pages: Vec<Value>) -> Router {
         ),
     )
 }
+
+/// 期間に稼働した席（ListActors の行）。ラベルだけを替える。
+pub fn actor_row(id: &str, name: &str, labels: Value) -> Value {
+    let mut row = row(id, name, "ai");
+    row["labels"] = labels;
+    row
+}
+
+/// ほかの道に、ListActors（`GET /api/actors`）の道を足す。どの問いにも `actors` を 1 頁で返す。
+pub fn with_actors(routes: Router, actors: Vec<Value>) -> Router {
+    let page = json!({"asOf": "2026-11-22T06:00:00Z", "actors": actors});
+    routes.route(
+        "/api/actors",
+        get(move || {
+            let page = page.clone();
+            async move { answer(StatusCode::OK, &page.to_string()) }
+        }),
+    )
+}
+
+/// ほかの道に、ListActors を断る（503）道を足す（候補を引けない castlist）。
+pub fn with_actors_down(routes: Router) -> Router {
+    routes.route(
+        "/api/actors",
+        get(|| async {
+            error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "ServiceUnavailable",
+                "落ちている",
+            )
+        }),
+    )
+}

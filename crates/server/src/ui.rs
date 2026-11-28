@@ -19,6 +19,7 @@ mod timeline;
 mod timeline_layout;
 mod usage;
 mod usage_chart;
+mod usage_labels;
 mod usage_summary;
 
 use std::sync::{Arc, LazyLock};
