@@ -1371,7 +1371,15 @@ async fn model_と役割ごとの行列は_役割と手伝いの種類を行に_
         "{models}"
     );
     assert!(models.contains("本体の model を受け継ぐ物"), "{models}");
-    assert!(!models.contains("時間内に引けませんでした"), "{models}");
+    assert!(!models.contains("引けませんでした"), "{models}");
+    // 凡例の色見本は、濃い順に 3 つ（段の境の数を値で）。
+    assert!(
+        models.contains(
+            "<span class=\"swatch heat-3\"></span><span data-i18n=\"usage.models.key.high\""
+        ),
+        "{models}"
+    );
+    assert!(models.contains(">濃い: 10% 以上</span>"), "{models}");
     // 色は class で付け、inline の style は使わない。
     assert!(!models.contains("style="), "{models}");
 }
@@ -1395,10 +1403,7 @@ async fn effort_を引けなければ_effort_を出さず注を書き_ほかの�
         grid(models, "tbody")[0],
         ["software-engineer", "$2.00 5 回", "$2.00 5 回", "$4.00"]
     );
-    assert!(
-        models.contains("effort を、時間内に引けませんでした"),
-        "{models}"
-    );
+    assert!(models.contains("effort を引けませんでした"), "{models}");
 }
 
 #[tokio::test]
@@ -1413,7 +1418,7 @@ async fn 席が_1_頁の上限を越えたら_effort_は新しく登場した席
         "technical-program-manager medium"
     );
     assert!(
-        models.contains("effort は、新しく登場した 1000 席の分だけです"),
+        models.contains("effort は、新しく登場した 1,000 席の分だけです"),
         "{models}"
     );
 }
@@ -1424,4 +1429,26 @@ async fn 行が無ければ_行列の節も出さない() {
     let (status, _, body) = app.send(get(WINDOW)).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(!body.contains("<section id=\"models\">"), "{body}");
+}
+
+#[tokio::test]
+async fn effort_の分からない席があれば_1_種類でも席の数を添える() {
+    // se.2 の effort を消す: software-engineer の行の 2 席のうち、分かるのは se.1（medium）だけ。
+    let mut active = active_efforts();
+    active[1].as_object_mut().unwrap().remove("effort");
+    let app = App::start_with(
+        with_actors(
+            usage_routes(vec![usage_page(model_rows(), actors(), None)]),
+            active,
+        ),
+        common::pagetray_routes(),
+        callboard::Config::default(),
+    )
+    .await;
+    let (status, _, body) = app.send(get(WINDOW)).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let rows = grid(section(&body, "models"), "tbody");
+    assert_eq!(rows[0][0], "software-engineer medium（1 席）");
+    // 席がみな分かる行は、名だけ。
+    assert_eq!(rows[1][0], "technical-program-manager medium");
 }
