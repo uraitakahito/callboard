@@ -258,6 +258,8 @@ struct TotalView {
 struct RoleView {
     /// 名にマウスを重ねた時の説明（名が無ければ無い）。
     about: Option<Text>,
+    /// 説明を書いた名か（点線の下線を引く）。
+    described: bool,
     name: Option<String>,
     seats: String,
     turns: String,
@@ -325,10 +327,17 @@ fn about(name: &str, helper: bool) -> Text {
     Text::new(key)
 }
 
+/// 説明を書いた名か（[`about`] が「説明はまだありません」でない）。
+fn described(name: &str, helper: bool) -> bool {
+    about(name, helper).key() != "usage.about.none"
+}
+
 /// 行列の行。上の組は役割（`role`。ラベルが無ければ無い）、下の組は手伝い（`helper` に「手伝い: 種類」）。
 struct MatrixRowView {
     /// 名にマウスを重ねた時の説明（名が無ければ無い）。
     about: Option<Text>,
+    /// 説明を書いた名か（点線の下線を引く。書いていない名は「説明はまだありません」だけ）。
+    described: bool,
     helper: Option<Text>,
     role: Option<String>,
     /// 席の最新の effort（1 種類なら名だけ、2 種類以上なら「medium（76 席）」の形を、席の多い順に）。
@@ -399,6 +408,10 @@ fn matrix(matrix: Matrix, efforts: &Efforts) -> MatrixView {
                 .collect(),
         },
         about: r.name.as_deref().map(|name| about(name, helper)),
+        described: r
+            .name
+            .as_deref()
+            .is_some_and(|name| described(name, helper)),
         helper: helper.then(|| {
             Text::new("usage.models.helper").with("name", r.name.as_deref().unwrap_or_default())
         }),
@@ -491,6 +504,7 @@ fn tables(summary: Summary, matrix: MatrixView, charts: Charts) -> Tables {
                 over_cost: percent(r.over_cost, r.bucket_cost),
                 helper_cost: dollars(r.helper_cost),
                 about: r.name.as_deref().map(|name| about(name, false)),
+                described: r.name.as_deref().is_some_and(|name| described(name, false)),
                 name: r.name,
             })
             .collect(),
@@ -1205,6 +1219,11 @@ mod tests {
         assert_eq!(about("tpm", true).key(), "usage.about.none");
         assert_eq!(about("Explore", false).key(), "usage.about.none");
         assert_eq!(about("tpm", true), "説明はまだありません");
+        // 点線の下線は、説明を書いた名だけ。
+        assert!(described("software-engineer", false));
+        assert!(described("Explore", true));
+        assert!(!described("technical-program-manager", false));
+        assert!(!described("tpm", true));
     }
 
     #[test]

@@ -637,7 +637,7 @@ async fn 使用量は_script_も_inline_の_style_も使わず_利用者の字�
         assert!(!page.contains(raw), "{raw}: {body}");
     }
     assert!(
-        body.contains("<span class=\"chip role about\" title=\"説明はまだありません\" data-i18n-attr=\"title:usage.about.none\">&#60;i&#62;role&#60;/i&#62;</span>"),
+        body.contains("<span class=\"chip role\" title=\"説明はまだありません\" data-i18n-attr=\"title:usage.about.none\">&#60;i&#62;role&#60;/i&#62;</span>"),
         "{body}"
     );
     assert!(
@@ -1367,7 +1367,8 @@ async fn model_と役割ごとの行列は_役割と手伝いの種類を行に_
         "{models}"
     );
     // 役割と手伝いの名にマウスを重ねると、何をする物かの説明（t-3jkq）。英語にも替わるよう、鍵を付ける。
-    // 説明のある名には点線の下線（class の about）。書いていない名は「説明はまだありません」。名の無い行には付けない。
+    // 説明を書いた名だけに点線の下線（class の about）。書いていない名は「説明はまだありません」だけで、下線は無い。
+    // 名の無い行には付けない。
     assert!(
         models.contains(
             "<span class=\"chip role about\" title=\"課題 1 つを受け持ち、調べ・提案・計画・実装・試験をする。席がいちばん多く、長い文脈で実装と試験を回すので、額が大きくなりやすい。\" data-i18n-attr=\"title:usage.about.role.softwareEngineer\">software-engineer</span>"
@@ -1376,7 +1377,7 @@ async fn model_と役割ごとの行列は_役割と手伝いの種類を行に_
     );
     assert!(
         models.contains(
-            "<span class=\"chip role about\" title=\"説明はまだありません\" data-i18n-attr=\"title:usage.about.none\">technical-program-manager</span>"
+            "<span class=\"chip role\" title=\"説明はまだありません\" data-i18n-attr=\"title:usage.about.none\">technical-program-manager</span>"
         ),
         "{models}"
     );
