@@ -1047,7 +1047,7 @@ async fn 幅を_10_分にすると_期間を_10_分の境に揃え_10_分ごと�
     // 額の在る枠は、押すとその 10 分に絞る link（今の絞りと幅を残す）。額の無い枠には無い。
     assert_eq!(svg.matches("<a href=").count(), 2, "{svg}");
     assert!(
-        svg.contains("<a href=\"/usage/?from=2026-11-22T10:40:00%2B09:00&#38;to=2026-11-22T10:50:00%2B09:00&#38;step=10m\"><rect class=\"hit\""),
+        svg.contains("<a href=\"/usage/?from=2026-11-22T10:40:00%2B09:00&#38;to=2026-11-22T10:50:00%2B09:00&#38;step=10m\" tabindex=\"-1\" aria-hidden=\"true\"><rect class=\"hit\""),
         "{svg}"
     );
     assert!(
@@ -1056,7 +1056,19 @@ async fn 幅を_10_分にすると_期間を_10_分の境に揃え_10_分ごと�
         ),
         "{svg}"
     );
-    // 字の表の行も、同じ link。
+    // 図の link は、マウスの近道だけ（読み上げに出ない図の中に、キーボードの止まる所を増やさない）。凡例で、表からも絞れると言う。
+    assert_eq!(
+        svg.matches("<a href=").count(),
+        svg.matches("tabindex=\"-1\" aria-hidden=\"true\">").count(),
+        "{svg}"
+    );
+    assert!(
+        chart.contains(
+            "図の下の表の行からも、同じように絞れます（キーボードと読み上げは、表を使います）。"
+        ),
+        "{chart}"
+    );
+    // 字の表の行も、同じ link（こちらは、キーボードで止まれる）。
     assert!(
         chart.contains("<tr><td><a href=\"/usage/?from=2026-11-22T10:40:00%2B09:00&#38;to=2026-11-22T10:50:00%2B09:00&#38;step=10m\">11-22 10:40</a></td><td class=\"num\">$5.01</td>"),
         "{chart}"
@@ -1229,6 +1241,20 @@ async fn 幅は選べ_棒が多すぎる幅は_断らずに粗い幅で描いて
     assert!(heading(&body).contains("時ごとの額"), "{}", heading(&body));
     assert!(note(&body, "step-note").is_none());
     assert!(svg_of(&body).contains(">11-22 10:00: 本体 $5.01（本体と手伝いの計 $5.26）</title>"));
+    // 期間が 1 日より長い時ごとの図は、目盛りを日の初めだけにして、日付を書く（時刻だけでは、どの日かが分からない）。
+    let svg = svg_of(&body);
+    for tick in [">11-20</text>", ">11-21</text>", ">11-22</text>"] {
+        assert!(svg.contains(tick), "{tick}: {svg}");
+    }
+    assert_eq!(
+        svg.matches("<text class=\"tick\" x=").count() - svg.matches("text-anchor=\"end\"").count(),
+        3,
+        "{svg}"
+    );
+    assert!(
+        !svg.contains(">00:00</text>") && !svg.contains(">06:00</text>"),
+        "{svg}"
+    );
     // 10 分は 1 日まで。3 日の期間では 1 時間で、8 日の期間では 1 日で描き、訳を書く。期間は時の境のまま。
     let body = app
         .html("/usage/?from=2026-11-20T00:10&to=2026-11-23T00:00&step=10m")
@@ -1286,7 +1312,7 @@ async fn 棒を押すと_日は時ごとへ_時は_10_分ごとへ_今の絞り�
     let body = app.html(&format!("{WINDOW}&label=project:x")).await;
     let svg = svg_of(&body);
     assert!(
-        svg.contains("<a href=\"/usage/?label=project:x&#38;from=2026-11-22T10:00:00%2B09:00&#38;to=2026-11-22T11:00:00%2B09:00&#38;step=10m\"><rect class=\"hit\" x=\"64\" y=\"16\""),
+        svg.contains("<a href=\"/usage/?label=project:x&#38;from=2026-11-22T10:00:00%2B09:00&#38;to=2026-11-22T11:00:00%2B09:00&#38;step=10m\" tabindex=\"-1\" aria-hidden=\"true\"><rect class=\"hit\" x=\"64\" y=\"16\""),
         "{svg}"
     );
     assert!(svg.contains("<title data-i18n=\"usage.bySlot.link.hour\">押すと、この 1 時間を 10 分ごとに見ます</title>"), "{svg}");
@@ -1297,7 +1323,7 @@ async fn 棒を押すと_日は時ごとへ_時は_10_分ごとへ_今の絞り�
     let svg = svg_of(&body);
     assert_eq!(svg.matches("<a href=").count(), 1, "{svg}");
     assert!(
-        svg.contains("<a href=\"/usage/?from=2026-11-22T00:00:00%2B09:00&#38;to=2026-11-23T00:00:00%2B09:00\"><rect class=\"hit\""),
+        svg.contains("<a href=\"/usage/?from=2026-11-22T00:00:00%2B09:00&#38;to=2026-11-23T00:00:00%2B09:00\" tabindex=\"-1\" aria-hidden=\"true\"><rect class=\"hit\""),
         "{svg}"
     );
     assert!(

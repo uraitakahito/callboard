@@ -499,9 +499,9 @@
         "tenMin": "Cost per 10 minutes (Japan time)"
       },
       "legend": {
-        "hour": "Each row's hour is set by the end time of the record's interval. Unless a width is chosen, periods up to 1 day are shown per hour; longer periods per day (split at midnight Japan time). Click a bar to see that hour per 10 minutes.",
-        "day": "Each row's day is set by the end time of the record's interval. Unless a width is chosen, periods up to 1 day are shown per hour; longer periods per day (split at midnight Japan time). Click a bar to see that day per hour.",
-        "tenMin": "Each bar's 10 minutes are set by the record's interval (from its first turn to its last). Records whose interval crosses a 10-minute boundary (made before rows were cut at 10 minutes) are estimates: their cost is spread evenly over time. Click a bar to narrow the period to that 10 minutes."
+        "hour": "Each row's hour is set by the end time of the record's interval. Unless a width is chosen, periods up to 1 day are shown per hour; longer periods per day (split at midnight Japan time). Click a bar to see that hour per 10 minutes. The rows of the table below the chart narrow the same way (use the table with a keyboard or a screen reader).",
+        "day": "Each row's day is set by the end time of the record's interval. Unless a width is chosen, periods up to 1 day are shown per hour; longer periods per day (split at midnight Japan time). Click a bar to see that day per hour. The rows of the table below the chart narrow the same way (use the table with a keyboard or a screen reader).",
+        "tenMin": "Each bar's 10 minutes are set by the record's interval (from its first turn to its last). Records whose interval crosses a 10-minute boundary (made before rows were cut at 10 minutes) are estimates: their cost is spread evenly over time. Click a bar to narrow the period to that 10 minutes. The rows of the table below the chart narrow the same way (use the table with a keyboard or a screen reader)."
       },
       "table": {
         "hour": "Show cost per hour as a table",
