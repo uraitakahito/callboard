@@ -1404,6 +1404,11 @@ async fn model_と役割ごとの行列は_役割と手伝いの種類を行に_
     );
     // 凡例は、段の境の数を値で受ける。effort と手伝いの model の注。
     assert!(models.contains("10% 以上"), "{models}");
+    // 凡例は、名にマウスを重ねると説明が出ることも言う（t-3jkq）。
+    assert!(
+        models.contains("名にマウスを重ねると、何をする物かの説明を表示します。"),
+        "{models}"
+    );
     assert!(
         models.contains("effort は、役割の行の席の今の値"),
         "{models}"
