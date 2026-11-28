@@ -648,6 +648,17 @@ mod tests {
                 },
             ]
         );
+        // URL の後ろに続く ASCII の記号（括弧・句読点・引用符）は、URL に入れない。
+        assert_eq!(
+            chips("(see https://github.com/o/r/pull/7), \"http://a/p/K/plan-2.html\".")
+                .iter()
+                .map(|c| (c.label.as_str(), c.href.as_str()))
+                .collect::<Vec<_>>(),
+            [
+                ("r#7", "https://github.com/o/r/pull/7"),
+                ("plan-2", "http://a/p/K/plan-2.html")
+            ]
+        );
         // http で始まらない字・番号の無い形は拾わない。
         assert_eq!(
             chips("javascript:alert(1) httpx://a/b-1.html http://a/b.html"),

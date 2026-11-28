@@ -468,6 +468,63 @@ async fn 返事の先の無い古い記録は_棒にせず_数を注に出す_�
 }
 
 #[tokio::test]
+async fn 古い課題の注は_名指した_key_が候補の_100_個に入らなかった時だけ出す() {
+    // 候補がちょうど 100 個で、課題がその中に在る: 席の Key は読めているので、注は出さない。
+    let mut keys: Vec<String> = (0..99).map(|n| format!("Z-{n}")).collect();
+    keys.push("K-1".to_owned());
+    let refs: Vec<&str> = keys.iter().map(String::as_str).collect();
+    let app = start(records(), &refs).await;
+    let page = app.html("/messages/tasks/K-1").await;
+    assert!(!page.contains("thread.partial"), "{page}");
+    // 100 個に入らず、後ろに足された時（101 個）: 席の Key が漏れているかもしれないので、注を出す。
+    let mut keys: Vec<String> = (0..100).map(|n| format!("Z-{n}")).collect();
+    keys.push("K-1".to_owned());
+    let refs: Vec<&str> = keys.iter().map(String::as_str).collect();
+    let app = start(records(), &refs).await;
+    let page = app.html("/messages/tasks/K-1").await;
+    assert!(page.contains(r#"<p class="thread-note" data-i18n="thread.partial">古い課題のため、課題の担当とレビューの席の記録だけを出しています</p>"#), "{page}");
+}
+
+#[tokio::test]
+async fn いくつもの_project_の記録が混ざる時は_注と_project_を選ぶ_link_を出す() {
+    let mut other = message(
+        "b9",
+        "K-1",
+        "brief",
+        "tpm",
+        "K-1",
+        "02:00:00",
+        "別の project の依頼書",
+    );
+    other["project"] = json!("q");
+    let mut all = records();
+    all.push(other);
+    let app = start(all, &["K-1", "K-1.staff"]).await;
+    let page = app.html("/messages/tasks/K-1").await;
+    common::check_i18n("thread projects", &page);
+    assert!(page.contains(r#"<p class="thread-note"><span data-i18n="thread.projects">いくつもの project の記録が混ざっています。project を選んでください:</span> <a href="/messages/tasks/K-1?project=p">p</a> <a href="/messages/tasks/K-1?project=q">q</a></p>"#), "{page}");
+    // 1 つの project だけなら、注は出さない。
+    let app = start(records(), &["K-1", "K-1.staff"]).await;
+    assert!(
+        !app.html("/messages/tasks/K-1")
+            .await
+            .contains("thread.projects")
+    );
+}
+
+#[tokio::test]
+async fn 画面は_課題の_key_を持つ_新着の印が_その課題の記録でだけ出るように() {
+    let app = start(records(), &["K-1", "K-1.staff"]).await;
+    let page = app.html("/messages/tasks/K-1").await;
+    assert!(
+        page.contains(
+            r#"<div class="tray thread" data-events="/api/pagetray/events" data-key="K-1">"#
+        ),
+        "{page}"
+    );
+}
+
+#[tokio::test]
 async fn 形の違う_key_は_404_の画面_pagetray_に聞けなければ_503_の画面() {
     let app = start(records(), &["K-1"]).await;
     for path in [

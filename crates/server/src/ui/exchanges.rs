@@ -392,6 +392,44 @@ mod tests {
     }
 
     #[test]
+    fn 付け始めた時刻より前に済んだ課題は_dismiss_と_end_が在っても_往復にしない() {
+        // 前の版の形: 返事（done・end）に返事の先が無い。依頼書には done が返っているので、「取り消した」と出すと、うその往復になる。
+        let notes = [
+            note("b", "brief", "tpm", "K", 0, None),
+            note("q", "ask-tpm", "K", "tpm", 5, None),
+            note("d", "done", "K", "tpm", 10, None),
+            note("x", "dismiss", "tpm", "K", 20, None),
+            note("e", "end", "K", "tpm", 30, None),
+        ];
+        let built = build(&notes, Some(100 * 1000));
+        assert_eq!(built.exchanges, []);
+        assert_eq!(built.singles, [0, 1, 2, 3, 4]);
+        assert_eq!(built.unlinked, 2);
+    }
+
+    #[test]
+    fn またぐ課題で_前の頼みは_後の_dismiss_や_end_で往復にならない_後の頼みは閉じる() {
+        let notes = [
+            note("b1", "brief", "tpm", "K", 0, None),
+            note("d1", "done", "K", "tpm", 10, None),
+            // ここから後（100 秒〜）。
+            note("b2", "brief", "tpm", "K", 110, None),
+            note("q2", "ask-devops", "K", "tpm", 120, None),
+            note("x", "dismiss", "tpm", "K", 130, None),
+            note("e", "end", "K", "tpm", 140, Some("x")),
+        ];
+        assert_eq!(
+            closes(&notes, Some(100 * 1000)),
+            [
+                ("b2".to_owned(), Close::Cancelled(4)),
+                ("q2".to_owned(), Close::Ended(5)),
+                ("x".to_owned(), Close::Replied(5)),
+            ]
+        );
+        assert_eq!(build(&notes, Some(100 * 1000)).singles, [0, 1]);
+    }
+
+    #[test]
     fn 知らない見出しは片道_ask_で始まる知らない見出しは頼み() {
         let notes = [
             note("x", "hello", "K", "tpm", 0, None),

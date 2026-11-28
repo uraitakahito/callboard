@@ -89,11 +89,21 @@ test('英語にすると、種類・持ち手・長さ・課題の様子が英�
   await expect(rows(page).locator('.kind')).toHaveText(['Brief', 'Review', 'merged', 'Wrap-up']);
   await expect(row(page, 'b1').locator('.took')).toHaveText('Assignee 30 min');
   await expect(page.locator('#fresh')).toBeHidden();
+  // ほかの課題の記録（点の前の字が違う Key。TH-1 で始まる別の課題も）では、印を出さない。
+  await putMessage(request, PROJECT, 'o1', message('notify', 'tpm', 'TH-10', '04:05:00', 'ほかの課題の知らせ'));
+  await putMessage(request, PROJECT, 'o2', message('notify', 'tpm', 'OTHER-1', '04:06:00', 'ほかの課題の知らせ'));
+  // 知らせが browser に届くのを待つ（同じ流れで、後から置いたこの課題の席の記録で印が出るのを待てば、前の 2 つは届いている）。
+  await putMessage(request, PROJECT, 'n0', message('review', 'TH-1.staff', 'TH-1', '04:07:00', '席の記録', { key: 'TH-1.staff' }));
+  await expect(page.locator('#fresh')).toBeVisible();
+  await page.reload();
+  await page.waitForResponse((r) => r.url().endsWith('/api/pagetray/events') && r.status() === 200);
+  await expect(page.locator('#fresh')).toBeHidden();
+  await putMessage(request, PROJECT, 'o3', message('notify', 'tpm', 'TH-10', '04:08:00', 'ほかの課題の知らせ'));
   await putMessage(request, PROJECT, 'n1', message('notify', 'tpm', 'TH-1', '04:10:00', '後からの知らせ'));
   await expect(page.locator('#fresh')).toBeVisible();
   await expect(page.locator('#fresh')).toHaveText('● New records (reload)');
   await page.locator('#fresh').click();
-  await expect(rows(page)).toHaveCount(5);
+  await expect(rows(page)).toHaveCount(6);
   expect(problems).toEqual([]);
   // 言語の選びは cookie に残るので、日本語に戻しておく（ほかの試験は、日本語の画面を見る）。
   await page.locator('#lang-switch button[data-lang="ja"]').click();
