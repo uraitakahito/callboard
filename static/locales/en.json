@@ -463,11 +463,15 @@
       "subject": "Issue",
       "otherLabel": "Other label",
       "choice_one": "{{name}} ({{count}} seat)",
-      "choice_other": "{{name}} ({{count}} seats)"
+      "choice_other": "{{name}} ({{count}} seats)",
+      "step": "Width"
     },
     "window": {
-      "after": " (Japan time; records are hourly, so the period is aligned to the hour).",
-      "afterDefaulted": " (Japan time; records are hourly, so the period is aligned to the hour. No period was set, so this shows the last {{days}} days)."
+      "after": " (Japan time; the period is aligned to the hour).",
+      "afterDefaulted": " (Japan time; the period is aligned to the hour. No period was set, so this shows the last {{days}} days).",
+      "afterTenMin": " (Japan time; the width is 10 minutes, so the period is aligned to 10 minutes).",
+      "edge": "Some records cross the edge of this period (records made before rows were cut at 10 minutes). Their estimated cost inside the period, {{cost}}, is in the bars but not in the tables below (total, by context, matrix, roles, issues), because their turns cannot be placed in a 10-minute slot.",
+      "edgeLink": "Show the period aligned to the hour"
     },
     "tooMany": "There were too many records to read them all (read {{read}} rows). The numbers below cover only what was read. Narrow the period.",
     "tooSlow": "Could not read all records in time (read {{read}} rows). The numbers below cover only what was read. Narrow the period.",
@@ -491,28 +495,42 @@
       "helper": "Helpers (subagents; stacked on main)",
       "heading": {
         "hour": "Cost per hour (Japan time)",
-        "day": "Cost per day (Japan time)"
+        "day": "Cost per day (Japan time)",
+        "tenMin": "Cost per 10 minutes (Japan time)"
       },
       "legend": {
-        "hour": "Each row's hour is set by the end time of the record's interval. Periods up to 1 day are shown per hour; longer periods per day (split at midnight Japan time).",
-        "day": "Each row's day is set by the end time of the record's interval. Periods up to 1 day are shown per hour; longer periods per day (split at midnight Japan time)."
+        "hour": "Each row's hour is set by the end time of the record's interval. Unless a width is chosen, periods up to 1 day are shown per hour; longer periods per day (split at midnight Japan time). Click a bar to see that hour per 10 minutes.",
+        "day": "Each row's day is set by the end time of the record's interval. Unless a width is chosen, periods up to 1 day are shown per hour; longer periods per day (split at midnight Japan time). Click a bar to see that day per hour.",
+        "tenMin": "Each bar's 10 minutes are set by the record's interval (from its first turn to its last). Records whose interval crosses a 10-minute boundary (made before rows were cut at 10 minutes) are estimates: their cost is spread evenly over time. Click a bar to narrow the period to that 10 minutes."
       },
       "table": {
         "hour": "Show cost per hour as a table",
-        "day": "Show cost per day as a table"
+        "day": "Show cost per day as a table",
+        "tenMin": "Show cost per 10 minutes as a table"
       },
       "col": {
         "hour": "Hour",
-        "day": "Day"
+        "day": "Day",
+        "tenMin": "10 minutes"
       },
       "chartLabel": {
         "hour": "Cost per hour (Japan time). Stacked bars of main session and helpers. Total cost {{total}}.",
-        "day": "Cost per day (Japan time). Stacked bars of main session and helpers. Total cost {{total}}."
+        "day": "Cost per day (Japan time). Stacked bars of main session and helpers. Total cost {{total}}.",
+        "tenMin": "Cost per 10 minutes (Japan time). Stacked bars of main session and helpers. Total cost {{total}}."
       },
       "bar": {
         "main": "{{name}}: main {{cost}} (main and helpers {{sum}})",
-        "helper": "{{name}}: helpers {{cost}} (main and helpers {{sum}})"
-      }
+        "helper": "{{name}}: helpers {{cost}} (main and helpers {{sum}})",
+        "mainEst": "{{name}}: main {{cost}} (main and helpers {{sum}}; includes estimates)",
+        "helperEst": "{{name}}: helpers {{cost}} (main and helpers {{sum}}; includes estimates)"
+      },
+      "link": {
+        "tenMin": "Click to narrow the period to this 10 minutes",
+        "hour": "Click to see this hour per 10 minutes",
+        "day": "Click to see this day per hour"
+      },
+      "estimated": "Faded bars include estimates ({{estimated}} of the {{bars}} bars with cost). Records made before rows were cut at 10 minutes have their cost spread evenly over time.",
+      "estimatedMark": " (includes estimates)"
     },
     "models": {
       "heading": "By model and role",
@@ -602,6 +620,17 @@
         "claudeCodeGuide": "A helper that answers questions about using Claude Code and the Claude API by reading the docs.",
         "statuslineSetup": "A helper that configures Claude Code's status line.",
         "auditReader": "A read-only helper used only when the Auditor collects evidence for a case (the audit-evidence skill)."
+      }
+    },
+    "step": {
+      "auto": "Auto",
+      "tenMin": "10 minutes",
+      "hour": "1 hour",
+      "day": "1 day",
+      "coarser": {
+        "tenMinToHour": "The 10-minute width is drawn for periods up to 1 day. This period is drawn per hour.",
+        "tenMinToDay": "The 10-minute width is drawn for periods up to 1 day. This period is drawn per day.",
+        "hourToDay": "The 1-hour width is drawn for periods up to 7 days. This period is drawn per day."
       }
     }
   },

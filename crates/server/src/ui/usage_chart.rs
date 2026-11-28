@@ -180,10 +180,10 @@ pub fn day_starts(from: i64, to: i64, offset_s: i64) -> Vec<i64> {
     out
 }
 
-/// 時刻の窓 [`from`, `to`) を、1 時間ごとに区切った、区切りの初め（`from` は時の境に揃えた物）。
-pub fn hour_starts(from: i64, to: i64) -> Vec<i64> {
+/// 時刻の窓 [`from`, `to`) を、`width` 秒ごとに区切った、区切りの初め（`from` は区切りの境に揃えた物）。
+pub fn starts_every(from: i64, to: i64, width: i64) -> Vec<i64> {
     (0..)
-        .map(|i| from + i * HOUR)
+        .map(|i| from + i * width.max(1))
         .take_while(|t| *t < to)
         .collect()
 }
@@ -445,8 +445,11 @@ mod tests {
 
     #[test]
     fn 時の区切りは_1_時間ごと() {
-        assert_eq!(hour_starts(T, T + 3 * HOUR), [T, T + HOUR, T + 2 * HOUR]);
-        assert!(hour_starts(T, T).is_empty());
+        assert_eq!(
+            starts_every(T, T + 3 * HOUR, HOUR),
+            [T, T + HOUR, T + 2 * HOUR]
+        );
+        assert!(starts_every(T, T, HOUR).is_empty());
     }
 
     #[test]

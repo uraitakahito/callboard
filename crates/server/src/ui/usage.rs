@@ -1,12 +1,15 @@
 //! 使用量（`GET /usage/`）: 席（アクター）ごとのトークンの数と額を、全体・役割ごと・課題ごとの表と、2 つの図（文脈の長さの段ごと・
-//! 日ごとか時ごと。座標は [`super::usage_chart`]）で出す。一覧の額の列とアクターの頁の節「使用量」も、ここの決め方（期間・数の字）を使う。
+//! 日ごとか時ごとか 10 分ごと。座標は [`super::usage_chart`]）で出す。一覧の額の列とアクターの頁の節「使用量」も、ここの決め方（期間・数の字）を使う。
 //!
-//! castlist の API の `ListUsage`（castlist 2.1.0 から。アクター 1 人の、時計の 1 時間の内の、同じ種類の回のまとめの行）を、
+//! castlist の API の `ListUsage`（castlist 2.1.0 から。アクター 1 人の、同じ種類の回のまとめの行。区間は UTC の時の内で、長さは送り手が
+//! 決める: roster は UTC の 10 分の枠ごと。roster の PR #302 より前の行は 1 時間の枠ごと）を、
 //! 期間の内でみな引き、まとめる計算（[`super::usage_summary`]。外に触らない純な計算）で数を出す。script は使わない。
 //!
 //! - 期間（`from`・`to`）は、時の境に揃えてから castlist に送る（始めは時の初めに切り下げ、終わりは時の境に切り上げる）。
 //!   行が期間に入るかは、行の終わりの時刻で決まるので、時の途中で切ると、端の 1 時間の行が欠けたり余ったりする。
 //!   日本時間（UTC+9）と UTC は、時の境が同じ。送った期間を、画面に出す。
+//! - 額の棒の幅（`step`）は選べる。10 分の幅の時だけ、見せる期間を 10 分の境に揃え、表には、区間がその期間に収まる行だけを入れる
+//!   （castlist に聞く期間は、時の境のまま）。棒は、押すとその区切りに絞る link。
 //! - まとめる計算と HTML を組むのは、タイムラインと同じく `spawn_blocking` の糸で行う（行は 5 万まで在りうる）。
 use std::sync::Arc;
 
@@ -39,7 +42,74 @@ use crate::upstream::castlist::{ActorSearch, Cut, UsageAnswer, UsageSearch};
 pub const PATH: &str = "/usage/";
 
 /// 引数の名。`label` は何度でも。
-const USAGE_PARAMS: &[&str] = &["label", "from", "to"];
+const USAGE_PARAMS: &[&str] = &["label", "from", "to", "step"];
+
+/// 幅の欄（`step`）の値: 10 分・1 時間・1 日。無ければ自動（期間が 1 日までなら時ごと、長ければ日ごと）。
+const STEPS: [&str; 3] = ["10m", "1h", "1d"];
+/// 10 分の区切りの長さ（秒）。
+const TEN_MIN: i64 = 600;
+/// 棒を描ける期間の上限（秒）: 10 分の幅は 1 日まで（144 本）、1 時間の幅は 7 日まで（168 本。描く所の幅 640 px で 1 本 3〜4 px）。
+const TEN_MIN_SPAN: i64 = chart::DAY;
+const HOUR_SPAN: i64 = 7 * chart::DAY;
+
+/// 額の棒の区切りの幅。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Width {
+    TenMin,
+    Hour,
+    Day,
+}
+
+impl Width {
+    /// 幅ごとの訳の鍵（10 分・時・日の順に渡した 3 つから選ぶ）。
+    fn pick(self, keys: [&'static str; 3]) -> Text {
+        Text::new(match self {
+            Self::TenMin => keys[0],
+            Self::Hour => keys[1],
+            Self::Day => keys[2],
+        })
+    }
+}
+
+/// 描く幅と、頼まれた幅（`step`）より粗くした時の訳。`span` は、時の境に揃えた期間の長さ（秒）。
+/// 棒が多すぎて描けない幅を頼まれたら、断らずに、描けるいちばん細かい幅で描く。
+pub(super) fn width(step: Option<&str>, span: i64) -> (Width, Option<Text>) {
+    let coarser = |key: &'static str| Some(Text::new(key));
+    match step {
+        Some("10m") if span <= TEN_MIN_SPAN => (Width::TenMin, None),
+        Some("10m") if span <= HOUR_SPAN => {
+            (Width::Hour, coarser("usage.step.coarser.tenMinToHour"))
+        }
+        Some("10m") => (Width::Day, coarser("usage.step.coarser.tenMinToDay")),
+        Some("1h") if span <= HOUR_SPAN => (Width::Hour, None),
+        Some("1h") => (Width::Day, coarser("usage.step.coarser.hourToDay")),
+        Some("1d") => (Width::Day, None),
+        _ if span <= chart::DAY => (Width::Hour, None),
+        _ => (Width::Day, None),
+    }
+}
+
+/// 10 分の境に切り下げる・切り上げる（ちょうどの時は、そのまま）。
+fn floor_ten(t: OffsetDateTime) -> OffsetDateTime {
+    let seconds = t.unix_timestamp();
+    OffsetDateTime::from_unix_timestamp(seconds - seconds.rem_euclid(TEN_MIN)).unwrap_or(t)
+}
+
+fn ceil_ten(t: OffsetDateTime) -> OffsetDateTime {
+    let floor = floor_ten(t);
+    if floor == t {
+        t
+    } else {
+        floor + time::Duration::seconds(TEN_MIN)
+    }
+}
+
+/// 期間の字（link の `from`・`to`。RFC 3339・`+09:00`。すぐ選ぶ期間の link と同じ形）。
+fn link_time(seconds: i64) -> String {
+    OffsetDateTime::from_unix_timestamp(seconds)
+        .map(|t| t.to_offset(OFFSET).format(&Rfc3339).unwrap_or_default())
+        .unwrap_or_default()
+}
 
 /// 期間の欄の引数の名と、画面の見出しの字の鍵（読めない値の 400 の画面に書く）。
 const PERIOD: [&str; 2] = ["from", "to"];
@@ -528,6 +598,7 @@ pub(super) fn rows_of(usage: Vec<Usage>) -> Vec<summary::Row> {
     usage
         .into_iter()
         .map(|u| summary::Row {
+            from_at: u.from_at.secs(),
             to_at: u.to_at.secs(),
             actor_id: u.actor_id,
             model: u.model,
@@ -577,6 +648,16 @@ pub(super) struct BarView {
     pub title: Text,
 }
 
+/// 棒の区切り 1 つ（押すと、その区切りに期間を絞る link。額の在る区切りだけ）。棒と、区切りの縦いっぱいの、押す所。
+pub(super) struct ColumnView {
+    pub href: String,
+    pub x: u32,
+    pub w: u32,
+    /// 押す所にマウスを重ねた時の字（押すとどうなるか）。
+    pub hint: Text,
+    pub bars: Vec<BarView>,
+}
+
 /// 20 万の点線と、その字の置き場。
 pub(super) struct LimitView {
     pub x1: u32,
@@ -610,6 +691,8 @@ pub(super) struct ChartView {
     pub y_ticks: Vec<TickView>,
     pub x_ticks: Vec<TickView>,
     pub bars: Vec<BarView>,
+    /// link にした棒の区切り（使用量の画面の、額の棒だけ。ほかの図では空）。
+    pub columns: Vec<ColumnView>,
     pub limit: Option<LimitView>,
     /// 段々の線の path。
     pub line: Option<String>,
@@ -643,6 +726,7 @@ fn frame(label: Text, axis: Axis, y_label: impl Fn(i64) -> Text) -> ChartView {
             .collect(),
         x_ticks: Vec::new(),
         bars: Vec::new(),
+        columns: Vec::new(),
         limit: None,
         line: None,
         marks: Vec::new(),
@@ -748,69 +832,119 @@ fn context_chart(rows: &[summary::Row]) -> Option<ChartView> {
     Some(view)
 }
 
-/// 日ごと（期間が 1 日より長い時）か、時ごと（1 日まで）の額。本体と手伝いを積む。図と、時ごとか（区切りの名の鍵を選ぶ）。
+/// 額の棒の図と、その字の表と、見立てを含む棒の数。
+pub(super) struct SlotChart {
+    view: ChartView,
+    rows: Vec<SlotRow>,
+    /// 額の在る区切りの数と、そのうち見立て（境をまたぐ行から均して配った額）を含む数。
+    filled: i64,
+    estimated: i64,
+    /// 棒に入った額の計（本体と手伝い）。
+    total: i64,
+}
+
+/// 区切り（日・時・10 分）ごとの額。本体と手伝いを積む。行の額は [`summary::spread`] で配る（区切りの境をまたぐ行は見立て）。
+/// 額の在る区切りは、押すとその区切りに期間を絞る link にする（`link` が、区切りの初めと終わりから URL を作る）。
 fn slot_chart(
     rows: &[summary::Row],
     from: OffsetDateTime,
     to: OffsetDateTime,
-) -> (ChartView, bool, Vec<SlotRow>) {
+    width: Width,
+    link: impl Fn(i64, i64) -> String,
+) -> SlotChart {
     let (start, end) = (from.unix_timestamp(), to.unix_timestamp());
     let mut table = Vec::new();
-    let hourly = end - start <= chart::DAY;
-    let starts = if hourly {
-        chart::hour_starts(start, end)
-    } else {
-        chart::day_starts(start, end, i64::from(OFFSET.whole_seconds()))
+    let starts = match width {
+        Width::TenMin => chart::starts_every(start, end, TEN_MIN),
+        Width::Hour => chart::starts_every(start, end, chart::HOUR),
+        Width::Day => chart::day_starts(start, end, i64::from(OFFSET.whole_seconds())),
     };
-    let sums = summary::by_slot(rows, &starts, end);
-    let total: i64 = sums.iter().map(|(m, h)| m + h).sum();
-    let axis = chart::axis(sums.iter().map(|(m, h)| m + h).max().unwrap_or(0), 10_000);
-    let label = if hourly {
-        "usage.bySlot.chartLabel.hour"
-    } else {
-        "usage.bySlot.chartLabel.day"
-    };
-    let mut view = frame(Text::new(label).with("total", dollars(total)), axis, |v| {
-        dollar_tick(v, axis.step)
-    });
+    let sums = summary::spread(rows, &starts, end);
+    let total: i64 = sums.iter().map(summary::SlotSum::total).sum();
+    let axis = chart::axis(
+        sums.iter().map(summary::SlotSum::total).max().unwrap_or(0),
+        10_000,
+    );
+    let mut view = frame(
+        width
+            .pick([
+                "usage.bySlot.chartLabel.tenMin",
+                "usage.bySlot.chartLabel.hour",
+                "usage.bySlot.chartLabel.day",
+            ])
+            .with("total", dollars(total)),
+        axis,
+        |v| dollar_tick(v, axis.step),
+    );
     let slots = chart::slots(starts.len());
     let every = chart::label_every(starts.len(), LABEL_PX);
-    for (i, ((slot, at), (main, helper))) in slots.iter().zip(&starts).zip(&sums).enumerate() {
+    let (mut filled, mut estimated) = (0, 0);
+    for (i, ((slot, at), sum)) in slots.iter().zip(&starts).zip(&sums).enumerate() {
         let t = OffsetDateTime::from_unix_timestamp(*at)
             .unwrap_or(from)
             .to_offset(OFFSET);
         let date = format!("{:02}-{:02}", u8::from(t.month()), t.day());
-        let clock = format!("{:02}:00", t.hour());
-        let name = if hourly {
-            format!("{date} {clock}")
-        } else {
-            date.clone()
+        let clock = format!("{:02}:{:02}", t.hour(), t.minute());
+        let name = match width {
+            Width::Day => date.clone(),
+            Width::Hour | Width::TenMin => format!("{date} {clock}"),
         };
         if i % every == 0 {
             view.x_ticks.push(TickView {
                 at: slot.mid(),
-                label: Text::plain(if hourly { clock } else { date }),
+                label: Text::plain(if width == Width::Day { date } else { clock }),
             });
         }
-        let sum = dollars(main + helper);
+        if sum.total() <= 0 {
+            continue;
+        }
+        let rough = sum.estimated > 0;
+        filled += 1;
+        estimated += i64::from(rough);
+        let total = dollars(sum.total());
         // 図の外の字の表（読み上げのため。図の棒の <title> は読み上げに出ない）。額の在る区切りだけ。
-        if main + helper > 0 {
-            table.push(SlotRow {
-                name: name.clone(),
-                main: dollars(*main),
-                helper: dollars(*helper),
-                total: sum.clone(),
-            });
-        }
+        let next = starts.get(i + 1).copied().unwrap_or(end);
+        let href = link(*at, next);
+        table.push(SlotRow {
+            name: name.clone(),
+            href: href.clone(),
+            estimated: rough,
+            main: dollars(sum.main),
+            helper: dollars(sum.helper),
+            total: total.clone(),
+        });
         // 手伝いの棒は、本体の棒の上の端から積む（本体の棒が 1 px に満たず 1 px で描いた時に、それを覆わない）。
-        let main_bar = chart::bar(axis, slot, 0, *main);
-        let helper_bar = chart::stacked(axis, slot, main_bar, *main, *helper);
+        let main_bar = chart::bar(axis, slot, 0, sum.main);
+        let helper_bar = chart::stacked(axis, slot, main_bar, sum.main, sum.helper);
+        let mut bars = Vec::new();
         for (class, value, key, bar) in [
-            ("bar main", *main, "usage.bySlot.bar.main", main_bar),
-            ("bar helper", *helper, "usage.bySlot.bar.helper", helper_bar),
+            (
+                if rough { "bar main est" } else { "bar main" },
+                sum.main,
+                if rough {
+                    "usage.bySlot.bar.mainEst"
+                } else {
+                    "usage.bySlot.bar.main"
+                },
+                main_bar,
+            ),
+            (
+                if rough {
+                    "bar helper est"
+                } else {
+                    "bar helper"
+                },
+                sum.helper,
+                if rough {
+                    "usage.bySlot.bar.helperEst"
+                } else {
+                    "usage.bySlot.bar.helper"
+                },
+                helper_bar,
+            ),
         ] {
             if let Some(b) = bar {
-                view.bars.push(BarView {
+                bars.push(BarView {
                     class,
                     x: b.x,
                     y: b.y,
@@ -819,17 +953,38 @@ fn slot_chart(
                     title: Text::new(key)
                         .with("name", &name)
                         .with("cost", dollars(value))
-                        .with("sum", &sum),
+                        .with("sum", &total),
                 });
             }
         }
+        view.columns.push(ColumnView {
+            href,
+            x: slot.left,
+            w: slot.width.max(1),
+            hint: width.pick([
+                "usage.bySlot.link.tenMin",
+                "usage.bySlot.link.hour",
+                "usage.bySlot.link.day",
+            ]),
+            bars,
+        });
     }
-    (view, hourly, table)
+    SlotChart {
+        view,
+        rows: table,
+        filled,
+        estimated,
+        total,
+    }
 }
 
-/// 区切り（日・時）ごとの額の、字の表の 1 行。
+/// 区切り（日・時・10 分）ごとの額の、字の表の 1 行。
 pub(super) struct SlotRow {
     name: String,
+    /// その区切りに期間を絞る link。
+    href: String,
+    /// 見立てを含むか。
+    estimated: bool,
     main: String,
     helper: String,
     total: String,
@@ -911,9 +1066,11 @@ pub(super) fn line_chart(rows: &[summary::Row], marks: &[(i64, Text)]) -> Option
 struct Charts {
     by_context: Option<ChartView>,
     by_slot: ChartView,
-    /// 日ごと・時ごとの額の字の表（畳んで置く）。
+    /// 日ごと・時ごと・10 分ごとの額の字の表（畳んで置く）。
     slot_rows: Vec<SlotRow>,
-    /// 区切りの見出し・注・表の名・表の列の名（時ごとか日ごとかで鍵が替わる）。
+    /// 見立てを含む棒が在る時の注（「N 本のうち M 本が…」）。
+    slot_estimated: Option<Text>,
+    /// 区切りの見出し・注・表の名・表の列の名（幅で鍵が替わる）。
     slot_heading: Text,
     slot_legend: Text,
     slot_table: Text,
@@ -926,6 +1083,8 @@ struct Form {
     picked: Picked,
     from: String,
     to: String,
+    /// 幅の欄の今の値（`10m`・`1h`・`1d`。自動なら空）。
+    step: String,
 }
 
 impl Form {
@@ -937,6 +1096,7 @@ impl Form {
                 "label" => given.push(value.clone()),
                 "from" => form.from = params::to_local(value),
                 "to" => form.to = params::to_local(value),
+                "step" => form.step.clone_from(value),
                 _ => {}
             }
         }
@@ -1006,9 +1166,15 @@ struct UsagePage<'a> {
     choices: ChoicesView,
     /// 期間をすぐ選ぶ link（名と URL）。
     quick: Vec<(Text, String)>,
-    /// castlist に送った期間（時の境に揃えた後）。
+    /// 集めた期間（時の境に揃えた後。10 分の幅の時は、10 分の境に揃えた後）。
     from: Time,
     to: Time,
+    /// 期間を 10 分の境に揃えたか（幅が 10 分の時）。
+    ten_min: bool,
+    /// 頼まれた幅より粗く描いた時の訳。
+    step_note: Option<Text>,
+    /// 10 分の境の期間の端をまたぐ記録の注（表に入れなかった額）と、時の境の期間で見る link。
+    edge_note: Option<(Text, String)>,
     /// 期間が無かったので、直近の日数で出したか。
     defaulted: bool,
     days: i64,
@@ -1061,8 +1227,35 @@ async fn usage_page(
     };
     let now = OffsetDateTime::now_utc();
     let defaulted = PERIOD.iter().all(|name| p.one(name).is_none());
+    let step = p.choice("step", &STEPS)?;
     let (from, to) = window(at("from"), at("to"), now)?;
+    let (width, step_note) = width(step, (to - from).whole_seconds());
+    // 10 分の幅の時だけ、見せる期間を 10 分の境に揃える（castlist には、今までどおり時の境の期間で聞く。行は UTC の時を
+    // またがないので、その答えに、見せる期間に掛かる行がみな入る）。始めを打っていない時は、時の境のまま。
+    let (shown_from, shown_to) = if width == Width::TenMin {
+        (
+            at("from").map_or(from, floor_ten).max(from),
+            ceil_ten(at("to").unwrap_or(now)).min(to),
+        )
+    } else {
+        (from, to)
+    };
     let form = Form::new(&pairs);
+    // 区切りに絞る link の元: 今の絞り（ラベル）を残し、期間と幅を替える。
+    let kept: Pairs = pairs
+        .iter()
+        .filter(|(n, _)| !matches!(n.as_str(), "from" | "to" | "step"))
+        .cloned()
+        .collect();
+    let link_to = move |start: i64, end: i64, step: Option<&str>| {
+        let mut link = kept.clone();
+        link.push(("from".to_owned(), link_time(start)));
+        link.push(("to".to_owned(), link_time(end)));
+        if let Some(step) = step {
+            link.push(("step".to_owned(), step.to_owned()));
+        }
+        format!("{PATH}?{}", params::query(&link))
+    };
     let quick = params::quick_links(PATH, &pairs, PERIOD, now);
     let search = search((from, to), labels, None);
     // 絞りの候補は、同じ期間に稼働した席から（ラベルの絞りは付けない。絞っても候補が減らないように）。使用量の行と並べて聞く。
@@ -1112,18 +1305,64 @@ async fn usage_page(
         let too_many = answer.truncated == Some(Cut::Pages);
         let too_slow = answer.truncated == Some(Cut::Time);
         let read = count(i64::try_from(answer.rows.len()).unwrap_or(i64::MAX));
-        let rows = rows_of(answer.rows);
-        let tables = (!rows.is_empty()).then(|| {
-            let (by_slot, hourly, slot_rows) = slot_chart(&rows, from, to);
-            let pick = |hour, day| Text::new(if hourly { hour } else { day });
+        let all = rows_of(answer.rows);
+        // 表（全体・行列・役割・課題・段の図）に入れるのは、区間が見せる期間の内に収まる行だけ。時の境の期間では、みな収まる。
+        // 10 分の境の期間の端をまたぐ行（10 分で切る前の記録）は、回がどちらの側に在ったかが分からないので、表に入れない。
+        let (lo, hi) = (shown_from.unix_timestamp(), shown_to.unix_timestamp());
+        let rows: Vec<summary::Row> = all
+            .iter()
+            .filter(|r| r.from_at.min(r.to_at) >= lo && r.to_at < hi)
+            .cloned()
+            .collect();
+        // 棒は、端をまたぐ行の、期間の内に当たる分（見立て）も入れる。日の棒を押すと時ごと（幅は自動）、時の棒を押すと 10 分ごと。
+        let slots = slot_chart(&all, shown_from, shown_to, width, |start, end| {
+            link_to(
+                start,
+                end,
+                match width {
+                    Width::Day => None,
+                    Width::Hour | Width::TenMin => Some("10m"),
+                },
+            )
+        });
+        let inside: i64 = rows.iter().map(|r| r.cost).sum();
+        let edge = slots.total.saturating_sub(inside);
+        let edge_note = (edge > 0).then(|| {
+            (
+                Text::new("usage.window.edge").with("cost", dollars(edge)),
+                link_to(from.unix_timestamp(), to.unix_timestamp(), None),
+            )
+        });
+        let tables = (slots.total > 0 || !rows.is_empty()).then(|| {
             let charts = Charts {
                 by_context: context_chart(&rows),
-                by_slot,
-                slot_rows,
-                slot_heading: pick("usage.bySlot.heading.hour", "usage.bySlot.heading.day"),
-                slot_legend: pick("usage.bySlot.legend.hour", "usage.bySlot.legend.day"),
-                slot_table: pick("usage.bySlot.table.hour", "usage.bySlot.table.day"),
-                slot_col: pick("usage.bySlot.col.hour", "usage.bySlot.col.day"),
+                slot_estimated: (slots.estimated > 0).then(|| {
+                    Text::new("usage.bySlot.estimated")
+                        .with("bars", count(slots.filled))
+                        .with("estimated", count(slots.estimated))
+                }),
+                by_slot: slots.view,
+                slot_rows: slots.rows,
+                slot_heading: width.pick([
+                    "usage.bySlot.heading.tenMin",
+                    "usage.bySlot.heading.hour",
+                    "usage.bySlot.heading.day",
+                ]),
+                slot_legend: width.pick([
+                    "usage.bySlot.legend.tenMin",
+                    "usage.bySlot.legend.hour",
+                    "usage.bySlot.legend.day",
+                ]),
+                slot_table: width.pick([
+                    "usage.bySlot.table.tenMin",
+                    "usage.bySlot.table.hour",
+                    "usage.bySlot.table.day",
+                ]),
+                slot_col: width.pick([
+                    "usage.bySlot.col.tenMin",
+                    "usage.bySlot.col.hour",
+                    "usage.bySlot.col.day",
+                ]),
             };
             let actors = actors_of(answer.actors);
             let by_model = summary::by_model(
@@ -1146,8 +1385,11 @@ async fn usage_page(
             form,
             choices,
             quick,
-            from: time_of(from),
-            to: time_of(to),
+            from: time_of(shown_from),
+            to: time_of(shown_to),
+            ten_min: width == Width::TenMin,
+            step_note,
+            edge_note,
             defaulted,
             days: DEFAULT_DAYS,
             too_many,
@@ -1273,6 +1515,68 @@ mod tests {
         assert_eq!(
             window(Some(at("2026-11-27T00:10:00Z")), None, now).ok(),
             Some((at("2026-11-27T00:00:00Z"), at("2026-11-28T04:00:00Z")))
+        );
+    }
+
+    #[test]
+    fn 幅は_選ばなければ期間で決め_棒が多すぎる幅は_描ける粗い幅にして訳を付ける() {
+        let (hour, day) = (chart::HOUR, chart::DAY);
+        let of = |step, span| {
+            let (width, note) = width(step, span);
+            (width, note.map(|n| n.key()))
+        };
+        // 自動: 1 日までは時ごと、長ければ日ごと（今までの決まり）。
+        assert_eq!(of(None, 3 * hour), (Width::Hour, None));
+        assert_eq!(of(None, day), (Width::Hour, None));
+        assert_eq!(of(None, day + hour), (Width::Day, None));
+        // 10 分は 1 日まで（144 本）。7 日までは 1 時間に、それより長ければ 1 日に落とす。
+        assert_eq!(of(Some("10m"), hour), (Width::TenMin, None));
+        assert_eq!(of(Some("10m"), day), (Width::TenMin, None));
+        assert_eq!(
+            of(Some("10m"), day + hour),
+            (Width::Hour, Some("usage.step.coarser.tenMinToHour"))
+        );
+        assert_eq!(
+            of(Some("10m"), 7 * day + hour),
+            (Width::Day, Some("usage.step.coarser.tenMinToDay"))
+        );
+        // 1 時間は 7 日まで（168 本）。
+        assert_eq!(of(Some("1h"), 7 * day), (Width::Hour, None));
+        assert_eq!(
+            of(Some("1h"), 7 * day + hour),
+            (Width::Day, Some("usage.step.coarser.hourToDay"))
+        );
+        // 1 日は、いつでも。
+        assert_eq!(of(Some("1d"), hour), (Width::Day, None));
+        assert_eq!(of(Some("1d"), 31 * day), (Width::Day, None));
+    }
+
+    #[test]
+    fn 十分の境は_切り下げと切り上げで揃え_ちょうどの時はそのまま() {
+        assert_eq!(
+            floor_ten(at("2026-11-22T01:39:59.999Z")),
+            at("2026-11-22T01:30:00Z")
+        );
+        assert_eq!(
+            floor_ten(at("2026-11-22T01:40:00Z")),
+            at("2026-11-22T01:40:00Z")
+        );
+        assert_eq!(
+            ceil_ten(at("2026-11-22T01:40:00Z")),
+            at("2026-11-22T01:40:00Z")
+        );
+        assert_eq!(
+            ceil_ten(at("2026-11-22T01:40:00.001Z")),
+            at("2026-11-22T01:50:00Z")
+        );
+        assert_eq!(
+            ceil_ten(at("2026-11-22T01:55:00Z")),
+            at("2026-11-22T02:00:00Z")
+        );
+        // link の期間の字は、日本時間の RFC 3339（すぐ選ぶ期間の link と同じ形）。
+        assert_eq!(
+            link_time(at("2026-11-22T01:40:00Z").unix_timestamp()),
+            "2026-11-22T10:40:00+09:00"
         );
     }
 
