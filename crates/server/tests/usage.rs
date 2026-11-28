@@ -1076,8 +1076,15 @@ async fn 候補は_表示と同じ期間で_ラベルの絞りを付けずに_li
     .await;
     // castlist に聞くのは、使用量の行と候補の 2 つの道だけ。
     for seen in app.castlist.seen() {
-        let path = seen.uri.split_once('?').map_or(seen.uri.as_str(), |(p, _)| p);
-        assert!(path == "/api/usage" || path == "/api/actors", "{}", seen.uri);
+        let path = seen
+            .uri
+            .split_once('?')
+            .map_or(seen.uri.as_str(), |(p, _)| p);
+        assert!(
+            path == "/api/usage" || path == "/api/actors",
+            "{}",
+            seen.uri
+        );
     }
     let usage = asked(&app);
     let actors = asked_at(&app, "/api/actors");
