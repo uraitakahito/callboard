@@ -133,6 +133,18 @@ mod tests {
     }
 
     #[test]
+    fn 訳の無い本文でも_呼ぶ先の_code_は_upstream_code_に移す() {
+        // 訳が無いので鍵は足さないが、呼ぶ先の code を残すと、browser がそれを字の鍵として組んでしまう。
+        let value = json(with_code(
+            Some("ValidationException"),
+            br#"{"code":"nav.actors","values":{"a":1}}"#,
+        ));
+        assert_eq!(value.get("code"), None);
+        assert_eq!(value["upstreamCode"], "nav.actors");
+        assert_eq!(value["values"], serde_json::json!({"a": 1}));
+    }
+
+    #[test]
     fn 型の名は_名前空間と後ろの説明を落として比べる() {
         let body = br#"{"message":"x"}"#;
         for kind in [

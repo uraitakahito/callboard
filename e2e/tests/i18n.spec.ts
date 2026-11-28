@@ -441,5 +441,17 @@ test('英語の相関図は、点と線を引けなかった訳も、callboard �
   // code の無い誤り（呼ぶ先の古い形）: 字は message のまま。
   await fail({ message: 'bad' }, 400);
   await expect(status).toHaveText('Cannot show the network: 400 bad');
+  await page.unrouteAll();
+  // JSON でない本文（手前の proxy の 502 など）と JSON の null: ページの一覧の上げる道と同じく、状態の字を添える。
+  const raw = async (body: string, statusCode: number) => {
+    await page.route(/\/api\/castlist\/graph/, (route) => route.fulfill({ status: statusCode, contentType: 'application/json', body }));
+    await page.goto('/graph/network');
+    await expect(page.locator('#network')).toHaveAttribute('data-state', 'error');
+    await page.unrouteAll();
+  };
+  await raw('<html>bad gateway</html>', 502);
+  await expect(status).toHaveText('Cannot show the network: 502 Bad Gateway');
+  await raw('null', 500);
+  await expect(status).toHaveText('Cannot show the network: 500 Internal Server Error');
   await context.close();
 });
