@@ -557,8 +557,10 @@ async fn 使用量の引数の誤りは_訳を書いた_400_の画面で_castlis
     for (uri, word) in [
         (
             "/usage/?nope=1",
-            "知らない引数: nope（使えるのは label・from・to）",
+            "知らない引数: nope（使えるのは label・from・to・step）",
         ),
+        // 幅は、決まった 3 つのどれか（自動は、付けない）。
+        ("/usage/?step=5m", "step は 10m・1h・1d のどれか"),
         (
             "/usage/?from=2026-11-22T10:00&from=2026-11-22T11:00",
             "from は 1 つだけ付ける",
@@ -941,6 +943,377 @@ async fn 日ごとの額は_図の下に畳んだ字の表でも読める() {
     assert!(totals.iter().all(|t| *t > 0.0), "{table}");
     let sum: f64 = totals.iter().sum();
     assert!((sum - 7.26).abs() < 0.015, "{sum}: {table}");
+}
+
+// --- 幅の欄と 10 分ごとの額（t-ztu7。幅を選ぶ・区切りの境をまたぐ記録は見立て・棒を押すとその区切りに絞る） ---
+
+/// 10 分で切る前の記録の見本: se.2 の本体 $1.00。区間は日本時間の 10:35:00〜10:44:59（10:30 の枠と 10:40 の枠に、半分ずつ掛かる）。
+fn crossing() -> Value {
+    usage_row(
+        "u-x",
+        SE2,
+        None,
+        "2026-11-22T01:44:59Z",
+        json!({"fromAt": "2026-11-22T01:35:00Z", "turns": 4, "costMicroUsd": 1_000_000, "maxContext": 50_000,
+            "buckets": usage_buckets(&[(2, 4, 1_000_000)])}),
+    )
+}
+
+async fn with_crossing() -> App {
+    let mut rows = rows();
+    rows.push(crossing());
+    start(vec![usage_page(rows, actors(), None)]).await
+}
+
+/// 画面の、id の付いた注（`<p … id="…">` か `<ul … id="…">` の中身）。無ければ無い。
+fn note<'a>(body: &'a str, id: &str) -> Option<&'a str> {
+    let at = body.find(&format!(" id=\"{id}\""))?;
+    let rest = &body[at..];
+    let end = [rest.find("</p>"), rest.find("</ul>")]
+        .into_iter()
+        .flatten()
+        .min()
+        .unwrap();
+    Some(&rest[..end])
+}
+
+#[tokio::test]
+async fn 幅を_10_分にすると_期間を_10_分の境に揃え_10_分ごとの額を棒で出す() {
+    let app = sample().await;
+    let body = app.html(&format!("{WINDOW}&step=10m")).await;
+    common::check_i18n("usage.rs:step=10m", &body);
+    // castlist には、今までどおり、時の境に揃えた期間で聞く。
+    let asked = asked(&app);
+    assert_eq!(all(&asked[0], "from"), ["2026-11-22T01:00:00Z"]);
+    assert_eq!(all(&asked[0], "to"), ["2026-11-22T04:00:00Z"]);
+    assert!(all(&asked[0], "step").is_empty());
+    // 見せる期間は、10 分の境（日本時間の 10:30〜12:10）。
+    let window = note(&body, "window").expect("期間");
+    assert!(window.contains(">2026-11-22 10:30:00</time>"), "{window}");
+    assert!(
+        window.contains(">2026-11-22 12:10:00</time><span data-i18n=\"usage.window.afterTenMin\"> まで（日本時間。幅が 10 分なので、期間を 10 分の境に揃えています）。</span>"),
+        "{window}"
+    );
+    // 幅の欄は、今の値を選んである。
+    assert!(
+        body.contains("<select name=\"step\"><option value=\"\" data-i18n=\"usage.step.auto\">自動</option><option value=\"10m\" selected data-i18n=\"usage.step.tenMin\">10 分</option>"),
+        "{body}"
+    );
+    let chart = section(&body, "by-day");
+    assert!(
+        chart.contains(
+            "<h2 data-i18n=\"usage.bySlot.heading.tenMin\">10 分ごとの額（日本時間）</h2>"
+        ),
+        "{chart}"
+    );
+    assert!(
+        chart.contains(
+            "<summary data-i18n=\"usage.bySlot.table.tenMin\">10 分ごとの額を、表で見る</summary>"
+        ) && chart.contains("<th data-i18n=\"usage.bySlot.col.tenMin\">10 分</th>"),
+        "{chart}"
+    );
+    let svg = svg(chart);
+    assert!(
+        svg.contains(
+            "aria-label=\"10 分ごとの額（日本時間）。本体と手伝いを積んだ棒。額の計 $7.26。\""
+        ),
+        "{svg}"
+    );
+    // 見本の行は、区間が 1 点（10:40 と 11:10）なので、その 10 分の枠に、正確な額で入る（見立ての印は無い）。
+    assert_eq!(svg.matches("<rect class=\"bar main\"").count(), 2, "{svg}");
+    assert_eq!(
+        svg.matches("<rect class=\"bar helper\"").count(),
+        1,
+        "{svg}"
+    );
+    assert!(!svg.contains(" est\""), "{svg}");
+    assert!(note(&body, "estimated").is_none(), "{chart}");
+    assert!(
+        note(&body, "edge-note").is_none() && note(&body, "step-note").is_none(),
+        "{body}"
+    );
+    for title in [
+        ">11-22 10:40: 本体 $5.01（本体と手伝いの計 $5.26）</title>",
+        ">11-22 10:40: 手伝い $0.25（本体と手伝いの計 $5.26）</title>",
+        ">11-22 11:10: 本体 $2.00（本体と手伝いの計 $2.00）</title>",
+    ] {
+        assert!(svg.contains(title), "{title}: {svg}");
+    }
+    // 10 個の枠の目盛り（枠が広いので、みな書く）。
+    for tick in [">10:30</text>", ">10:40</text>", ">12:00</text>"] {
+        assert!(svg.contains(tick), "{tick}: {svg}");
+    }
+    assert!(!svg.contains(">12:10</text>"), "{svg}");
+    // 額の在る枠は、押すとその 10 分に絞る link（今の絞りと幅を残す）。額の無い枠には無い。
+    assert_eq!(svg.matches("<a href=").count(), 2, "{svg}");
+    assert!(
+        svg.contains("<a href=\"/usage/?from=2026-11-22T10:40:00%2B09:00&#38;to=2026-11-22T10:50:00%2B09:00&#38;step=10m\"><rect class=\"hit\""),
+        "{svg}"
+    );
+    assert!(
+        svg.contains(
+            "<title data-i18n=\"usage.bySlot.link.tenMin\">押すと、この 10 分に絞ります</title>"
+        ),
+        "{svg}"
+    );
+    // 字の表の行も、同じ link。
+    assert!(
+        chart.contains("<tr><td><a href=\"/usage/?from=2026-11-22T10:40:00%2B09:00&#38;to=2026-11-22T10:50:00%2B09:00&#38;step=10m\">11-22 10:40</a></td><td class=\"num\">$5.01</td>"),
+        "{chart}"
+    );
+    // 表（全体）は、期間の内の行をみな数える。
+    assert_eq!(fact(&body, "額"), "$7.26");
+}
+
+#[tokio::test]
+async fn 十分の境をまたぐ記録は_時間で均して配り_見立てと書く() {
+    let app = with_crossing().await;
+    let body = app.html(&format!("{WINDOW}&step=10m")).await;
+    common::check_i18n("usage.rs:crossing", &body);
+    let chart = section(&body, "by-day");
+    let svg = svg(chart);
+    // 10:30 の枠は、またぐ記録の半分（$0.50）だけ。10:40 の枠は、正確な $5.01 に $0.50 が加わる。どちらも見立てを含む。
+    for title in [
+        r#"<rect class="bar main est""#,
+        ">11-22 10:30: 本体 $0.50（本体と手伝いの計 $0.50。見立てを含む）</title>",
+        ">11-22 10:40: 本体 $5.51（本体と手伝いの計 $5.76。見立てを含む）</title>",
+        ">11-22 10:40: 手伝い $0.25（本体と手伝いの計 $5.76。見立てを含む）</title>",
+        // またがない記録だけの枠は、今までの字のまま。
+        ">11-22 11:10: 本体 $2.00（本体と手伝いの計 $2.00）</title>",
+    ] {
+        assert!(svg.contains(title), "{title}: {svg}");
+    }
+    assert_eq!(
+        svg.matches("<rect class=\"bar main est\"").count(),
+        2,
+        "{svg}"
+    );
+    assert_eq!(svg.matches("<rect class=\"bar main\"").count(), 1, "{svg}");
+    let estimated = note(&body, "estimated").expect("見立ての凡例");
+    assert!(
+        estimated.contains("薄い棒は、見立てを含みます（額の在る 3 本のうち 2 本）。"),
+        "{estimated}"
+    );
+    assert!(
+        chart.contains(">11-22 10:30</a><span data-i18n=\"usage.bySlot.estimatedMark\">（見立てを含む）</span></td>"),
+        "{chart}"
+    );
+    // 期間の内に収まるので、表には入る（端をまたぐ注は無い）。
+    assert_eq!(fact(&body, "額"), "$8.26");
+    assert!(note(&body, "edge-note").is_none(), "{body}");
+
+    // 時ごと・日ごとでは、同じ記録も 1 つの区切りに収まるので、見立てにならない。
+    for uri in [WINDOW.to_owned(), format!("{WINDOW}&step=1d")] {
+        let body = app.html(&uri).await;
+        let chart = section(&body, "by-day");
+        assert!(
+            !chart.contains(" est\"") && note(&body, "estimated").is_none(),
+            "{uri}: {chart}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn 十分に絞った期間の端をまたぐ記録は_棒に見立てで入れ_表には入れずに額を書く() {
+    let app = with_crossing().await;
+    // 10:40 の棒を押した先（日本時間の 10:40〜10:50）。
+    let body = app
+        .html("/usage/?from=2026-11-22T10:40:00%2B09:00&to=2026-11-22T10:50:00%2B09:00&step=10m&label=project:x")
+        .await;
+    common::check_i18n("usage.rs:edge", &body);
+    let window = note(&body, "window").expect("期間");
+    assert!(
+        window.contains(">2026-11-22 10:40:00</time>")
+            && window.contains(">2026-11-22 10:50:00</time>"),
+        "{window}"
+    );
+    // 棒は 1 本: 正確な $5.26 と、またぐ記録の、この 10 分に当たる分 $0.50。
+    let svg = svg(section(&body, "by-day"));
+    assert!(
+        svg.contains(">11-22 10:40: 本体 $5.51（本体と手伝いの計 $5.76。見立てを含む）</title>"),
+        "{svg}"
+    );
+    // 表は、区間がこの 10 分に収まる行だけ（$5.26）。入れなかった額を書き、時の境の期間で見る link を出す（絞りは残し、幅は外す）。
+    assert_eq!(fact(&body, "額"), "$5.26");
+    let edge = note(&body, "edge-note").expect("端をまたぐ記録の注");
+    assert!(
+        edge.contains("期間の内に当たる見立ての額 $0.50 は、棒には入れ、下の表（全体・段ごと・行列・役割・課題）には入れていません"),
+        "{edge}"
+    );
+    assert!(
+        edge.contains("<a href=\"/usage/?label=project:x&#38;from=2026-11-22T10:00:00%2B09:00&#38;to=2026-11-22T11:00:00%2B09:00\" data-i18n=\"usage.window.edgeLink\">時の境の期間で見る</a>"),
+        "{edge}"
+    );
+    // 課題ごとの表に、またぐ記録の席（se.2 = t-23zs）は出ない（この 10 分に、収まる行が無い）。
+    assert!(!section(&body, "subjects").contains("t-23zs"), "{body}");
+
+    // またぐ記録しか無い 10 分（10:30〜10:40）でも、棒と注を出す（表の数は 0）。
+    let body = app
+        .html("/usage/?from=2026-11-22T10:30&to=2026-11-22T10:40&step=10m")
+        .await;
+    assert!(
+        svg_of(&body)
+            .contains(">11-22 10:30: 本体 $0.50（本体と手伝いの計 $0.50。見立てを含む）</title>"),
+        "{body}"
+    );
+    assert_eq!(fact(&body, "額"), "$0.00");
+    assert!(note(&body, "edge-note").is_some(), "{body}");
+}
+
+fn svg_of(body: &str) -> &str {
+    svg(section(body, "by-day"))
+}
+
+#[tokio::test]
+async fn 十分で切った記録は_終わりが枠の最後のミリ秒でも_その枠だけに入り_見立てにならない() {
+    // roster が 10 分で切った行: 区間は日本時間の 10:30:00.000〜10:39:59.999。次の枠（10:40）に掛からない。
+    let cut = usage_row(
+        "u-cut",
+        SE2,
+        None,
+        "2026-11-22T01:39:59.999Z",
+        json!({"fromAt": "2026-11-22T01:30:00.000Z", "turns": 2, "costMicroUsd": 300_000, "maxContext": 50_000,
+            "buckets": usage_buckets(&[(2, 2, 300_000)])}),
+    );
+    // 10 分で切る前の行: 10:35 から、終わりがちょうど 10:40:00.000。10:40 の枠に掛かるので、見立て。
+    let old = usage_row(
+        "u-old",
+        SE2,
+        None,
+        "2026-11-22T01:40:00.000Z",
+        json!({"fromAt": "2026-11-22T01:35:00.000Z", "turns": 2, "costMicroUsd": 301_000_000, "maxContext": 50_000,
+            "buckets": usage_buckets(&[(2, 2, 301_000_000)])}),
+    );
+    let app = start(vec![usage_page(vec![cut.clone()], actors(), None)]).await;
+    let body = app.html(&format!("{WINDOW}&step=10m")).await;
+    let svg = svg_of(&body);
+    assert_eq!(svg.matches("<rect class=\"bar ").count(), 1, "{svg}");
+    assert!(
+        svg.contains(">11-22 10:30: 本体 $0.30（本体と手伝いの計 $0.30）</title>"),
+        "{svg}"
+    );
+    assert!(note(&body, "estimated").is_none(), "{body}");
+
+    let app = start(vec![usage_page(vec![old], actors(), None)]).await;
+    let body = app.html(&format!("{WINDOW}&step=10m")).await;
+    let svg = svg_of(&body);
+    // 301 秒（終わりの秒を含む）のうち、300 秒が 10:30 の枠、1 秒が 10:40 の枠。
+    assert!(
+        svg.contains(
+            ">11-22 10:30: 本体 $300.00（本体と手伝いの計 $300.00。見立てを含む）</title>"
+        ),
+        "{svg}"
+    );
+    assert!(
+        svg.contains(">11-22 10:40: 本体 $1.00（本体と手伝いの計 $1.00。見立てを含む）</title>"),
+        "{svg}"
+    );
+}
+
+#[tokio::test]
+async fn 幅は選べ_棒が多すぎる幅は_断らずに粗い幅で描いて訳を書く() {
+    let app = sample().await;
+    let heading = |body: &str| {
+        let chart = section(body, "by-day");
+        let at = chart.find("<h2").unwrap();
+        chart[at..at + chart[at..].find("</h2>").unwrap()].to_owned()
+    };
+    // 1 日までの期間でも、幅を 1 日にできる。
+    let body = app.html(&format!("{WINDOW}&step=1d")).await;
+    assert!(heading(&body).contains("日ごとの額"), "{}", heading(&body));
+    assert!(note(&body, "step-note").is_none());
+    // 1 日より長い期間でも、7 日までは、幅を 1 時間にできる（3 日 = 棒 72 本）。
+    let body = app
+        .html("/usage/?from=2026-11-20T00:00&to=2026-11-23T00:00&step=1h")
+        .await;
+    assert!(heading(&body).contains("時ごとの額"), "{}", heading(&body));
+    assert!(note(&body, "step-note").is_none());
+    assert!(svg_of(&body).contains(">11-22 10:00: 本体 $5.01（本体と手伝いの計 $5.26）</title>"));
+    // 10 分は 1 日まで。3 日の期間では 1 時間で、8 日の期間では 1 日で描き、訳を書く。期間は時の境のまま。
+    let body = app
+        .html("/usage/?from=2026-11-20T00:10&to=2026-11-23T00:00&step=10m")
+        .await;
+    common::check_i18n("usage.rs:coarser", &body);
+    assert!(heading(&body).contains("時ごとの額"), "{}", heading(&body));
+    assert!(
+        note(&body, "step-note").unwrap().contains("data-i18n=\"usage.step.coarser.tenMinToHour\">10 分の幅は、期間が 1 日までの時に描けます。この期間は、1 時間の幅で描いています。"),
+        "{body}"
+    );
+    assert!(
+        note(&body, "window")
+            .unwrap()
+            .contains(">2026-11-20 00:00:00</time>"),
+        "{body}"
+    );
+    let body = app
+        .html("/usage/?from=2026-11-15T00:00&to=2026-11-23T00:00&step=10m")
+        .await;
+    assert!(heading(&body).contains("日ごとの額"), "{}", heading(&body));
+    assert!(
+        note(&body, "step-note")
+            .unwrap()
+            .contains("この期間は、1 日の幅で描いています。"),
+        "{body}"
+    );
+    let body = app
+        .html("/usage/?from=2026-11-15T00:00&to=2026-11-23T00:00&step=1h")
+        .await;
+    assert!(heading(&body).contains("日ごとの額"), "{}", heading(&body));
+    assert!(
+        note(&body, "step-note").unwrap().contains(
+            "1 時間の幅は、期間が 7 日までの時に描けます。この期間は、1 日の幅で描いています。"
+        ),
+        "{body}"
+    );
+    // ちょうど 1 日（144 本）は、10 分で描く。
+    let body = app
+        .html("/usage/?from=2026-11-22T00:00&to=2026-11-23T00:00&step=10m")
+        .await;
+    assert!(
+        heading(&body).contains("10 分ごとの額"),
+        "{}",
+        heading(&body)
+    );
+    // 期間を打たずに幅だけを 10 分にした時（直近 7 日）は、1 時間で描く。
+    let body = app.html("/usage/?step=10m").await;
+    assert!(note(&body, "step-note").is_some(), "{body}");
+}
+
+#[tokio::test]
+async fn 棒を押すと_日は時ごとへ_時は_10_分ごとへ_今の絞りを残して絞る() {
+    let app = sample().await;
+    // 時ごとの棒: その 1 時間を、10 分ごとに。
+    let body = app.html(&format!("{WINDOW}&label=project:x")).await;
+    let svg = svg_of(&body);
+    assert!(
+        svg.contains("<a href=\"/usage/?label=project:x&#38;from=2026-11-22T10:00:00%2B09:00&#38;to=2026-11-22T11:00:00%2B09:00&#38;step=10m\"><rect class=\"hit\" x=\"64\" y=\"16\""),
+        "{svg}"
+    );
+    assert!(svg.contains("<title data-i18n=\"usage.bySlot.link.hour\">押すと、この 1 時間を 10 分ごとに見ます</title>"), "{svg}");
+    // 日ごとの棒: その日（日本時間の 0 時から次の 0 時）を、幅を外して（時ごとに）。
+    let body = app
+        .html("/usage/?from=2026-11-20T00:00&to=2026-11-23T00:00&step=1d")
+        .await;
+    let svg = svg_of(&body);
+    assert_eq!(svg.matches("<a href=").count(), 1, "{svg}");
+    assert!(
+        svg.contains("<a href=\"/usage/?from=2026-11-22T00:00:00%2B09:00&#38;to=2026-11-23T00:00:00%2B09:00\"><rect class=\"hit\""),
+        "{svg}"
+    );
+    assert!(
+        svg.contains(
+            "<title data-i18n=\"usage.bySlot.link.day\">押すと、この日を時ごとに見ます</title>"
+        ),
+        "{svg}"
+    );
+}
+
+#[tokio::test]
+async fn 幅の引数は使用量の画面だけの物で_一覧は知らない() {
+    let app = sample().await;
+    let (status, _, body) = app.send(get("/actors/?step=10m")).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    assert!(body.contains("知らない引数: step"), "{body}");
 }
 
 // --- 絞りの候補（t-nd3w。役割と課題は選ぶ一覧、ほかのラベルは候補付きの欄） ---

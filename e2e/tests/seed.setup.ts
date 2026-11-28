@@ -9,6 +9,7 @@
 // 手伝い 2 つ（どちらも Opus。Explore 1 回・$0.10 と general-purpose 1 回・$0.15。計は 2 回・$0.25）、other.1 の本体
 // （Haiku。1 回・$0.01）。どれも、今の時（UTC）の内の行。model と手伝いの種類は model と役割ごとの行列（t-dues）のため。
 // 行の数の計（全体・役割・課題・一覧・プロフィールの数）は、行列を足す前と同じにしてある。
+// 幅を選ぶ試験（t-ztu7）の行は 2 つ: se.1 の本体の、決まった過去の時刻（2026-10-01）の行。上の数には入らない（期間の外）。
 import { expect, test as setup, type APIRequestContext } from '@playwright/test';
 import { CASTLIST } from './helpers';
 
@@ -63,6 +64,19 @@ function usage(by: string, model: string, agent: string | undefined, maxContext:
   };
 }
 
+/**
+ * 決まった過去の時刻の、数の 1 行（本体。Opus。1 回）。幅を選ぶ試験（usage.spec.ts）が、期間を名指して開く。
+ * 今の時刻に依らないように、区間も送り手の時刻も決めた字にする（ほかの試験の「直近 7 日」「直近 31 日」に入らない、古い日）。
+ */
+function usageAt(by: string, fromAt: string, toAt: string, costMicroUsd: number): Record<string, unknown> {
+  return {
+    ...usage(by, 'claude-opus-5-5', undefined, 30_000, [[1, 1, costMicroUsd]]),
+    fromAt,
+    toAt,
+    sentAt: '2026-10-01T02:00:00.000Z',
+  };
+}
+
 setup('見本の記録を置く', async ({ request }) => {
   const PM = 'tpm.person:pm';
   const TPM = 'claude.session:s-tpm';
@@ -114,6 +128,11 @@ setup('見本の記録を置く', async ({ request }) => {
   await send(request, 'put', '/api/usage/u-se1-explore', usage(SE1, 'claude-opus-5-5', 'Explore', 30_000, [[1, 1, 100_000]]));
   await send(request, 'put', '/api/usage/u-se1-general', usage(SE1, 'claude-opus-5-5', 'general-purpose', 30_000, [[1, 1, 150_000]]));
   await send(request, 'put', '/api/usage/u-other-main', usage(OTHER, 'claude-haiku-5-5', undefined, 10_000, [[0, 1, 10_000]]));
+
+  // 幅を選ぶ試験の行（2026-10-01 の日本時間 10:30〜11:00。今の時刻に依らない）。
+  // 10 分で切った行（10:30:00.000〜10:39:59.999。$1.20）と、10 分で切る前の形の行（10:45:00〜10:54:59。$0.60。10:40 と 10:50 の枠に半分ずつ）。
+  await send(request, 'put', '/api/usage/u-se1-cut', usageAt(SE1, '2026-10-01T01:30:00.000Z', '2026-10-01T01:39:59.999Z', 1_200_000));
+  await send(request, 'put', '/api/usage/u-se1-crossing', usageAt(SE1, '2026-10-01T01:45:00.000Z', '2026-10-01T01:54:59.000Z', 600_000));
 
   const graph = await (await request.get(`${CASTLIST}/api/graph`)).json();
   expect(graph.nodes.map((n: { name: string }) => n.name).sort()).toEqual(['other.1', 'pm.1', 'se.1', 'se.2', 'tpm.1']);

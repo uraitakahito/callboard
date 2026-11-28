@@ -93,6 +93,51 @@ test('使用量の図と、一覧の額の列と、プロフィールの使用�
   expect(problems).toEqual([]);
 });
 
+// 幅の欄と 10 分ごとの額（t-ztu7）。見本の行は、決まった過去の時刻（2026-10-01 の日本時間 10:30〜11:00）に置いてあり、期間を名指して
+// 開くので、試験を流す時刻に依らない（今の時刻の行を数える上の試験と違い、時や日の境で結果が変わらない）。
+test('幅を 10 分にすると 10 分ごとの額の棒になり、棒を押すとその 10 分に絞る（script は使わない）', async ({ page }) => {
+  const problems = collectProblems(page);
+  await page.goto('/usage/?from=2026-10-01T10:00&to=2026-10-01T12:00');
+  // 幅を選ばなければ、今までどおり時ごと。この 2 時間の行は、どれも 10 時台。
+  await expect(page.locator('#by-day h2')).toHaveText('時ごとの額（日本時間）');
+  await expect(page.locator('#by-day svg.chart rect.bar.main')).toHaveCount(1);
+  await expect(page.locator('#by-day svg.chart rect.bar.main title')).toContainText('10-01 10:00: 本体 $1.80');
+  // 幅の欄で 10 分を選んで絞る。
+  await page.getByLabel('幅').selectOption('10m');
+  await page.getByRole('button', { name: '絞り込む' }).click();
+  await expect(page).toHaveURL(/step=10m/);
+  await expect(page.locator('#by-day h2')).toHaveText('10 分ごとの額（日本時間）');
+  await expect(page.getByLabel('幅')).toHaveValue('10m');
+  const chart = page.locator('#by-day svg.chart');
+  // 10 分で切った行は、その枠に正確に。10 分で切る前の形の行は、掛かる 2 つの枠に半分ずつ（見立て）。
+  await expect(chart.locator('rect.bar.main')).toHaveCount(3);
+  await expect(chart.locator('rect.bar.main.est')).toHaveCount(2);
+  await expect(chart.locator('rect.bar.main title')).toHaveText([
+    '10-01 10:30: 本体 $1.20（本体と手伝いの計 $1.20）',
+    '10-01 10:40: 本体 $0.30（本体と手伝いの計 $0.30。見立てを含む）',
+    '10-01 10:50: 本体 $0.30（本体と手伝いの計 $0.30。見立てを含む）',
+  ]);
+  await expect(page.locator('#estimated')).toContainText('薄い棒は、見立てを含みます（額の在る 3 本のうち 2 本）。');
+  // 見立ての棒は、薄い（同じ色で、透けさせる）。
+  expect(await chart.locator('rect.bar.main.est').first().evaluate((el) => getComputedStyle(el).fillOpacity)).toBe('0.45');
+  expect(await page.locator('body script').count()).toBe(0);
+
+  // 10:30 の棒を押すと、その 10 分に絞る。表は、その 10 分に収まる行だけ。
+  await chart.locator('a').first().click();
+  await expect(page).toHaveURL(/from=2026-10-01T10:30:00%2B09:00&to=2026-10-01T10:40:00%2B09:00&step=10m/);
+  await expect(page.locator('#window')).toContainText('2026-10-01 10:30:00 から 2026-10-01 10:40:00 まで');
+  await expect(page.locator('#total dd').nth(2)).toHaveText('$1.20');
+  await expect(page.locator('#edge-note')).toHaveCount(0);
+  // 10:40 の 10 分は、端をまたぐ行だけ。棒には見立てで入り、表には入れずに額を書く。
+  await page.goto('/usage/?from=2026-10-01T10:40&to=2026-10-01T10:50&step=10m');
+  await expect(page.locator('#total dd').nth(2)).toHaveText('$0.00');
+  await expect(page.locator('#edge-note')).toContainText('期間の内に当たる見立ての額 $0.30 は、棒には入れ、下の表');
+  await page.locator('#edge-note a').click();
+  await expect(page.locator('#by-day h2')).toHaveText('時ごとの額（日本時間）');
+  await expect(page.locator('#total dd').nth(2)).toHaveText('$1.80');
+  expect(problems).toEqual([]);
+});
+
 // 絞りの候補（t-nd3w）: 役割と課題は選ぶ一覧、ほかのラベルは候補付きの欄。候補は、表示と同じ期間に稼働した席（castlist の
 // ListActors）のラベルから作る。見本の席のラベルは project と tpm.key だけなので、役割と課題の一覧は「すべて」だけ。
 test('ラベルの絞りは、役割と課題の一覧と、候補付きの欄で選べる（script は使わない）', async ({ page }) => {
