@@ -47,7 +47,8 @@ fn kind_key(kind: &str) -> &'static str {
 }
 
 /// 呼ぶ先（castlist・pagetray）から運んだ誤りの本文に、`code`（型の名の鍵）と `values`（`detail` に呼ぶ先の訳の字）を足す。
-/// - 呼ぶ先の訳は `message`、無ければ `error` の字。どちらも無い・JSON の object でない本文は、そのまま返す（None）。
+/// - 呼ぶ先の訳は `message`、無ければ `error` の字。どちらも無い本文は鍵を足さず、呼ぶ先の `code` だけを `upstreamCode` に
+///   移す（`code` も無ければ None）。JSON の object でない本文は、そのまま返す（None）。
 /// - 呼ぶ先の `message` は、そのまま残す（日本語の字は、鍵の字 `{{detail}}` が `message` と同じになる）。
 /// - `code` は callboard が付けた物だけを信じる: いつも型の名から書き、呼ぶ先の本文に `code` があれば `upstreamCode` に移す。
 pub fn with_code(kind: Option<&str>, body: &[u8]) -> Option<Vec<u8>> {
@@ -56,9 +57,16 @@ pub fn with_code(kind: Option<&str>, body: &[u8]) -> Option<Vec<u8>> {
     };
     let detail = ["message", "error"]
         .iter()
-        .find_map(|name| map.get(*name).and_then(Value::as_str))?
-        .to_owned();
-    if let Some(code) = map.remove("code") {
+        .find_map(|name| map.get(*name).and_then(Value::as_str))
+        .map(str::to_owned);
+    let upstream = map.remove("code");
+    let Some(detail) = detail else {
+        // 訳が無いので鍵は足さない。呼ぶ先の code だけは移す（残すと、browser が字の鍵として組む）。
+        let code = upstream?;
+        map.insert("upstreamCode".to_owned(), code);
+        return Some(Value::Object(map).to_string().into_bytes());
+    };
+    if let Some(code) = upstream {
         map.insert("upstreamCode".to_owned(), code);
     }
     map.insert(
@@ -130,6 +138,18 @@ mod tests {
         assert_eq!(value["code"], "errors.kind.forbidden");
         assert_eq!(value["upstreamCode"], "nav.actors");
         assert_eq!(value["values"], serde_json::json!({"detail": "x"}));
+    }
+
+    #[test]
+    fn 訳の無い本文でも_呼ぶ先の_code_は_upstream_code_に移す() {
+        // 訳が無いので鍵は足さないが、呼ぶ先の code を残すと、browser がそれを字の鍵として組んでしまう。
+        let value = json(with_code(
+            Some("ValidationException"),
+            br#"{"code":"nav.actors","values":{"a":1}}"#,
+        ));
+        assert_eq!(value.get("code"), None);
+        assert_eq!(value["upstreamCode"], "nav.actors");
+        assert_eq!(value["values"], serde_json::json!({"a": 1}));
     }
 
     #[test]
