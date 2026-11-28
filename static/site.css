@@ -272,6 +272,15 @@ svg.chart { display: block; max-width: none; font-family: system-ui, "Hiragino S
 .chart .bar.helper { fill: var(--chart-helper); }
 /* 見立てを含む棒（区切りの境をまたぐ記録から、額を均して配った分が入る）は、薄くする。 */
 .chart .bar.est { fill-opacity: 0.45; }
+/* 棒の下の升（区切りごと × 役割の額）。地の色は、行列と同じ 3 色（--heat-1〜3）。見立てを含む升は、棒と同じく薄くする。 */
+.chart .cell { stroke: var(--line); stroke-width: 0.5; }
+.chart .cell.heat-1 { fill: var(--heat-1); }
+.chart .cell.heat-2 { fill: var(--heat-2); }
+.chart .cell.heat-3 { fill: var(--heat-3); }
+.chart .cell.est { fill-opacity: 0.45; }
+.chart .role { font-size: 11px; fill: var(--muted); }
+.chart .cell-text { font-size: 10px; font-variant-numeric: tabular-nums; pointer-events: none; }
+.chart a:focus-visible .cell { stroke: var(--fg); stroke-width: 1.5; }
 /* 押すとその区切りに絞る棒（link）。keyboard で選んだ時は、押す所に枠を出す。 */
 .chart a { cursor: pointer; }
 .chart a:focus-visible { outline: none; }

@@ -658,6 +658,41 @@ pub(super) struct ColumnView {
     pub bars: Vec<BarView>,
 }
 
+/// 棒の下の升 1 つ（区切り 1 つ × 役割 1 つの額）。額の在る升だけ。
+pub(super) struct GridCellView {
+    /// 押すと、その区切りとその役割に絞る link（区切りが [`CELL_LINKS`] までの時だけ）。
+    pub href: Option<String>,
+    pub x: u32,
+    pub y: u32,
+    pub w: u32,
+    pub h: u32,
+    /// 地の色の段と、見立てを含むか（`cell heat-3 est` など）。
+    pub class: &'static str,
+    /// マウスを重ねた時の字（区切り・役割・額。言語で替わらない字だけなので、訳の属性は付けない。見立てを含む額は頭に `≈`）。
+    pub title: String,
+    /// 升に書く額（区切りが [`CELL_LINKS`] までの時だけ）と、その置き場。
+    pub text: Option<String>,
+    pub text_x: u32,
+    pub text_y: u32,
+}
+
+/// 棒の下の升の 1 行（役割 1 つ）。名は、升の行の上に書く（名が無ければ「（無し）」）。
+pub(super) struct GridRowView {
+    pub name: Option<String>,
+    pub name_x: u32,
+    pub name_y: u32,
+    pub cells: Vec<GridCellView>,
+}
+
+/// 升を link にし、升に額を書く、区切りの数の上限（10 分なら 4 時間）。越えたら、升は色とマウスを重ねた字だけにする
+/// （1 日の 144 本では升が 4 px で字が入らず、升をみな link にすると千を超えて、キーボードと読み上げで通りにくい）。
+pub(super) const CELL_LINKS: usize = 24;
+/// 升の行の置き方（px）: 図の下からの間・役割の名の行の高さ・升の高さ・行の間。
+const GRID_GAP: u32 = 8;
+const GRID_NAME: u32 = 14;
+const GRID_CELL: u32 = 16;
+const GRID_ROW: u32 = GRID_NAME + GRID_CELL + 4;
+
 /// 20 万の点線と、その字の置き場。
 pub(super) struct LimitView {
     pub x1: u32,
@@ -693,6 +728,8 @@ pub(super) struct ChartView {
     pub bars: Vec<BarView>,
     /// link にした棒の区切り（使用量の画面の、額の棒だけ。ほかの図では空）。
     pub columns: Vec<ColumnView>,
+    /// 棒の下の、区切りごと × 役割の升（使用量の画面の、額の棒だけ。ほかの図では空）。
+    pub grid: Vec<GridRowView>,
     pub limit: Option<LimitView>,
     /// 段々の線の path。
     pub line: Option<String>,
@@ -727,6 +764,7 @@ fn frame(label: Text, axis: Axis, y_label: impl Fn(i64) -> Text) -> ChartView {
         x_ticks: Vec::new(),
         bars: Vec::new(),
         columns: Vec::new(),
+        grid: Vec::new(),
         limit: None,
         line: None,
         marks: Vec::new(),
@@ -841,16 +879,43 @@ pub(super) struct SlotChart {
     estimated: i64,
     /// 棒に入った額の計（本体と手伝い）。
     total: i64,
+    /// 升の役割の名（升の行の順）と、升の字の表の行（額の在る区切りごと）と、色の段の凡例。
+    roles: Vec<Option<String>>,
+    role_rows: Vec<RoleTableRow>,
+    role_keys: Vec<(&'static str, Text)>,
+    /// 升を押せるか（区切りが [`CELL_LINKS`] まで）。
+    cell_links: bool,
+}
+
+/// 升の字の表の 1 行（区切り 1 つ）。升は、役割の順に、額と、その区切りとその役割に絞る link（額が無ければ無い）。
+pub(super) struct RoleTableRow {
+    name: String,
+    cells: Vec<Option<(String, String)>>,
+    total: String,
+}
+
+/// 升に書く短い額: 10 ドルより下は小数 1 桁（`$0.4`）、それより上は整数（`$29`・`$1,016`）。四捨五入。
+fn short_dollars(micro: i64) -> String {
+    let micro = micro.max(0);
+    if micro < 9_950_000 {
+        let dimes = micro.saturating_add(50_000) / 100_000;
+        format!("${}.{}", dimes / 10, dimes % 10)
+    } else {
+        format!("${}", count(micro.saturating_add(500_000) / 1_000_000))
+    }
 }
 
 /// 区切り（日・時・10 分）ごとの額。本体と手伝いを積む。行の額は [`summary::spread`] で配る（区切りの境をまたぐ行は見立て）。
 /// 額の在る区切りは、押すとその区切りに期間を絞る link にする（`link` が、区切りの初めと終わりから URL を作る）。
+///
+/// 棒の下に、区切りごと × 役割の升を、棒と同じ横の並びで描く（[`summary::by_slot_role`]。`link` の 3 つ目は、絞る役割）。
 fn slot_chart(
     rows: &[summary::Row],
+    actors: &[summary::Actor],
     from: OffsetDateTime,
     to: OffsetDateTime,
     width: Width,
-    link: impl Fn(i64, i64) -> String,
+    link: impl Fn(i64, i64, Option<&str>) -> String,
 ) -> SlotChart {
     let (start, end) = (from.unix_timestamp(), to.unix_timestamp());
     let mut table = Vec::new();
@@ -879,6 +944,7 @@ fn slot_chart(
     let slots = chart::slots(starts.len());
     let every = chart::label_every(starts.len(), LABEL_PX);
     let (mut filled, mut estimated) = (0, 0);
+    let mut names = Vec::with_capacity(starts.len());
     for (i, ((slot, at), sum)) in slots.iter().zip(&starts).zip(&sums).enumerate() {
         let t = OffsetDateTime::from_unix_timestamp(*at)
             .unwrap_or(from)
@@ -889,6 +955,7 @@ fn slot_chart(
             Width::Day => date.clone(),
             Width::Hour | Width::TenMin => format!("{date} {clock}"),
         };
+        names.push(name.clone());
         if i % every == 0 {
             view.x_ticks.push(TickView {
                 at: slot.mid(),
@@ -904,7 +971,7 @@ fn slot_chart(
         let total = dollars(sum.total());
         // 図の外の字の表（読み上げのため。図の棒の <title> は読み上げに出ない）。額の在る区切りだけ。
         let next = starts.get(i + 1).copied().unwrap_or(end);
-        let href = link(*at, next);
+        let href = link(*at, next, None);
         table.push(SlotRow {
             name: name.clone(),
             href: href.clone(),
@@ -969,12 +1036,113 @@ fn slot_chart(
             bars,
         });
     }
+    // 棒の下の升: 役割ごとに 1 行（名の行と、升の行）。横は、棒と同じ枠。
+    let lines = summary::by_slot_role(rows, actors, &starts, end);
+    let peak = lines
+        .iter()
+        .flat_map(|l| l.cells.iter().map(|c| c.0))
+        .max()
+        .unwrap_or(0);
+    let cell_links = starts.len() <= CELL_LINKS;
+    let slot_end = |i: usize| starts.get(i + 1).copied().unwrap_or(end);
+    for (r, line) in lines.iter().enumerate() {
+        let top = chart::HEIGHT + GRID_GAP + u32::try_from(r).unwrap_or(0) * GRID_ROW;
+        let cells = line
+            .cells
+            .iter()
+            .enumerate()
+            .filter_map(|(i, (cost, rough))| {
+                let heat = summary::slot_heat(*cost, peak)?;
+                let slot = slots.get(i)?;
+                let rough = *rough > 0;
+                Some(GridCellView {
+                    href: cell_links.then(|| link(starts[i], slot_end(i), line.name.as_deref())),
+                    x: slot.left,
+                    y: top + GRID_NAME,
+                    w: slot.width.max(1),
+                    h: GRID_CELL,
+                    class: match (heat, rough) {
+                        (3, false) => "cell heat-3",
+                        (3, true) => "cell heat-3 est",
+                        (2, false) => "cell heat-2",
+                        (2, true) => "cell heat-2 est",
+                        (_, false) => "cell heat-1",
+                        (_, true) => "cell heat-1 est",
+                    },
+                    title: format!(
+                        "{} {}: {}{}",
+                        names[i],
+                        line.name.as_deref().unwrap_or("—"),
+                        if rough { "≈" } else { "" },
+                        dollars(*cost)
+                    ),
+                    text: cell_links.then(|| short_dollars(*cost)),
+                    text_x: slot.mid(),
+                    text_y: top + GRID_NAME + GRID_CELL - 4,
+                })
+            })
+            .collect();
+        view.grid.push(GridRowView {
+            name: line.name.clone(),
+            name_x: chart::LEFT,
+            name_y: top + GRID_NAME - 4,
+            cells,
+        });
+    }
+    if !lines.is_empty() {
+        view.height = chart::HEIGHT + GRID_GAP + u32::try_from(lines.len()).unwrap_or(0) * GRID_ROW;
+    }
+    // 升の字の表（読み上げのため。区切りが多くて升を押せない時は、ここの額から、その区切りとその役割に絞る）。
+    let role_rows = sums
+        .iter()
+        .enumerate()
+        .filter(|(_, sum)| sum.total() > 0)
+        .map(|(i, sum)| RoleTableRow {
+            name: names[i].clone(),
+            cells: lines
+                .iter()
+                .map(|line| {
+                    let cost = line.cells[i].0;
+                    (cost > 0).then(|| {
+                        (
+                            dollars(cost),
+                            link(starts[i], slot_end(i), line.name.as_deref()),
+                        )
+                    })
+                })
+                .collect(),
+            total: dollars(sum.total()),
+        })
+        .collect();
+    // 色の段の凡例（境の額。いちばん多い升の 2 分の 1 と 10 分の 1 を、切り上げて）。
+    let bound = |n: i64| dollars(peak / n + i64::from(peak % n != 0));
+    let (high, low) = (bound(summary::SLOT_HEAT[0]), bound(summary::SLOT_HEAT[1]));
+    let role_keys = vec![
+        (
+            "heat-3",
+            Text::new("usage.byRole.key.high").with("low", &high),
+        ),
+        (
+            "heat-2",
+            Text::new("usage.byRole.key.mid")
+                .with("low", &low)
+                .with("high", &high),
+        ),
+        (
+            "heat-1",
+            Text::new("usage.byRole.key.low").with("high", &low),
+        ),
+    ];
     SlotChart {
         view,
         rows: table,
         filled,
         estimated,
         total,
+        roles: lines.into_iter().map(|l| l.name).collect(),
+        role_rows,
+        role_keys,
+        cell_links,
     }
 }
 
@@ -1075,6 +1243,11 @@ struct Charts {
     slot_legend: Text,
     slot_table: Text,
     slot_col: Text,
+    /// 棒の下の升（区切りごと × 役割）: 役割の名・字の表の行・色の段の凡例・升を押せるか。
+    roles: Vec<Option<String>>,
+    role_rows: Vec<RoleTableRow>,
+    role_keys: Vec<(&'static str, Text)>,
+    cell_links: bool,
 }
 
 /// 絞りの form に、今の値を入れて出す。ラベルは、役割と課題の一覧と「ほかのラベル」の欄に振り分ける（[`labels::pick`]）。
@@ -1247,8 +1420,13 @@ async fn usage_page(
         .filter(|(n, _)| !matches!(n.as_str(), "from" | "to" | "step"))
         .cloned()
         .collect();
-    let link_to = move |start: i64, end: i64, step: Option<&str>| {
+    // `role` が在れば、今の役割の絞り（`label=tpm.role:…`）を、その役割に替える。
+    let link_to = move |start: i64, end: i64, step: Option<&str>, role: Option<&str>| {
         let mut link = kept.clone();
+        if let Some(role) = role {
+            link.retain(|(n, v)| !(n == "label" && v.starts_with("tpm.role:")));
+            link.push(("label".to_owned(), format!("tpm.role:{role}")));
+        }
         link.push(("from".to_owned(), link_time(start)));
         link.push(("to".to_owned(), link_time(end)));
         if let Some(step) = step {
@@ -1315,22 +1493,31 @@ async fn usage_page(
             .cloned()
             .collect();
         // 棒は、端をまたぐ行の、期間の内に当たる分（見立て）も入れる。日の棒を押すと時ごと（幅は自動）、時の棒を押すと 10 分ごと。
-        let slots = slot_chart(&all, shown_from, shown_to, width, |start, end| {
-            link_to(
-                start,
-                end,
-                match width {
-                    Width::Day => None,
-                    Width::Hour | Width::TenMin => Some("10m"),
-                },
-            )
-        });
+        let actors = actors_of(answer.actors);
+        let slots = slot_chart(
+            &all,
+            &actors,
+            shown_from,
+            shown_to,
+            width,
+            |start, end, role| {
+                link_to(
+                    start,
+                    end,
+                    match width {
+                        Width::Day => None,
+                        Width::Hour | Width::TenMin => Some("10m"),
+                    },
+                    role,
+                )
+            },
+        );
         let inside: i64 = rows.iter().map(|r| r.cost).sum();
         let edge = slots.total.saturating_sub(inside);
         let edge_note = (edge > 0).then(|| {
             (
                 Text::new("usage.window.edge").with("cost", dollars(edge)),
-                link_to(from.unix_timestamp(), to.unix_timestamp(), None),
+                link_to(from.unix_timestamp(), to.unix_timestamp(), None, None),
             )
         });
         let tables = (slots.total > 0 || !rows.is_empty()).then(|| {
@@ -1343,6 +1530,10 @@ async fn usage_page(
                 }),
                 by_slot: slots.view,
                 slot_rows: slots.rows,
+                roles: slots.roles,
+                role_rows: slots.role_rows,
+                role_keys: slots.role_keys,
+                cell_links: slots.cell_links,
                 slot_heading: width.pick([
                     "usage.bySlot.heading.tenMin",
                     "usage.bySlot.heading.hour",
@@ -1364,7 +1555,6 @@ async fn usage_page(
                     "usage.bySlot.col.day",
                 ]),
             };
-            let actors = actors_of(answer.actors);
             let by_model = summary::by_model(
                 &rows,
                 &actors,

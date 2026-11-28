@@ -377,6 +377,68 @@ pub fn spread(rows: &[Row], starts: &[i64], end: i64) -> Vec<SlotSum> {
     out
 }
 
+/// 区切りごと × 役割の升の 1 行（役割 1 つ）。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RoleLine {
+    /// 役割の名（アクターのラベル `tpm.role`）。ラベルの無い席・`actors` に無い席は無い（「無し」）。
+    pub name: Option<String>,
+    /// 区切りごとの額（本体と手伝いの計）と、そのうちの見立ての額。添字は区切り。
+    pub cells: Vec<(i64, i64)>,
+    /// 行の額の計。
+    pub total: i64,
+}
+
+/// 区切り（日・時・10 分）ごと × 役割の額。額は [`spread_row`] で配り、**手伝い（subagent）の額は、起こした席の役割に入れる**
+/// （「どの役割が使ったか」を見るため。「model と役割ごと」の行列は、手伝いを別の行に分ける）。額の在る役割だけを、
+/// 額（本体と手伝いの計）の大きい順に並べる（同じ額なら名の順で、「無し」は後ろ。「役割ごと」の表と同じ決まり）。
+pub fn by_slot_role(rows: &[Row], actors: &[Actor], starts: &[i64], end: i64) -> Vec<RoleLine> {
+    let labels: HashMap<&str, &HashMap<String, String>> =
+        actors.iter().map(|a| (a.id.as_str(), &a.labels)).collect();
+    let mut lines: BTreeMap<Option<String>, RoleLine> = BTreeMap::new();
+    for row in rows {
+        let role = labels
+            .get(row.actor_id.as_str())
+            .and_then(|l| l.get(ROLE))
+            .cloned();
+        for (i, share, estimated) in spread_row(row, starts, end) {
+            let line = lines.entry(role.clone()).or_insert_with(|| RoleLine {
+                name: role.clone(),
+                cells: vec![(0, 0); starts.len()],
+                total: 0,
+            });
+            let cell = &mut line.cells[i];
+            cell.0 = cell.0.saturating_add(share);
+            if estimated {
+                cell.1 = cell.1.saturating_add(share);
+            }
+            line.total = line.total.saturating_add(share);
+        }
+    }
+    let mut lines: Vec<RoleLine> = lines.into_values().filter(|l| l.total > 0).collect();
+    by_cost(&mut lines, |l| l.total, |l| &l.name);
+    lines
+}
+
+/// 升の地の色の段の境（升の額の、その図でいちばん多い升の額に対する比の、分母）。[0] 分の 1 以上は段 3、[1] 分の 1 以上は段 2、
+/// 0 より大きければ段 1。「model と役割ごと」の行列の境（全体の額に対する比。[`HEAT`]）とは違う: 升は区切りの数だけ細かく
+/// 割れ、全体に対する比では、みな下の段になるため。色は同じ 3 色。
+pub const SLOT_HEAT: [i64; 2] = [2, 10];
+
+/// 升の地の色の段（1〜3）。額が 0 以下か、いちばん多い升の額が 0 以下なら無い。
+pub fn slot_heat(cost: i64, max: i64) -> Option<u8> {
+    if cost <= 0 || max <= 0 {
+        return None;
+    }
+    let (cost, max) = (i128::from(cost), i128::from(max));
+    Some(if cost * i128::from(SLOT_HEAT[0]) >= max {
+        3
+    } else if cost * i128::from(SLOT_HEAT[1]) >= max {
+        2
+    } else {
+        1
+    })
+}
+
 /// 席（アクター）1 つの数。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Seat {
@@ -949,6 +1011,85 @@ mod tests {
             .total(),
             7
         );
+    }
+
+    #[test]
+    fn 区切りごと_役割の升は_手伝いを席の役割に入れ_額の大きい順に並べる() {
+        let actor = |id: &str, role: Option<&str>| Actor {
+            id: id.to_owned(),
+            labels: role
+                .map(|r| (ROLE.to_owned(), r.to_owned()))
+                .into_iter()
+                .collect(),
+        };
+        let actors = [
+            actor("se", Some("software-engineer")),
+            actor("tpm", Some("tpm")),
+            actor("pm", None),
+        ];
+        let of = |id: &str, row: Row| Row {
+            actor_id: id.to_owned(),
+            ..row
+        };
+        let helper = |row: Row| Row {
+            agent: Some("Explore".to_owned()),
+            ..row
+        };
+        let rows = [
+            of("se", span(0, 599, 100)),
+            // 手伝いの額も、起こした席の役割（software-engineer）に入れる。
+            of("se", helper(span(600, 700, 30))),
+            // 境をまたぐ行は、配った額を見立てとして数える。
+            of("tpm", span(300, 899, 40)),
+            // ラベルの無い席と、actors に無い席は「無し」。
+            of("pm", span(0, 10, 39)),
+            of("gone", span(1200, 1210, 1)),
+            // 額の無い役割の行は出さない。
+            of("zero", span(0, 10, 0)),
+        ];
+        let lines = by_slot_role(&rows, &actors, &[0, 600, 1200], 1800);
+        assert_eq!(
+            lines,
+            [
+                RoleLine {
+                    name: Some("software-engineer".to_owned()),
+                    cells: vec![(100, 0), (30, 0), (0, 0)],
+                    total: 130,
+                },
+                RoleLine {
+                    name: Some("tpm".to_owned()),
+                    cells: vec![(20, 20), (20, 20), (0, 0)],
+                    total: 40,
+                },
+                // 同じ額（40）なら、「無し」は後ろ。
+                RoleLine {
+                    name: None,
+                    cells: vec![(39, 0), (0, 0), (1, 0)],
+                    total: 40,
+                },
+            ]
+        );
+        // 行の和は、区切りごとの額（spread）の和と同じ。
+        let slots = spread(&rows, &[0, 600, 1200], 1800);
+        for (i, slot) in slots.iter().enumerate() {
+            assert_eq!(
+                lines.iter().map(|l| l.cells[i].0).sum::<i64>(),
+                slot.total()
+            );
+        }
+        assert!(by_slot_role(&[], &actors, &[0, 600], 1200).is_empty());
+    }
+
+    #[test]
+    fn 升の色の段は_いちばん多い升の半分以上_1_割以上_それより下の_3_段() {
+        assert_eq!(slot_heat(100, 100), Some(3));
+        assert_eq!(slot_heat(50, 100), Some(3));
+        assert_eq!(slot_heat(49, 100), Some(2));
+        assert_eq!(slot_heat(10, 100), Some(2));
+        assert_eq!(slot_heat(9, 100), Some(1));
+        assert_eq!(slot_heat(1, 100), Some(1));
+        assert_eq!(slot_heat(0, 100), None);
+        assert_eq!(slot_heat(5, 0), None);
     }
 
     #[test]

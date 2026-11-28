@@ -632,6 +632,17 @@
         "tenMinToDay": "The 10-minute width is drawn for periods up to 1 day. This period is drawn per day.",
         "hourToDay": "The 1-hour width is drawn for periods up to 7 days. This period is drawn per day."
       }
+    },
+    "byRole": {
+      "legend": "The cells under the bars show cost per slot and role (main session and helpers together), aligned with the bars above. Helper (subagent) cost is counted under the role of the seat that started it (the \"By model and role\" matrix below lists helpers as separate rows). Colors are three levels relative to the largest cell in this chart.",
+      "links": " Click a cell to narrow to that slot and role.",
+      "noLinks": " There are too many slots to click cells; use the amounts in the table below to narrow to a slot and role.",
+      "table": "Show cost per slot and role as a table",
+      "key": {
+        "high": "{{low}} or more",
+        "mid": "{{low}} to under {{high}}",
+        "low": "Under {{high}}"
+      }
     }
   },
   "upstream": {
