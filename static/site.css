@@ -270,6 +270,12 @@ svg.chart { display: block; max-width: none; font-family: system-ui, "Hiragino S
 .chart .base { stroke: var(--muted); stroke-width: 1; }
 .chart .bar.main { fill: var(--chart-main); }
 .chart .bar.helper { fill: var(--chart-helper); }
+/* 見立てを含む棒（区切りの境をまたぐ記録から、額を均して配った分が入る）は、薄くする。 */
+.chart .bar.est { fill-opacity: 0.45; }
+/* 押すとその区切りに絞る棒（link）。keyboard で選んだ時は、押す所に枠を出す。 */
+.chart a { cursor: pointer; }
+.chart a:focus-visible { outline: none; }
+.chart a:focus-visible .hit { stroke: var(--fg); stroke-width: 1.5; }
 .chart .limit { stroke: var(--warn); stroke-width: 1.5; stroke-dasharray: 4 3; }
 .chart .limit-label { font-size: 11px; fill: var(--warn); }
 .chart .context { fill: none; stroke: var(--chart-main); stroke-width: 2; }
@@ -280,6 +286,7 @@ svg.chart { display: block; max-width: none; font-family: system-ui, "Hiragino S
 .legend.keys li { display: flex; align-items: center; gap: 4px; }
 .legend .swatch.main { border-color: var(--chart-main); background: var(--chart-main); }
 .legend .swatch.helper { border-color: var(--chart-helper); background: var(--chart-helper); }
+.legend .swatch.est { opacity: 0.45; }
 /* 段々の線の凡例は、図の線と同じ色。 */
 .legend .key.context { border-top-color: var(--chart-main); }
 .legend .compact-key { display: inline-block; width: 0; height: 14px; border-left: 2px dashed var(--fg); }

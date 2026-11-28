@@ -1,9 +1,10 @@
 //! 使用量（トークンの数と額）の行を、全体・役割ごと・課題ごとにまとめる計算。外に触らない純な計算（DB も HTTP も触らない）。
 //!
-//! - 行は、castlist の `ListUsage` の行（アクター 1 人の、時計の 1 時間の内の、同じ種類の回のまとめ）。同じアクター・同じ時・
-//!   同じ種類の行は 2 つ以上在りうるので、数は足し、いちばん長い文脈は大きい方を取り、段は番号ごとに足す。
+//! - 行は、castlist の `ListUsage` の行（アクター 1 人の、同じ種類の回のまとめ。区間は UTC の時の内で、長さは送り手が決める:
+//!   roster は UTC の 10 分の枠ごと。前の行は 1 時間の枠ごと）。同じアクター・同じ枠・同じ種類の行は 2 つ以上在りうるので、数は足し、いちばん長い文脈は大きい方を取り、段は番号ごとに足す。
 //! - 本体の回（`agent` が無い）と、手伝い（subagent）の回（`agent` が手伝いの種類）を分ける。文脈の長さの数（中央・上から 1 割・いちばん長い文脈・
 //!   20 万以上の回）は、本体の回だけで出す（手伝いは自分の短い文脈で動くので、混ぜると中央が下がる）。
+//! - 区切り（日・時・10 分）ごとの額は、行の区間が区切りに収まれば正確に入れ、境をまたぐ行は時間の比で配る（見立て。[`spread`]）。
 //! - 中央と上から 1 割は、段（2.5 万刻み）から出す近い値: 回を文脈の短い順に並べた時の、その順位の回が入る段の下の端。
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -33,7 +34,9 @@ pub struct Bucket {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Row {
     pub actor_id: String,
-    /// 区間の終わりの時刻（castlist の `toAt`。UNIX の時からの秒）。行の日と時は、これで決める。
+    /// 区間の始めの時刻（castlist の `fromAt`。行にまとめた回の、初めの回の時刻。UNIX の時からの秒。秒より下は切り捨て）。
+    pub from_at: i64,
+    /// 区間の終わりの時刻（castlist の `toAt`。行にまとめた回の、終わりの回の時刻。UNIX の時からの秒。秒より下は切り捨て）。
     pub to_at: i64,
     /// model の名（castlist の行の `model`）。
     pub model: String,
@@ -277,19 +280,98 @@ pub fn by_bucket(rows: &[Row]) -> Vec<(i64, i64)> {
     out
 }
 
-/// 区切り（日・時）ごとの、本体の額と手伝いの額。`starts` は区切りの初めの時刻（秒。昇順）、`end` は最後の区切りの終わり。
-/// 行は、区間の終わりの時刻（`to_at`）が入る区切りに入れる。区切りの外の行は数えない。
-pub fn by_slot(rows: &[Row], starts: &[i64], end: i64) -> Vec<(i64, i64)> {
-    let mut out = vec![(0i64, 0i64); starts.len()];
-    for row in rows.iter().filter(|r| r.to_at < end) {
-        let Some(i) = starts.partition_point(|s| *s <= row.to_at).checked_sub(1) else {
-            continue;
-        };
-        let sum = &mut out[i];
-        if row.helper() {
-            sum.1 = sum.1.saturating_add(row.cost);
-        } else {
-            sum.0 = sum.0.saturating_add(row.cost);
+/// 区切り 1 つの額（100 万分の 1 ドル）。
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SlotSum {
+    /// 本体の額。
+    pub main: i64,
+    /// 手伝いの額。
+    pub helper: i64,
+    /// `main + helper` のうち、区切りの境をまたぐ行から、時間で均して配った額（見立て）。0 なら、この区切りの額は正確。
+    pub estimated: i64,
+}
+
+impl SlotSum {
+    /// 本体と手伝いの計。
+    pub fn total(&self) -> i64 {
+        self.main.saturating_add(self.helper)
+    }
+}
+
+/// 行 1 つの額を、区切りに配る。`starts` は区切りの初めの時刻（秒。昇順）、`end` は最後の区切りの終わり。返すのは、区切りの
+/// 添字と、そこに入る額と、見立てか（行の区間が区切りの境をまたぐ）。区切りの外に当たる分は返さない。
+///
+/// - 行の区間（`from_at`〜`to_at`。終わりの秒も含む）が 1 つの区切りに収まれば、額をみなその区切りに入れる（正確）。
+///   castlist の行は UTC の時をまたがないので、時ごと・日ごとの区切りでは、いつもこれになる。
+/// - 境をまたぐ行（10 分で切る前の記録を、10 分の区切りで見た時）は、行の回がどの区切りに在ったかが分からないので、
+///   区間と区切りの重なる秒の比で配る（見立て）。端数は、余りの大きい区切りへ（同じなら早い方へ）。配った額の和は、元の額。
+pub fn spread_row(row: &Row, starts: &[i64], end: i64) -> Vec<(usize, i64, bool)> {
+    let Some(&first) = starts.first() else {
+        return Vec::new();
+    };
+    // 行の区間（終わりの秒を含む。始めが終わりより後の行は、終わりの 1 秒とみなす）。
+    let (a, b) = (row.from_at.min(row.to_at), row.to_at.saturating_add(1));
+    if b <= first || a >= end {
+        return Vec::new();
+    }
+    let slot_of = |t: i64| starts.partition_point(|s| *s <= t).checked_sub(1);
+    let (lo, hi) = (slot_of(a), slot_of(b - 1));
+    if a >= first && b <= end && lo == hi {
+        return lo.map(|i| (i, row.cost, false)).into_iter().collect();
+    }
+    // 区切りごとの重なり（秒）。区切りの外（初めより前・終わりより後）の分は、配る先が無い（捨てる）。
+    let total = i128::from(b - a);
+    let cost = i128::from(row.cost.max(0));
+    let mut parts: Vec<(Option<usize>, i128)> = Vec::new();
+    if a < first {
+        parts.push((None, i128::from(first - a)));
+    }
+    for i in lo.unwrap_or(0)..=hi.unwrap_or(0).min(starts.len() - 1) {
+        let (s, e) = (starts[i], starts.get(i + 1).copied().unwrap_or(end));
+        let overlap = b.min(e) - a.max(s);
+        if overlap > 0 {
+            parts.push((Some(i), i128::from(overlap)));
+        }
+    }
+    if b > end {
+        parts.push((None, i128::from(b - end)));
+    }
+    // 切り捨てた額を配り、足りない分（端数の和）を、余りの大きい順に 1 ずつ足す。
+    let mut shares: Vec<(Option<usize>, i128, i128)> = parts
+        .iter()
+        .map(|(i, overlap)| (*i, cost * overlap / total, cost * overlap % total))
+        .collect();
+    let mut left = cost - shares.iter().map(|s| s.1).sum::<i128>();
+    let mut order: Vec<usize> = (0..shares.len()).collect();
+    order.sort_by(|x, y| shares[*y].2.cmp(&shares[*x].2).then(x.cmp(y)));
+    for at in order {
+        if left <= 0 {
+            break;
+        }
+        shares[at].1 += 1;
+        left -= 1;
+    }
+    shares
+        .into_iter()
+        .filter_map(|(i, share, _)| Some((i?, i64::try_from(share).unwrap_or(i64::MAX), true)))
+        .filter(|(_, share, _)| *share > 0)
+        .collect()
+}
+
+/// 区切り（日・時・10 分）ごとの、本体の額と手伝いの額と、そのうちの見立ての額（[`spread_row`] で配る）。
+pub fn spread(rows: &[Row], starts: &[i64], end: i64) -> Vec<SlotSum> {
+    let mut out = vec![SlotSum::default(); starts.len()];
+    for row in rows {
+        for (i, share, estimated) in spread_row(row, starts, end) {
+            let sum = &mut out[i];
+            if row.helper() {
+                sum.helper = sum.helper.saturating_add(share);
+            } else {
+                sum.main = sum.main.saturating_add(share);
+            }
+            if estimated {
+                sum.estimated = sum.estimated.saturating_add(share);
+            }
         }
     }
     out
@@ -499,6 +581,7 @@ mod tests {
     fn main(actor_id: &str, max_context: i64, buckets: &[(i32, i64, i64)]) -> Row {
         Row {
             actor_id: actor_id.to_owned(),
+            from_at: 0,
             to_at: 0,
             model: "claude-opus-5-5".to_owned(),
             agent: None,
@@ -706,8 +789,20 @@ mod tests {
         assert_eq!(subjects, [Some("k-a"), Some("k-b"), None]);
     }
 
+    /// 区切りごとの、本体の額と手伝いの額（[`spread`] の、見立ての額を落とした物）。
+    fn by_slot(rows: &[Row], starts: &[i64], end: i64) -> Vec<(i64, i64)> {
+        spread(rows, starts, end)
+            .into_iter()
+            .map(|s| (s.main, s.helper))
+            .collect()
+    }
+
     fn at(row: Row, to_at: i64) -> Row {
-        Row { to_at, ..row }
+        Row {
+            from_at: to_at,
+            to_at,
+            ..row
+        }
     }
 
     #[test]
@@ -748,6 +843,112 @@ mod tests {
         );
         // 行が無ければ、どの区切りも 0。
         assert_eq!(by_slot(&[], &[0, 100], 200), [(0, 0), (0, 0)]);
+    }
+
+    /// 区間（始めと終わりの秒）と額を決めた、本体の行。
+    fn span(from_at: i64, to_at: i64, cost: i64) -> Row {
+        Row {
+            from_at,
+            to_at,
+            cost,
+            ..main("a", 10, &[(0, 1, cost)])
+        }
+    }
+
+    #[test]
+    fn 区切りに収まる行は正確に入れ_境をまたぐ行は_重なる時間の比で配って見立てにする() {
+        // 10 分の区切り 3 つ（0〜600・600〜1200・1200〜1800）。
+        let starts = [0, 600, 1200];
+        // 収まる行: 区間の終わりの秒まで同じ区切り（599 は初めの区切り）。
+        assert_eq!(
+            spread_row(&span(0, 599, 100), &starts, 1800),
+            [(0, 100, false)]
+        );
+        assert_eq!(
+            spread_row(&span(700, 700, 7), &starts, 1800),
+            [(1, 7, false)]
+        );
+        // 境をまたぐ行（300〜899 の 600 秒。初めの区切りに 300 秒・次に 300 秒）は、半分ずつの見立て。
+        assert_eq!(
+            spread_row(&span(300, 899, 100), &starts, 1800),
+            [(0, 50, true), (1, 50, true)]
+        );
+        // 終わりがちょうど境の秒（300〜600）の行も、またぐ（600 の秒は次の区切り）。次の区切りには 1 秒の分だけ。
+        assert_eq!(
+            spread_row(&span(300, 600, 301), &starts, 1800),
+            [(0, 300, true), (1, 1, true)]
+        );
+        // 1 時間の行（0〜1799）を 3 つの区切りに。端数は余りの大きい区切りへ（同じなら早い方へ）で、和は元の額。
+        let parts = spread_row(&span(0, 1799, 100), &starts, 1800);
+        assert_eq!(parts, [(0, 34, true), (1, 33, true), (2, 33, true)]);
+        assert_eq!(parts.iter().map(|p| p.1).sum::<i64>(), 100);
+        // 区切りの外に当たる分は、返さない（窓の端をまたぐ行。300〜899 のうち 600 から後だけが窓の内）。
+        assert_eq!(
+            spread_row(&span(300, 899, 100), &[600, 1200], 1800),
+            [(0, 50, true)]
+        );
+        assert_eq!(
+            spread_row(&span(1500, 2099, 100), &starts, 1800),
+            [(2, 50, true)]
+        );
+        // 窓の外の行と、区切りが無い時は、何も返さない。
+        assert!(spread_row(&span(1800, 1900, 5), &starts, 1800).is_empty());
+        assert!(spread_row(&span(-50, -1, 5), &starts, 1800).is_empty());
+        assert!(spread_row(&span(0, 10, 5), &[], 0).is_empty());
+    }
+
+    #[test]
+    fn 区切りごとの額は_見立ての額を別に数え_時をまたがない行は_時ごとでも日ごとでも正確() {
+        let rows = [
+            span(0, 599, 100),
+            Row {
+                agent: Some("Explore".to_owned()),
+                ..span(300, 899, 40)
+            },
+            span(1200, 1300, 9),
+        ];
+        assert_eq!(
+            spread(&rows, &[0, 600, 1200], 1800),
+            [
+                SlotSum {
+                    main: 100,
+                    helper: 20,
+                    estimated: 20
+                },
+                SlotSum {
+                    main: 0,
+                    helper: 20,
+                    estimated: 20
+                },
+                SlotSum {
+                    main: 9,
+                    helper: 0,
+                    estimated: 0
+                },
+            ]
+        );
+        // 同じ行を、境をまたがない区切り（30 分ごと）で見ると、見立ては無く、行の終わりの時刻で入れた時と同じ額になる。
+        assert_eq!(
+            spread(&rows, &[0, 1800], 3600),
+            [
+                SlotSum {
+                    main: 109,
+                    helper: 40,
+                    estimated: 0
+                },
+                SlotSum::default(),
+            ]
+        );
+        assert_eq!(by_slot(&rows, &[0, 1800], 3600), [(109, 40), (0, 0)]);
+        assert_eq!(
+            SlotSum {
+                main: 3,
+                helper: 4,
+                estimated: 0
+            }
+            .total(),
+            7
+        );
     }
 
     #[test]

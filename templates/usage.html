@@ -18,12 +18,17 @@
 <datalist id="label-choices">{% for c in choices.others %}<option value="{{ c.value }}"{{ c.text.attrs()|safe }}>{{ c.text }}</option>{% endfor %}</datalist>
 <label><span data-i18n="usage.filters.from">{{ "usage.filters.from"|t }}</span> <input type="datetime-local" step="any" name="from" value="{{ form.from }}"></label>
 <label><span data-i18n="filters.to">{{ "filters.to"|t }}</span> <input type="datetime-local" step="any" name="to" value="{{ form.to }}"></label>
+<label><span data-i18n="usage.filters.step">{{ "usage.filters.step"|t }}</span> <select name="step"><option value="" data-i18n="usage.step.auto">{{ "usage.step.auto"|t }}</option><option value="10m"{% if form.step == "10m" %} selected{% endif %} data-i18n="usage.step.tenMin">{{ "usage.step.tenMin"|t }}</option><option value="1h"{% if form.step == "1h" %} selected{% endif %} data-i18n="usage.step.hour">{{ "usage.step.hour"|t }}</option><option value="1d"{% if form.step == "1d" %} selected{% endif %} data-i18n="usage.step.day">{{ "usage.step.day"|t }}</option></select></label>
 </div>
 {% call m::quick(quick) %}{% endcall %}
 <div class="actions"><button type="submit" data-i18n="filters.submit">{{ "filters.submit"|t }}</button> <a href="/usage/" data-i18n="filters.clear">{{ "filters.clear"|t }}</a></div>
 </fieldset>
 </form>
-<p class="note" id="window"><span data-i18n="common.window.before">{{ "common.window.before"|t }}</span>{% call m::time(from) %}{% endcall %}<span data-i18n="list.costs.middle">{{ "list.costs.middle"|t }}</span>{% call m::time(to) %}{% endcall %}{% if defaulted %}<span data-i18n="usage.window.afterDefaulted" data-i18n-options="{{ "days"|opts1(days) }}">{{ "usage.window.afterDefaulted"|t1("days", days) }}</span>{% else %}<span data-i18n="usage.window.after">{{ "usage.window.after"|t }}</span>{% endif %}</p>
+<p class="note" id="window"><span data-i18n="common.window.before">{{ "common.window.before"|t }}</span>{% call m::time(from) %}{% endcall %}<span data-i18n="list.costs.middle">{{ "list.costs.middle"|t }}</span>{% call m::time(to) %}{% endcall %}{% if defaulted %}<span data-i18n="usage.window.afterDefaulted" data-i18n-options="{{ "days"|opts1(days) }}">{{ "usage.window.afterDefaulted"|t1("days", days) }}</span>{% else if ten_min %}<span data-i18n="usage.window.afterTenMin">{{ "usage.window.afterTenMin"|t }}</span>{% else %}<span data-i18n="usage.window.after">{{ "usage.window.after"|t }}</span>{% endif %}</p>
+{% if let Some(note) = step_note %}<p class="note" id="step-note"{{ note.attrs()|safe }}>{{ note }}</p>
+{% endif %}
+{% if let Some((note, href)) = edge_note %}<p class="note" id="edge-note"><span{{ note.attrs()|safe }}>{{ note }}</span> <a href="{{ href }}" data-i18n="usage.window.edgeLink">{{ "usage.window.edgeLink"|t }}</a></p>
+{% endif %}
 {% if too_many %}
 <p class="error" data-i18n="usage.tooMany" data-i18n-options="{{ "read"|opts1(read) }}">{{ "usage.tooMany"|t1("read", read) }}</p>
 {% endif %}
@@ -54,13 +59,15 @@
 <div class="scroll">{% call m::chart(t.charts.by_slot) %}{% endcall %}</div>
 <ul class="legend keys"><li><span class="swatch main"></span><span data-i18n="usage.bySlot.main">{{ "usage.bySlot.main"|t }}</span></li><li><span class="swatch helper"></span><span data-i18n="usage.bySlot.helper">{{ "usage.bySlot.helper"|t }}</span></li></ul>
 <p class="legend"{{ t.charts.slot_legend.attrs()|safe }}>{{ t.charts.slot_legend }}</p>
+{% if let Some(note) = t.charts.slot_estimated %}<ul class="legend keys" id="estimated"><li><span class="swatch main est"></span><span{{ note.attrs()|safe }}>{{ note }}</span></li></ul>
+{% endif %}
 <details class="slots"><summary{{ t.charts.slot_table.attrs()|safe }}>{{ t.charts.slot_table }}</summary>
 <div class="scroll">
 <table class="usage">
 <thead><tr><th{{ t.charts.slot_col.attrs()|safe }}>{{ t.charts.slot_col }}</th><th class="num" data-i18n="usage.bySlot.main">{{ "usage.bySlot.main"|t }}</th><th class="num" data-i18n="usage.col.helper">{{ "usage.col.helper"|t }}</th><th class="num" data-i18n="usage.col.sum">{{ "usage.col.sum"|t }}</th></tr></thead>
 <tbody>
 {% for r in t.charts.slot_rows %}
-<tr><td>{{ r.name }}</td><td class="num">{{ r.main }}</td><td class="num">{{ r.helper }}</td><td class="num">{{ r.total }}</td></tr>
+<tr><td><a href="{{ r.href }}">{{ r.name }}</a>{% if r.estimated %}<span data-i18n="usage.bySlot.estimatedMark">{{ "usage.bySlot.estimatedMark"|t }}</span>{% endif %}</td><td class="num">{{ r.main }}</td><td class="num">{{ r.helper }}</td><td class="num">{{ r.total }}</td></tr>
 {% endfor %}
 </tbody>
 </table>
