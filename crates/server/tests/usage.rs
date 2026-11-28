@@ -301,7 +301,9 @@ async fn 役割ごとの表は_本体の回の数と額と_段から出した文
         ]
     );
     assert!(
-        roles.contains("<span class=\"chip role\">software-engineer</span>"),
+        roles.contains(
+            "data-i18n-attr=\"title:usage.about.role.softwareEngineer\">software-engineer</span>"
+        ),
         "{roles}"
     );
     assert!(
@@ -635,7 +637,7 @@ async fn 使用量は_script_も_inline_の_style_も使わず_利用者の字�
         assert!(!page.contains(raw), "{raw}: {body}");
     }
     assert!(
-        body.contains("<span class=\"chip role\">&#60;i&#62;role&#60;/i&#62;</span>"),
+        body.contains("<span class=\"chip role about\" title=\"説明はまだありません\" data-i18n-attr=\"title:usage.about.none\">&#60;i&#62;role&#60;/i&#62;</span>"),
         "{body}"
     );
     assert!(

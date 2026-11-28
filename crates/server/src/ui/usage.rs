@@ -256,6 +256,8 @@ struct TotalView {
 
 /// 役割ごとの表の行。無い値（本体の回が無い時の、文脈の長さの数）は「—」。
 struct RoleView {
+    /// 名にマウスを重ねた時の説明（名が無ければ無い）。
+    about: Option<Text>,
     name: Option<String>,
     seats: String,
     turns: String,
@@ -290,15 +292,43 @@ struct CellView {
     per_turn: Text,
 }
 
+/// 役割の名（castlist の席のラベル `tpm.role`）と、その説明の鍵（t-3jkq）。役割を足したら、ここと訳の file（ja・en）に足す。
+const ROLE_ABOUT: &[(&str, &str)] = &[
+    ("tpm", "usage.about.role.tpm"),
+    ("software-engineer", "usage.about.role.softwareEngineer"),
+    ("staff-engineer", "usage.about.role.staffEngineer"),
+    ("tech-lead", "usage.about.role.techLead"),
+    ("devops-engineer", "usage.about.role.devopsEngineer"),
+    ("sustaining-engineer", "usage.about.role.sustainingEngineer"),
+    ("auditor", "usage.about.role.auditor"),
+];
+
+/// 手伝い（subagent）の種類の名（castlist の回の `agent`）と、その説明の鍵（t-3jkq）。
+const HELPER_ABOUT: &[(&str, &str)] = &[
+    ("general-purpose", "usage.about.helper.generalPurpose"),
+    ("Explore", "usage.about.helper.explore"),
+    ("Plan", "usage.about.helper.plan"),
+    ("web-fetch", "usage.about.helper.webFetch"),
+    ("claude-code-guide", "usage.about.helper.claudeCodeGuide"),
+    ("statusline-setup", "usage.about.helper.statuslineSetup"),
+    ("audit-reader", "usage.about.helper.auditReader"),
+];
+
 /// 役割（`helper` が false）か手伝いの種類（true）の名の説明。名にマウスを重ねると出す（`title`）。
 /// 書いていない名は「説明はまだありません」。
 fn about(name: &str, helper: bool) -> Text {
-    let _ = (name, helper);
-    Text::new("usage.about.none")
+    let table = if helper { HELPER_ABOUT } else { ROLE_ABOUT };
+    let key = table
+        .iter()
+        .find(|(n, _)| *n == name)
+        .map_or("usage.about.none", |(_, key)| key);
+    Text::new(key)
 }
 
 /// 行列の行。上の組は役割（`role`。ラベルが無ければ無い）、下の組は手伝い（`helper` に「手伝い: 種類」）。
 struct MatrixRowView {
+    /// 名にマウスを重ねた時の説明（名が無ければ無い）。
+    about: Option<Text>,
     helper: Option<Text>,
     role: Option<String>,
     /// 席の最新の effort（1 種類なら名だけ、2 種類以上なら「medium（76 席）」の形を、席の多い順に）。
@@ -368,6 +398,7 @@ fn matrix(matrix: Matrix, efforts: &Efforts) -> MatrixView {
                 })
                 .collect(),
         },
+        about: r.name.as_deref().map(|name| about(name, helper)),
         helper: helper.then(|| {
             Text::new("usage.models.helper").with("name", r.name.as_deref().unwrap_or_default())
         }),
@@ -459,6 +490,7 @@ fn tables(summary: Summary, matrix: MatrixView, charts: Charts) -> Tables {
                 over_turns: percent(r.over_turns, r.bucket_turns),
                 over_cost: percent(r.over_cost, r.bucket_cost),
                 helper_cost: dollars(r.helper_cost),
+                about: r.name.as_deref().map(|name| about(name, false)),
                 name: r.name,
             })
             .collect(),

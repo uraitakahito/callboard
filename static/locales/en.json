@@ -520,7 +520,25 @@
       "render": "Cannot show usage"
     },
     "about": {
-      "none": "No description yet"
+      "none": "No description yet",
+      "role": {
+        "tpm": "Works with the Product Manager: assigns issues to seats and relays their messages. There is only one seat, but it stays up and runs on every message, so it has many turns.",
+        "softwareEngineer": "Owns one issue: investigates, proposes, plans, implements and tests. It has the most seats and runs implementation and tests over long contexts, so its cost tends to be large.",
+        "staffEngineer": "Reviews the plans, proposals and PRs the issue's seat asks for and returns a verdict (does not fix). Its effort is high and it reads diffs deeply, so each turn tends to cost more.",
+        "techLead": "Coordinates an issue that spans several repositories: writes the plan and the agreements between repositories, starts a seat per repository, and reviews their plans and PRs.",
+        "devopsEngineer": "Builds, deploys and maintains the shared environments (containers, the page store, callboard and so on). Runs only when asked.",
+        "sustainingEngineer": "Owns one Dependabot PR: checks the time since the release, fixes CI, and asks for the merge.",
+        "auditor": "Examines how the seats work, with evidence, and makes recommendations to the Product Manager (does not fix or decide). Runs only when the Product Manager starts it."
+      },
+      "helper": {
+        "generalPurpose": "A catch-all helper the main seat hands research or multi-step work to. The skill that fixes figures (figure-fix) also runs on it. The bigger the task handed over, the bigger the cost.",
+        "explore": "A read-only helper that searches files and text and returns where things are, with excerpts. It repeats searches many times, so its turns tend to be many.",
+        "plan": "A read-only helper that drafts implementation plans.",
+        "webFetch": "A helper that fetches and reads web pages and returns a summarized answer.",
+        "claudeCodeGuide": "A helper that answers questions about using Claude Code and the Claude API by reading the docs.",
+        "statuslineSetup": "A helper that configures Claude Code's status line.",
+        "auditReader": "A read-only helper used only when the Auditor collects evidence for a case (the audit-evidence skill)."
+      }
     }
   },
   "upstream": {
