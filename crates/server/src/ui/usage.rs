@@ -256,6 +256,10 @@ struct TotalView {
 
 /// 役割ごとの表の行。無い値（本体の回が無い時の、文脈の長さの数）は「—」。
 struct RoleView {
+    /// 名にマウスを重ねた時の説明（名が無ければ無い）。
+    about: Option<Text>,
+    /// 説明を書いた名か（点線の下線を引く）。
+    described: bool,
     name: Option<String>,
     seats: String,
     turns: String,
@@ -290,8 +294,50 @@ struct CellView {
     per_turn: Text,
 }
 
+/// 役割の名（castlist の席のラベル `tpm.role`）と、その説明の鍵（t-3jkq）。役割を足したら、ここと訳の file（ja・en）に足す。
+const ROLE_ABOUT: &[(&str, &str)] = &[
+    ("tpm", "usage.about.role.tpm"),
+    ("software-engineer", "usage.about.role.softwareEngineer"),
+    ("staff-engineer", "usage.about.role.staffEngineer"),
+    ("tech-lead", "usage.about.role.techLead"),
+    ("devops-engineer", "usage.about.role.devopsEngineer"),
+    ("sustaining-engineer", "usage.about.role.sustainingEngineer"),
+    ("auditor", "usage.about.role.auditor"),
+];
+
+/// 手伝い（subagent）の種類の名（castlist の回の `agent`）と、その説明の鍵（t-3jkq）。
+const HELPER_ABOUT: &[(&str, &str)] = &[
+    ("general-purpose", "usage.about.helper.generalPurpose"),
+    ("Explore", "usage.about.helper.explore"),
+    ("Plan", "usage.about.helper.plan"),
+    ("web-fetch", "usage.about.helper.webFetch"),
+    ("claude-code-guide", "usage.about.helper.claudeCodeGuide"),
+    ("statusline-setup", "usage.about.helper.statuslineSetup"),
+    ("audit-reader", "usage.about.helper.auditReader"),
+];
+
+/// 役割（`helper` が false）か手伝いの種類（true）の名の説明。名にマウスを重ねると出す（`title`）。
+/// 書いていない名は「説明はまだありません」。
+fn about(name: &str, helper: bool) -> Text {
+    let table = if helper { HELPER_ABOUT } else { ROLE_ABOUT };
+    let key = table
+        .iter()
+        .find(|(n, _)| *n == name)
+        .map_or("usage.about.none", |(_, key)| key);
+    Text::new(key)
+}
+
+/// 説明を書いた名か（[`about`] が「説明はまだありません」でない）。
+fn described(name: &str, helper: bool) -> bool {
+    about(name, helper).key() != "usage.about.none"
+}
+
 /// 行列の行。上の組は役割（`role`。ラベルが無ければ無い）、下の組は手伝い（`helper` に「手伝い: 種類」）。
 struct MatrixRowView {
+    /// 名にマウスを重ねた時の説明（名が無ければ無い）。
+    about: Option<Text>,
+    /// 説明を書いた名か（点線の下線を引く。書いていない名は「説明はまだありません」だけ）。
+    described: bool,
     helper: Option<Text>,
     role: Option<String>,
     /// 席の最新の effort（1 種類なら名だけ、2 種類以上なら「medium（76 席）」の形を、席の多い順に）。
@@ -361,6 +407,11 @@ fn matrix(matrix: Matrix, efforts: &Efforts) -> MatrixView {
                 })
                 .collect(),
         },
+        about: r.name.as_deref().map(|name| about(name, helper)),
+        described: r
+            .name
+            .as_deref()
+            .is_some_and(|name| described(name, helper)),
         helper: helper.then(|| {
             Text::new("usage.models.helper").with("name", r.name.as_deref().unwrap_or_default())
         }),
@@ -452,6 +503,8 @@ fn tables(summary: Summary, matrix: MatrixView, charts: Charts) -> Tables {
                 over_turns: percent(r.over_turns, r.bucket_turns),
                 over_cost: percent(r.over_cost, r.bucket_cost),
                 helper_cost: dollars(r.helper_cost),
+                about: r.name.as_deref().map(|name| about(name, false)),
+                described: r.name.as_deref().is_some_and(|name| described(name, false)),
                 name: r.name,
             })
             .collect(),
@@ -1124,6 +1177,69 @@ mod tests {
 
     fn at(iso: &str) -> OffsetDateTime {
         OffsetDateTime::parse(iso, &Rfc3339).unwrap()
+    }
+
+    /// 説明を書く名（t-3jkq の confirm-1 の 14 名）。役割 7 つと手伝い 7 つ。
+    const ROLES_WITH_ABOUT: [&str; 7] = [
+        "tpm",
+        "software-engineer",
+        "staff-engineer",
+        "tech-lead",
+        "devops-engineer",
+        "sustaining-engineer",
+        "auditor",
+    ];
+    const HELPERS_WITH_ABOUT: [&str; 7] = [
+        "general-purpose",
+        "Explore",
+        "Plan",
+        "web-fetch",
+        "claude-code-guide",
+        "statusline-setup",
+        "audit-reader",
+    ];
+
+    #[test]
+    fn 役割と手伝いの説明は_名から引き_書いていない名は_説明はまだありません() {
+        assert_eq!(
+            about("software-engineer", false).key(),
+            "usage.about.role.softwareEngineer"
+        );
+        assert_eq!(
+            about("software-engineer", false),
+            "課題 1 つを受け持ち、調べ・提案・計画・実装・試験をする。席がいちばん多く、長い文脈で実装と試験を回すので、額が大きくなりやすい。"
+        );
+        assert_eq!(about("Explore", true).key(), "usage.about.helper.explore");
+        // 書いていない名・大文字と小文字の違う名・役割の名を手伝いとして引いた時は、説明が無い。
+        assert_eq!(
+            about("technical-program-manager", false).key(),
+            "usage.about.none"
+        );
+        assert_eq!(about("explore", true).key(), "usage.about.none");
+        assert_eq!(about("tpm", true).key(), "usage.about.none");
+        assert_eq!(about("Explore", false).key(), "usage.about.none");
+        assert_eq!(about("tpm", true), "説明はまだありません");
+        // 点線の下線は、説明を書いた名だけ。
+        assert!(described("software-engineer", false));
+        assert!(described("Explore", true));
+        assert!(!described("technical-program-manager", false));
+        assert!(!described("tpm", true));
+    }
+
+    #[test]
+    fn 説明を書く_14_名には_日本語と英語の説明がみなある() {
+        let ja = super::super::i18n::table(super::super::i18n::JA_JSON);
+        let en = super::super::i18n::table(super::super::i18n::EN_JSON);
+        let names = ROLES_WITH_ABOUT
+            .iter()
+            .map(|n| (n, false))
+            .chain(HELPERS_WITH_ABOUT.iter().map(|n| (n, true)));
+        for (name, helper) in names {
+            let key = about(name, helper).key();
+            assert_ne!(key, "usage.about.none", "{name} の説明が無い");
+            assert!(ja.contains_key(key), "{name} の日本語の説明 {key} が無い");
+            assert!(en.contains_key(key), "{name} の英語の説明 {key} が無い");
+        }
     }
 
     #[test]

@@ -456,7 +456,7 @@
       "perTurn": "1 回あたり {{cost}}",
       "perTurnRow": "1 回あたり",
       "effortSeats": "{{effort}}（{{count}} 席）",
-      "legend": "地の色は、升の額の、全体の額に対する比です（濃い: {{high}}% 以上・中ほど: {{low}}% 以上 {{high}}% 未満・薄い: {{low}}% 未満）。升にマウスを重ねると、1 回あたりの額を表示します。",
+      "legend": "地の色は、升の額の、全体の額に対する比です（濃い: {{high}}% 以上・中ほど: {{low}}% 以上 {{high}}% 未満・薄い: {{low}}% 未満）。升にマウスを重ねると、1 回あたりの額を表示します。点線の下線の付いた役割・手伝いの名にマウスを重ねると、何をする物かの説明を表示します。",
       "effortUnread": "effort を引けませんでした（ほかの数は出しています）。",
       "effortPartial": "effort は、新しく登場した {{seats}} 席の分だけです（期間に稼働した席が、それより多い）。",
       "key": {
@@ -514,6 +514,27 @@
       "tooLong": "期間は {{days}} 日までです（時の境に揃えた後の長さ）。期間を狭めてください。",
       "startsLater": "「期間（から）」が、先の時刻です。",
       "render": "使用量を表示できません"
+    },
+    "about": {
+      "none": "説明はまだありません",
+      "role": {
+        "tpm": "Product Manager の相手。課題を担当に振り、担当からの知らせを受けて伝える。席は 1 つだが、ずっと起きていて知らせのたびに回るので、回が多い。",
+        "softwareEngineer": "課題 1 つを受け持ち、調べ・提案・計画・実装・試験をする。席がいちばん多く、長い文脈で実装と試験を回すので、額が大きくなりやすい。",
+        "staffEngineer": "課題の担当が頼んだ計画・提案・PR をレビューし、判定を返す（直さない）。effort が高く、差分を深く読むので、1 回の額が高めになりやすい。",
+        "techLead": "いくつもの repo に渡る課題をまとめる。計画と repo の境の取り決めを書き、repo ごとの席を起こして、その計画と PR をレビューする。",
+        "devopsEngineer": "共有の環境（container・ページの置き場・callboard など）のビルド・デプロイ・整備をする。頼まれた時だけ動く。",
+        "sustainingEngineer": "Dependabot の PR 1 本を受け持ち、公開からの時間の確かめと CI の直しをして、merge を頼む。",
+        "auditor": "担当の仕組みを証拠で調べ、Product Manager に勧告する（直さない・決めない）。Product Manager が起こした時だけ動く。"
+      },
+      "helper": {
+        "generalPurpose": "本体が、調べ物や数段の作業をまとめて任せる何でも屋の手伝い。図を直す skill（figure-fix）もこれで動く。任せた仕事が大きいと額も大きい。",
+        "explore": "file や字を探して、在り処と抜き書きを返す、読むだけの手伝い。探しを何度も繰り返すので、回が多くなりやすい。",
+        "plan": "実装の計画を立てる、読むだけの手伝い。",
+        "webFetch": "web のページを取って読み、答えをまとめて返す手伝い。",
+        "claudeCodeGuide": "Claude Code や Claude API の使い方の問いに、docs を読んで答える手伝い。",
+        "statuslineSetup": "Claude Code の状態の行の設定をする手伝い。",
+        "auditReader": "Auditor が件の証拠を集める時（audit-evidence の skill）だけ使う、読むだけの手伝い。"
+      }
     }
   },
   "upstream": {
