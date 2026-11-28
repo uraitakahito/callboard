@@ -421,3 +421,25 @@ test('英語の相関図は、network.js が組む字（数・状態・記録な
   expect(await page.locator('#network-controls').innerText()).not.toMatch(/[ぁ-んァ-ヶ一-龠]/);
   await context.close();
 });
+
+test('英語の相関図は、点と線を引けなかった訳も、callboard の付けた code と values で英語に組む', async ({ browser }) => {
+  const { context, page } = await open(browser, 'en-US');
+  const status = page.locator('#network-status');
+  const fail = async (body: object, statusCode: number) => {
+    await page.route(/\/api\/castlist\/graph/, (route) => route.fulfill({ status: statusCode, contentType: 'application/json', body: JSON.stringify(body) }));
+    await page.goto('/graph/network');
+    await expect(page.locator('#network')).toHaveAttribute('data-state', 'error');
+  };
+  // callboard 自身の 503（castlist に聞けない）: message は日本語、code と values は鍵と値（入れ子の字は $t）。
+  await fail({ message: 'castlist に聞けません（時間内に答えがありません）', code: 'errors.unreachable', values: { service: 'castlist', why: { $t: 'upstream.slow' } } }, 503);
+  await expect(status).toHaveText('Cannot show the network: 503 Cannot reach castlist (no answer in time)');
+  await page.unrouteAll();
+  // 呼ぶ先の誤りを運んだ物: callboard が型の名の鍵を足し、呼ぶ先の訳は detail に入る。
+  await fail({ message: 'label が読めない', code: 'errors.kind.validation', values: { detail: 'label が読めない' } }, 400);
+  await expect(status).toHaveText('Cannot show the network: 400 The request was rejected as invalid (label が読めない)');
+  await page.unrouteAll();
+  // code の無い誤り（呼ぶ先の古い形）: 字は message のまま。
+  await fail({ message: 'bad' }, 400);
+  await expect(status).toHaveText('Cannot show the network: 400 bad');
+  await context.close();
+});
