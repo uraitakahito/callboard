@@ -349,6 +349,8 @@ pub struct MatrixRow {
     pub total: Cell,
     /// 上の組だけ: その行の本体の回を持つ席の、最新の effort ごとの席の数（席の多い順、同じなら名の順）。effort の分からない席は数えない。
     pub efforts: Vec<(String, usize)>,
+    /// 上の組だけ: その行の本体の回を持つ席の数（effort の分からない席も入れる）。下の組は 0。
+    pub seats: usize,
 }
 
 /// 「役割（本体）と手伝いの種類」×「model」の行列。
@@ -419,6 +421,7 @@ pub fn by_model(rows: &[Row], actors: &[Actor], efforts: &HashMap<String, String
         name: name.map(str::to_owned),
         cells: order.iter().map(|m| sum.cells.get(m).copied()).collect(),
         total: sum.total,
+        seats: sum.seats.len(),
         efforts,
     };
 
@@ -1016,6 +1019,9 @@ mod tests {
             matrix.roles[0].efforts,
             vec![("medium".to_owned(), 2), ("low".to_owned(), 1)]
         );
+        // 行の席の数は、effort の分からない席（d）も入れる（画面が、数えた席が足りないと分かるように）。
+        assert_eq!(matrix.roles[0].seats, 4);
+        assert_eq!(matrix.helpers[0].seats, 0);
         // 下の組は effort を持たない。
         assert!(matrix.helpers.iter().all(|r| r.efforts.is_empty()));
 

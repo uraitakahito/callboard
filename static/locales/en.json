@@ -461,8 +461,13 @@
       "effortSeats_one": "{{effort}} ({{count}} seat)",
       "effortSeats_other": "{{effort}} ({{count}} seats)",
       "legend": "Cell shading shows the cell's share of the total cost (dark: {{high}}% or more; medium: {{low}}% to under {{high}}%; light: under {{low}}%). Hover over a cell to see the cost per turn.",
-      "effortUnread": "Could not read effort in time (the other numbers are shown).",
-      "effortPartial": "Effort covers only the {{count}} most recently entered seats (more seats were active in the period)."
+      "effortUnread": "Could not read effort (the other numbers are shown).",
+      "effortPartial": "Effort covers only the {{seats}} most recently entered seats (more seats were active in the period).",
+      "key": {
+        "high": "Dark: {{high}}% or more",
+        "mid": "Medium: {{low}}% to under {{high}}%",
+        "low": "Light: under {{low}}%"
+      }
     },
     "col": {
       "helper": "Helpers",

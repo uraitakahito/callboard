@@ -457,8 +457,13 @@
       "perTurnRow": "1 回あたり",
       "effortSeats": "{{effort}}（{{count}} 席）",
       "legend": "地の色は、升の額の、全体の額に対する比です（濃い: {{high}}% 以上・中ほど: {{low}}% 以上 {{high}}% 未満・薄い: {{low}}% 未満）。升にマウスを重ねると、1 回あたりの額を表示します。",
-      "effortUnread": "effort を、時間内に引けませんでした（ほかの数は出しています）。",
-      "effortPartial": "effort は、新しく登場した {{count}} 席の分だけです（期間に稼働した席が、それより多い）。"
+      "effortUnread": "effort を引けませんでした（ほかの数は出しています）。",
+      "effortPartial": "effort は、新しく登場した {{seats}} 席の分だけです（期間に稼働した席が、それより多い）。",
+      "key": {
+        "high": "濃い: {{high}}% 以上",
+        "mid": "中ほど: {{low}}% 以上 {{high}}% 未満",
+        "low": "薄い: {{low}}% 未満"
+      }
     },
     "col": {
       "helper": "手伝い",

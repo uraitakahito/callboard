@@ -312,8 +312,9 @@ struct MatrixView {
     models: Vec<String>,
     rows: Vec<MatrixRowView>,
     foot: FootView,
-    /// 地の色の凡例（段の境の数を値で）。
+    /// 地の色の凡例（段の境の数を値で）と、段ごとの色見本の字（濃い順）。
     legend: Text,
+    keys: Vec<(&'static str, Text)>,
     /// effort を引けなかった・一部だけ引けた時の注。
     effort_note: Option<Text>,
 }
@@ -348,8 +349,9 @@ fn matrix(matrix: Matrix, efforts: &Efforts) -> MatrixView {
         ),
     };
     let row = |r: summary::MatrixRow, helper: bool| MatrixRowView {
+        // 1 種類で、行の席がみな数えられた時だけ名だけにする（effort の分からない席があれば、数を添える）。
         efforts: match r.efforts.as_slice() {
-            [(effort, _)] => vec![Text::plain(effort.clone())],
+            [(effort, n)] if *n == r.seats => vec![Text::plain(effort.clone())],
             many => many
                 .iter()
                 .map(|(effort, n)| {
@@ -388,11 +390,28 @@ fn matrix(matrix: Matrix, efforts: &Efforts) -> MatrixView {
         legend: Text::new("usage.models.legend")
             .with_num("high", HEAT[0])
             .with_num("low", HEAT[1]),
+        keys: vec![
+            (
+                "heat-3",
+                Text::new("usage.models.key.high").with_num("high", HEAT[0]),
+            ),
+            (
+                "heat-2",
+                Text::new("usage.models.key.mid")
+                    .with_num("high", HEAT[0])
+                    .with_num("low", HEAT[1]),
+            ),
+            (
+                "heat-1",
+                Text::new("usage.models.key.low").with_num("low", HEAT[1]),
+            ),
+        ],
         effort_note: match efforts {
             Efforts::Read { partial: false, .. } => None,
-            Efforts::Read { partial: true, .. } => {
-                Some(Text::new("usage.models.effortPartial").with_num("count", CANDIDATE_LIMIT))
-            }
+            Efforts::Read { partial: true, .. } => Some(
+                Text::new("usage.models.effortPartial")
+                    .with("seats", count(i64::from(CANDIDATE_LIMIT))),
+            ),
             Efforts::Unread => Some(Text::new("usage.models.effortUnread")),
         },
     }

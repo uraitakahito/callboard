@@ -24,10 +24,11 @@
   --m-other: #6250d6;
   --m-none: #9aa1ad;
   --row-alt: #f1f3f7;
-  /* 使用量の model と役割ごとの行列の升の地の色（全体の額に対する比の段。usage_summary の HEAT）。 */
-  --heat-1: #eef3fb;
-  --heat-2: #fdf0c8;
-  --heat-3: #f9d2cd;
+  /* 使用量の model と役割ごとの行列の升の地の色（全体の額に対する比の段。usage_summary の HEAT）。1 つの色相で、段が上がるほど
+     地（--card）から離れる（明るい画面は暗く、暗い画面は明るく）。凡例の「濃い・中ほど・薄い」と同じ順。 */
+  --heat-1: #fdeceb;
+  --heat-2: #f8d3cf;
+  --heat-3: #f3b9b2;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -53,9 +54,9 @@
     --m-other: #9085e9;
     --m-none: #6b7584;
     --row-alt: #1f2631;
-    --heat-1: #1d2735;
-    --heat-2: #3b3115;
-    --heat-3: #4b2220;
+    --heat-1: #33242a;
+    --heat-2: #4a2a2b;
+    --heat-3: #66302d;
   }
 }
 
@@ -165,6 +166,11 @@ th.num, td.num { text-align: right; white-space: nowrap; font-variant-numeric: t
 .matrix td.heat-2 { background: var(--heat-2); }
 .matrix td.heat-3 { background: var(--heat-3); }
 .matrix .turns, .matrix .effort { color: var(--muted); font-size: 0.8rem; }
+/* 地の色の付いた升の回の字は、--muted では地とのコントラストが足りない段があるので、--fg にする。 */
+.matrix td[class*="heat-"] .turns { color: var(--fg); }
+.legend .swatch.heat-1 { border-color: var(--line); background: var(--heat-1); }
+.legend .swatch.heat-2 { border-color: var(--line); background: var(--heat-2); }
+.legend .swatch.heat-3 { border-color: var(--line); background: var(--heat-3); }
 .matrix tfoot td { font-weight: 600; }
 th, td { padding: 5px 10px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
 th { background: var(--head); color: var(--muted); font-weight: 600; font-size: 0.8rem; white-space: nowrap; }

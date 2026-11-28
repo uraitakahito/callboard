@@ -85,6 +85,7 @@
 </table>
 </div>
 {% if let Some(note) = t.matrix.effort_note %}<p class="note"{{ note.attrs()|safe }}>{{ note }}</p>{% endif %}
+<ul class="legend keys">{% for (class, key) in t.matrix.keys %}<li><span class="swatch {{ class }}"></span><span{{ key.attrs()|safe }}>{{ key }}</span></li>{% endfor %}</ul>
 <ul class="legend">
 <li{{ t.matrix.legend.attrs()|safe }}>{{ t.matrix.legend }}</li>
 <li data-i18n="usage.notes.effort">{{ "usage.notes.effort"|t }}</li>
