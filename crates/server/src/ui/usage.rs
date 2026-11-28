@@ -27,7 +27,9 @@ use super::time::{OFFSET, Time, local, stamp, time};
 use super::timeline_layout;
 use super::usage_chart::{self as chart, Axis};
 use super::usage_labels::{self as labels, Choice, Choices, Picked};
-use super::usage_summary::{self as summary, BUCKET_WIDTH, LAST_BUCKET, OVER_BUCKET, Summary};
+use super::usage_summary::{
+    self as summary, BUCKET_WIDTH, HEAT, LAST_BUCKET, Matrix, OVER_BUCKET, Summary,
+};
 use super::{CSS_HREF, Nav, error_page, render};
 use crate::App;
 use crate::upstream::Failure;
@@ -195,6 +197,17 @@ pub(super) fn dollars(micro: i64) -> String {
     format!("${}.{:02}", count(cents / 100), cents % 100)
 }
 
+/// 1 回あたりの額を、ドルの小数 3 桁にする（`$0.093`。四捨五入）。回が無ければ無い。
+fn per_turn(micro: i64, turns: i64) -> Option<String> {
+    if turns <= 0 {
+        return None;
+    }
+    let turns = i128::from(turns);
+    let mills = (i128::from(micro.max(0)) + turns * 500) / (turns * 1_000);
+    let mills = i64::try_from(mills).unwrap_or(i64::MAX);
+    Some(format!("${}.{:03}", count(mills / 1_000), mills % 1_000))
+}
+
 /// 比を % の小数 1 桁にする（`12.5%`。四捨五入）。元が 0 なら無い。
 fn percent(part: i64, whole: i64) -> Option<String> {
     if whole <= 0 {
@@ -266,14 +279,153 @@ struct SubjectView {
     max_context: Option<Text>,
 }
 
+/// 行列の升 1 つ。
+struct CellView {
+    cost: String,
+    /// 「5 回」。
+    turns: Text,
+    /// 地の色の class（`heat-1`〜`heat-3`。額が 0 なら空）。
+    heat: &'static str,
+    /// マウスを重ねた時の 1 回あたりの額。
+    per_turn: Text,
+}
+
+/// 行列の行。上の組は役割（`role`。ラベルが無ければ無い）、下の組は手伝い（`helper` に「手伝い: 種類」）。
+struct MatrixRowView {
+    helper: Option<Text>,
+    role: Option<String>,
+    /// 席の最新の effort（1 種類なら名だけ、2 種類以上なら「medium（76 席）」の形を、席の多い順に）。
+    efforts: Vec<Text>,
+    cells: Vec<Option<CellView>>,
+    total: String,
+}
+
+/// 行列の下の行の、列ごとの値（最後は計の列）。
+struct FootView {
+    costs: Vec<String>,
+    shares: Vec<Option<String>>,
+    per_turns: Vec<Option<String>>,
+}
+
+/// model と役割ごとの行列。
+struct MatrixView {
+    models: Vec<String>,
+    rows: Vec<MatrixRowView>,
+    foot: FootView,
+    /// 地の色の凡例（段の境の数を値で）と、段ごとの色見本の字（濃い順）。
+    legend: Text,
+    keys: Vec<(&'static str, Text)>,
+    /// effort を引けなかった・一部だけ引けた時の注。
+    effort_note: Option<Text>,
+}
+
+/// 席の最新の effort を引けたか（絞りの候補と同じ `ListActors` の答えから）。
+pub(super) enum Efforts {
+    /// 引けた。`partial` は、席が 1 頁の上限を越え、新しく登場した席の分だけの時。
+    Read {
+        efforts: std::collections::HashMap<String, String>,
+        partial: bool,
+    },
+    /// 引けなかった（断られた・時間内に来なかった）。
+    Unread,
+}
+
+fn matrix(matrix: Matrix, efforts: &Efforts) -> MatrixView {
+    let whole = matrix.total.cost;
+    let cell = |c: summary::Cell| CellView {
+        cost: dollars(c.cost),
+        turns: Text::new("usage.models.turns")
+            .with("turns", count(c.turns))
+            .with_num("count", c.turns),
+        heat: match summary::heat(c.cost, whole) {
+            Some(3) => "heat-3",
+            Some(2) => "heat-2",
+            Some(_) => "heat-1",
+            None => "",
+        },
+        per_turn: Text::new("usage.models.perTurn").with(
+            "cost",
+            per_turn(c.cost, c.turns).unwrap_or_else(|| "—".to_owned()),
+        ),
+    };
+    let row = |r: summary::MatrixRow, helper: bool| MatrixRowView {
+        // 1 種類で、行の席がみな数えられた時だけ名だけにする（effort の分からない席があれば、数を添える）。
+        efforts: match r.efforts.as_slice() {
+            [(effort, n)] if *n == r.seats => vec![Text::plain(effort.clone())],
+            many => many
+                .iter()
+                .map(|(effort, n)| {
+                    Text::new("usage.models.effortSeats")
+                        .with("effort", effort)
+                        .with_num("count", *n)
+                })
+                .collect(),
+        },
+        helper: helper.then(|| {
+            Text::new("usage.models.helper").with("name", r.name.as_deref().unwrap_or_default())
+        }),
+        role: if helper { None } else { r.name },
+        cells: r.cells.into_iter().map(|c| c.map(cell)).collect(),
+        total: dollars(r.total.cost),
+    };
+    let columns: Vec<summary::Cell> = matrix
+        .models
+        .iter()
+        .map(|(_, c)| *c)
+        .chain([matrix.total])
+        .collect();
+    MatrixView {
+        foot: FootView {
+            costs: columns.iter().map(|c| dollars(c.cost)).collect(),
+            shares: columns.iter().map(|c| percent(c.cost, whole)).collect(),
+            per_turns: columns.iter().map(|c| per_turn(c.cost, c.turns)).collect(),
+        },
+        models: matrix.models.into_iter().map(|(m, _)| m).collect(),
+        rows: matrix
+            .roles
+            .into_iter()
+            .map(|r| row(r, false))
+            .chain(matrix.helpers.into_iter().map(|r| row(r, true)))
+            .collect(),
+        legend: Text::new("usage.models.legend")
+            .with_num("high", HEAT[0])
+            .with_num("low", HEAT[1]),
+        keys: vec![
+            (
+                "heat-3",
+                Text::new("usage.models.key.high").with_num("high", HEAT[0]),
+            ),
+            (
+                "heat-2",
+                Text::new("usage.models.key.mid")
+                    .with_num("high", HEAT[0])
+                    .with_num("low", HEAT[1]),
+            ),
+            (
+                "heat-1",
+                Text::new("usage.models.key.low").with_num("low", HEAT[1]),
+            ),
+        ],
+        effort_note: match efforts {
+            Efforts::Read { partial: false, .. } => None,
+            Efforts::Read { partial: true, .. } => Some(
+                Text::new("usage.models.effortPartial")
+                    .with("seats", count(i64::from(CANDIDATE_LIMIT))),
+            ),
+            Efforts::Unread => Some(Text::new("usage.models.effortUnread")),
+        },
+    }
+}
+
 struct Tables {
     total: TotalView,
+    matrix: MatrixView,
     roles: Vec<RoleView>,
     subjects: Vec<SubjectView>,
     charts: Charts,
 }
 
-fn tables(summary: Summary, charts: Charts) -> Tables {
+fn tables(summary: Summary, matrix: MatrixView, charts: Charts) -> Tables {
     let whole = summary.total.cost;
     let seats = |n: usize| count(i64::try_from(n).unwrap_or(i64::MAX));
     Tables {
@@ -285,6 +437,7 @@ fn tables(summary: Summary, charts: Charts) -> Tables {
             helper_cost: dollars(summary.total.helper_cost),
             helper_share: percent(summary.total.helper_cost, whole),
         },
+        matrix,
         roles: summary
             .roles
             .into_iter()
@@ -324,7 +477,8 @@ pub(super) fn rows_of(usage: Vec<Usage>) -> Vec<summary::Row> {
         .map(|u| summary::Row {
             to_at: u.to_at.secs(),
             actor_id: u.actor_id,
-            helper: u.agent.is_some(),
+            model: u.model,
+            agent: u.agent,
             turns: u.turns,
             cost: u.cost_micro_usd,
             max_context: u.max_context,
@@ -342,18 +496,14 @@ pub(super) fn rows_of(usage: Vec<Usage>) -> Vec<summary::Row> {
 }
 
 /// castlist の答えを、まとめる。
-fn summarize(
-    rows: &[summary::Row],
-    answer_actors: Vec<castlist_client::types::UsageActor>,
-) -> Summary {
-    let actors: Vec<summary::Actor> = answer_actors
+fn actors_of(answer_actors: Vec<castlist_client::types::UsageActor>) -> Vec<summary::Actor> {
+    answer_actors
         .into_iter()
         .map(|a| summary::Actor {
             id: a.id,
             labels: a.labels,
         })
-        .collect();
-    summary::summarize(rows, &actors)
+        .collect()
 }
 
 // --- 図（SVG。座標は [`chart`] が出す） ---
@@ -871,29 +1021,40 @@ async fn usage_page(
     // castlist が引数を断った時（callboard の確かめを通った物なので、ふつうは起きない）は、castlist の訳を、そのまま書く。
     let answer = answer.map_err(|e| params::failed("castlist", e))?;
     // 候補を引けなくても（断られた・期限を過ぎた）、使用量の数は出す（一覧は今の値だけ、欄は候補無し）。
-    let choices = match active {
+    // 同じ答えから、行列の役割の行の席の最新の effort も引く（castlist への問いは増やさない）。
+    let (choices, efforts) = match active {
         Ok(Ok(output)) => {
-            if output.next_token.is_some() {
+            let partial = output.next_token.is_some();
+            if partial {
                 tracing::warn!(
-                    "使用量の絞りの候補は、新しく登場した {CANDIDATE_LIMIT} 席の分だけです（期間に稼働した席が、それより多い）"
+                    "使用量の絞りの候補と effort は、新しく登場した {CANDIDATE_LIMIT} 席の分だけです（期間に稼働した席が、それより多い）"
                 );
             }
-            labels::choices(output.actors.iter().map(|a| &a.labels))
+            let efforts = output
+                .actors
+                .iter()
+                .filter_map(|a| a.effort.clone().map(|e| (a.id.clone(), e)))
+                .collect();
+            (
+                labels::choices(output.actors.iter().map(|a| &a.labels)),
+                Efforts::Read { efforts, partial },
+            )
         }
         Ok(Err(e)) => {
             tracing::warn!("使用量の絞りの候補を引けません: {e:?}");
-            Choices::default()
+            (Choices::default(), Efforts::Unread)
         }
         Err(_) => {
             tracing::warn!(
                 "使用量の絞りの候補を、{} ms の内に引けませんでした",
                 CANDIDATE_TIMEOUT.as_millis()
             );
-            Choices::default()
+            (Choices::default(), Efforts::Unread)
         }
     };
     let choices = ChoicesView::new(choices, &form.picked);
     tokio::task::spawn_blocking(move || {
+        let no_efforts = std::collections::HashMap::new();
         let as_of = time(&answer.as_of);
         let too_many = answer.truncated == Some(Cut::Pages);
         let too_slow = answer.truncated == Some(Cut::Time);
@@ -911,7 +1072,20 @@ async fn usage_page(
                 slot_table: pick("usage.bySlot.table.hour", "usage.bySlot.table.day"),
                 slot_col: pick("usage.bySlot.col.hour", "usage.bySlot.col.day"),
             };
-            tables(summarize(&rows, answer.actors), charts)
+            let actors = actors_of(answer.actors);
+            let by_model = summary::by_model(
+                &rows,
+                &actors,
+                match &efforts {
+                    Efforts::Read { efforts, .. } => efforts,
+                    Efforts::Unread => &no_efforts,
+                },
+            );
+            tables(
+                summary::summarize(&rows, &actors),
+                matrix(by_model, &efforts),
+                charts,
+            )
         });
         let page = UsagePage {
             css: &CSS_HREF,

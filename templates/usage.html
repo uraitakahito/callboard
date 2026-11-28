@@ -67,6 +67,31 @@
 </div>
 </details>
 </section>
+<section id="models">
+<h2 data-i18n="usage.models.heading">{{ "usage.models.heading"|t }}</h2>
+<div class="scroll">
+<table class="usage matrix">
+<thead><tr><th data-i18n="usage.models.row">{{ "usage.models.row"|t }}</th>{% for name in t.matrix.models %}<th class="num">{{ name }}</th>{% endfor %}<th class="num" data-i18n="usage.col.sum">{{ "usage.col.sum"|t }}</th></tr></thead>
+<tbody>
+{% for r in t.matrix.rows %}
+<tr><td>{% if let Some(h) = r.helper %}<span class="helper"{{ h.attrs()|safe }}>{{ h }}</span>{% else if let Some(name) = r.role %}<span class="chip role">{{ name }}</span>{% else %}<span class="none" data-i18n="usage.noName">{{ "usage.noName"|t }}</span>{% endif %}{% if !r.efforts.is_empty() %}<br><span class="effort">{% for e in r.efforts %}{% if !loop.first %}<span data-i18n="common.listSep">{{ "common.listSep"|t }}</span>{% endif %}<span{{ e.attrs()|safe }}>{{ e }}</span>{% endfor %}</span>{% endif %}</td>{% for c in r.cells %}{% if let Some(c) = c %}<td class="num {{ c.heat }}" title="{{ c.per_turn }}"{{ c.per_turn.attr("title")|safe }}>{{ c.cost }}<br><span class="turns"{{ c.turns.attrs()|safe }}>{{ c.turns }}</span></td>{% else %}<td class="num"><span class="none">—</span></td>{% endif %}{% endfor %}<td class="num">{{ r.total }}</td></tr>
+{% endfor %}
+</tbody>
+<tfoot>
+<tr><td data-i18n="usage.col.sum">{{ "usage.col.sum"|t }}</td>{% for v in t.matrix.foot.costs %}<td class="num">{{ v }}</td>{% endfor %}</tr>
+<tr><td data-i18n="usage.col.share">{{ "usage.col.share"|t }}</td>{% for v in t.matrix.foot.shares %}<td class="num">{% call m::maybe(v) %}{% endcall %}</td>{% endfor %}</tr>
+<tr><td data-i18n="usage.models.perTurnRow">{{ "usage.models.perTurnRow"|t }}</td>{% for v in t.matrix.foot.per_turns %}<td class="num">{% call m::maybe(v) %}{% endcall %}</td>{% endfor %}</tr>
+</tfoot>
+</table>
+</div>
+{% if let Some(note) = t.matrix.effort_note %}<p class="note"{{ note.attrs()|safe }}>{{ note }}</p>{% endif %}
+<ul class="legend keys">{% for (class, key) in t.matrix.keys %}<li><span class="swatch {{ class }}"></span><span{{ key.attrs()|safe }}>{{ key }}</span></li>{% endfor %}</ul>
+<ul class="legend">
+<li{{ t.matrix.legend.attrs()|safe }}>{{ t.matrix.legend }}</li>
+<li data-i18n="usage.notes.effort">{{ "usage.notes.effort"|t }}</li>
+<li data-i18n="usage.notes.helperModel">{{ "usage.notes.helperModel"|t }}</li>
+</ul>
+</section>
 <section id="roles">
 <h2 data-i18n="usage.roles.heading">{{ "usage.roles.heading"|t }}</h2>
 <div class="scroll">

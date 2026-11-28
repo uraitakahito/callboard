@@ -450,6 +450,25 @@
         "helper": "{{name}}: helpers {{cost}} (main and helpers {{sum}})"
       }
     },
+    "models": {
+      "heading": "By model and role",
+      "row": "Role / helper",
+      "helper": "Helper: {{name}}",
+      "turns_one": "{{turns}} turn",
+      "turns_other": "{{turns}} turns",
+      "perTurn": "{{cost}} per turn",
+      "perTurnRow": "Per turn",
+      "effortSeats_one": "{{effort}} ({{count}} seat)",
+      "effortSeats_other": "{{effort}} ({{count}} seats)",
+      "legend": "Cell shading shows the cell's share of the total cost (dark: {{high}}% or more; medium: {{low}}% to under {{high}}%; light: under {{low}}%). Hover over a cell to see the cost per turn.",
+      "effortUnread": "Could not read effort (the other numbers are shown).",
+      "effortPartial": "Effort covers only the {{seats}} most recently entered seats (more seats were active in the period).",
+      "key": {
+        "high": "Dark: {{high}}% or more",
+        "mid": "Medium: {{low}}% to under {{high}}%",
+        "low": "Light: under {{low}}%"
+      }
+    },
     "col": {
       "helper": "Helpers",
       "sum": "Total",
@@ -484,7 +503,9 @@
       },
       "context": "Context lengths (median, top 10%, longest context, turns ≥ 200k) count the main session's turns only (helper (subagent) turns run in their own short contexts, so they are left out).",
       "bands": "The median and top 10% are approximations from bands of {{width}} (the lower edge of the band the turn falls in; \"225k–\" means at least 225k and under 250k).",
-      "delay": "Numbers for running seats can lag by up to about an hour."
+      "delay": "Numbers for running seats can lag by up to about an hour.",
+      "effort": "Effort is the current (latest) value of the seats in the role's row. Seats that changed effort during the period are counted with their current value. Helper (subagent) effort is not recorded.",
+      "helperModel": "A helper's model is set either by the helper type's own setting or inherited from the main session that started it. Filter by role to see which role's seats the helpers belong to."
     },
     "empty": "No usage records in this period.",
     "foot": "Times are Japan time (UTC+9). Hover over a time to see it in ISO 8601.",
