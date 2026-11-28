@@ -1045,7 +1045,7 @@ async fn 幅を_10_分にすると_期間を_10_分の境に揃え_10_分ごと�
     }
     assert!(!svg.contains(">12:10</text>"), "{svg}");
     // 額の在る枠は、押すとその 10 分に絞る link（今の絞りと幅を残す）。額の無い枠には無い。
-    assert_eq!(svg.matches("<a href=").count(), 2, "{svg}");
+    assert_eq!(svg.matches("<rect class=\"hit\"").count(), 2, "{svg}");
     assert!(
         svg.contains("<a href=\"/usage/?from=2026-11-22T10:40:00%2B09:00&#38;to=2026-11-22T10:50:00%2B09:00&#38;step=10m\"><rect class=\"hit\""),
         "{svg}"
@@ -1295,7 +1295,7 @@ async fn 棒を押すと_日は時ごとへ_時は_10_分ごとへ_今の絞り�
         .html("/usage/?from=2026-11-20T00:00&to=2026-11-23T00:00&step=1d")
         .await;
     let svg = svg_of(&body);
-    assert_eq!(svg.matches("<a href=").count(), 1, "{svg}");
+    assert_eq!(svg.matches("<rect class=\"hit\"").count(), 1, "{svg}");
     assert!(
         svg.contains("<a href=\"/usage/?from=2026-11-22T00:00:00%2B09:00&#38;to=2026-11-23T00:00:00%2B09:00\"><rect class=\"hit\""),
         "{svg}"
@@ -1314,6 +1314,187 @@ async fn 幅の引数は使用量の画面だけの物で_一覧は知らない(
     let (status, _, body) = app.send(get("/actors/?step=10m")).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
     assert!(body.contains("知らない引数: step"), "{body}");
+}
+
+// --- 棒の下の升（t-ztu7 段 2b。区切りごと × 役割の額を、棒と同じ横の並びで） ---
+
+/// 升の役割の名（升の行の順）。
+fn grid_roles(svg: &str) -> Vec<String> {
+    svg.split("<text class=\"role\"")
+        .skip(1)
+        .map(|t| {
+            let at = t.find('>').unwrap() + 1;
+            t[at..at + t[at..].find("</text>").unwrap()].to_owned()
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn 棒の下に_区切りごと_役割の升を_棒と同じ枠に描き_押すとその区切りと役割に絞る() {
+    let app = sample().await;
+    let body = app
+        .html(&format!(
+            "{WINDOW}&step=10m&label=tpm.role:tpm&label=project:x"
+        ))
+        .await;
+    common::check_i18n("usage.rs:grid", &body);
+    let chart = section(&body, "by-day");
+    let svg = svg(chart);
+    // 役割は 3 行（額の大きい順）: software-engineer $4.25（se.1 の本体 $2.00 と手伝い $0.25・se.2 の本体 $2.00）、
+    // technical-program-manager $3.00、役割のラベルの無い席（pm.1）$0.01。行の分だけ、図が下に伸びる。
+    assert_eq!(
+        grid_roles(svg),
+        ["software-engineer", "technical-program-manager", "（無し）"]
+    );
+    assert!(
+        svg.contains("<text class=\"role\" x=\"64\" y=\"238\">software-engineer</text>"),
+        "{svg}"
+    );
+    assert!(
+        svg.contains(" data-i18n=\"usage.noName\">（無し）</text>"),
+        "{svg}"
+    );
+    assert!(
+        svg.contains("viewBox=\"0 0 720 330\" width=\"720\" height=\"330\""),
+        "{svg}"
+    );
+    // 升は、額の在る物だけ（4 つ）。手伝いの額は、起こした席の役割に入れる（10:40 の software-engineer は $2.25）。
+    assert_eq!(svg.matches("<rect class=\"cell ").count(), 4, "{svg}");
+    // 色は、いちばん多い升（$3.00）に対する比: 半分以上は段 3、1 割より下は段 1。
+    for cell in [
+        "<rect class=\"cell heat-3\" x=\"128\" y=\"242\" width=\"64\" height=\"16\"><title>11-22 10:40 software-engineer: $2.25</title></rect><text class=\"cell-text\" x=\"160\" y=\"254\" text-anchor=\"middle\">$2.3</text>",
+        "<title>11-22 11:10 software-engineer: $2.00</title>",
+        "<rect class=\"cell heat-3\" x=\"128\" y=\"276\" width=\"64\" height=\"16\"><title>11-22 10:40 technical-program-manager: $3.00</title>",
+        "<rect class=\"cell heat-1\" x=\"128\" y=\"310\" width=\"64\" height=\"16\"><title>11-22 10:40 —: $0.01</title></rect><text class=\"cell-text\" x=\"160\" y=\"322\" text-anchor=\"middle\">$0.0</text>",
+    ] {
+        assert!(svg.contains(cell), "{cell}: {svg}");
+    }
+    // 升の横の置き場は、同じ区切りの棒の押す所と同じ。
+    assert!(
+        svg.contains("<rect class=\"hit\" x=\"128\" y=\"16\" width=\"64\""),
+        "{svg}"
+    );
+    // 升を押すと、その区切りと、その役割に絞る（今の役割の絞りは替え、ほかの絞りは残す）。役割の無い行は、区切りだけ。
+    assert!(
+        svg.contains("<a href=\"/usage/?label=project:x&#38;label=tpm.role:software-engineer&#38;from=2026-11-22T10:40:00%2B09:00&#38;to=2026-11-22T10:50:00%2B09:00&#38;step=10m\"><rect class=\"cell heat-3\" x=\"128\" y=\"242\""),
+        "{svg}"
+    );
+    assert!(
+        svg.contains("<a href=\"/usage/?label=tpm.role:tpm&#38;label=project:x&#38;from=2026-11-22T10:40:00%2B09:00&#38;to=2026-11-22T10:50:00%2B09:00&#38;step=10m\"><rect class=\"cell heat-1\""),
+        "{svg}"
+    );
+    // 凡例: 色の段の境の額と、手伝いの入れ方。
+    let legend = &chart[chart.find("<div id=\"by-role\">").expect("升の凡例")..];
+    for word in [
+        "<span class=\"swatch heat-3\"></span><span data-i18n=\"usage.byRole.key.high\" data-i18n-options=\"{&#34;low&#34;:&#34;$1.50&#34;}\">$1.50 以上</span>",
+        ">$0.30 以上 $1.50 未満</span>",
+        ">$0.30 未満</span>",
+        "手伝い（subagent）の額は、起こした席の役割に入れています",
+        "<span data-i18n=\"usage.byRole.links\">升を押すと、その区切りとその役割に絞ります。</span>",
+    ] {
+        assert!(legend.contains(word), "{word}: {legend}");
+    }
+    // 畳んだ字の表: 額の在る区切りの行に、役割ごとの額（link）と計。
+    assert!(
+        legend.contains(
+            "<summary data-i18n=\"usage.byRole.table\">区切りごと × 役割の額を、表で見る</summary>"
+        ),
+        "{legend}"
+    );
+    assert!(
+        legend.contains("<th class=\"num\">software-engineer</th><th class=\"num\">technical-program-manager</th><th class=\"num\"><span data-i18n=\"usage.noName\">（無し）</span></th><th class=\"num\" data-i18n=\"usage.col.sum\">計</th>"),
+        "{legend}"
+    );
+    assert!(
+        legend.contains("<tr><td>11-22 11:10</td><td class=\"num\"><a href=\"/usage/?label=project:x&#38;label=tpm.role:software-engineer&#38;from=2026-11-22T11:10:00%2B09:00&#38;to=2026-11-22T11:20:00%2B09:00&#38;step=10m\">$2.00</a></td><td class=\"num\"><span class=\"none\">—</span></td><td class=\"num\"><span class=\"none\">—</span></td><td class=\"num\">$2.00</td></tr>"),
+        "{legend}"
+    );
+}
+
+#[tokio::test]
+async fn 升は_どの幅でも出し_区切りが_24_を越えると_押せず_字も書かない() {
+    let app = sample().await;
+    // 時ごと（幅を選ばない。3 つの区切り）: 升を押すと、その 1 時間を 10 分ごとに、その役割で。
+    let body = app.html(WINDOW).await;
+    let svg = svg_of(&body);
+    assert_eq!(grid_roles(svg).len(), 3, "{svg}");
+    assert!(
+        svg.contains("<a href=\"/usage/?label=tpm.role:software-engineer&#38;from=2026-11-22T10:00:00%2B09:00&#38;to=2026-11-22T11:00:00%2B09:00&#38;step=10m\"><rect class=\"cell heat-3\""),
+        "{svg}"
+    );
+    // 日ごと（3 日）: 升を押すと、その日を時ごとに、その役割で。
+    let body = app
+        .html("/usage/?from=2026-11-20T00:00&to=2026-11-23T00:00")
+        .await;
+    let svg = svg_of(&body);
+    assert!(
+        svg.contains(
+            "<title>11-22 software-engineer: $4.25</title></rect><text class=\"cell-text\""
+        ),
+        "{svg}"
+    );
+    assert!(
+        svg.contains("<a href=\"/usage/?label=tpm.role:software-engineer&#38;from=2026-11-22T00:00:00%2B09:00&#38;to=2026-11-23T00:00:00%2B09:00\"><rect class=\"cell "),
+        "{svg}"
+    );
+    // 10 分の 1 日（144 の区切り）: 升は色とマウスを重ねた字だけ。link は棒だけで、升の link は字の表に置く。
+    let body = app
+        .html("/usage/?from=2026-11-22T00:00&to=2026-11-23T00:00&step=10m")
+        .await;
+    common::check_i18n("usage.rs:grid-144", &body);
+    let chart = section(&body, "by-day");
+    let svg = svg_of(&body);
+    assert_eq!(svg.matches("<rect class=\"cell ").count(), 4, "{svg}");
+    assert!(!svg.contains("class=\"cell-text\""), "{svg}");
+    assert_eq!(
+        svg.matches("<a href=").count(),
+        svg.matches("<rect class=\"hit\"").count(),
+        "{svg}"
+    );
+    assert!(svg.contains("<rect class=\"cell heat-3\" x=\"348\" y=\"242\" width=\"4\" height=\"16\"><title>11-22 10:40 software-engineer: $2.25</title></rect>"), "{svg}");
+    assert!(
+        chart.contains("<span data-i18n=\"usage.byRole.noLinks\">区切りが多いので、升は押せません。下の表の額から、その区切りとその役割に絞れます。</span>"),
+        "{chart}"
+    );
+    assert!(
+        chart.contains("<td class=\"num\"><a href=\"/usage/?label=tpm.role:software-engineer&#38;from=2026-11-22T10:40:00%2B09:00&#38;to=2026-11-22T10:50:00%2B09:00&#38;step=10m\">$2.25</a></td>"),
+        "{chart}"
+    );
+    // ちょうど 24 の区切り（4 時間）までは、押せる。
+    let body = app
+        .html("/usage/?from=2026-11-22T09:00&to=2026-11-22T13:00&step=10m")
+        .await;
+    assert!(svg_of(&body).contains("class=\"cell-text\""), "{body}");
+    let body = app
+        .html("/usage/?from=2026-11-22T09:00&to=2026-11-22T13:10&step=10m")
+        .await;
+    assert!(!svg_of(&body).contains("class=\"cell-text\""), "{body}");
+}
+
+#[tokio::test]
+async fn 見立てを含む升は_薄く描き_額の頭に印を付ける() {
+    let app = with_crossing().await;
+    let body = app.html(&format!("{WINDOW}&step=10m")).await;
+    let svg = svg_of(&body);
+    // またぐ記録（se.2 の $1.00）は、10:30 と 10:40 の software-engineer の升に半分ずつ。
+    assert!(svg.contains("<rect class=\"cell heat-2 est\" x=\"64\" y=\"242\" width=\"64\" height=\"16\"><title>11-22 10:30 software-engineer: ≈$0.50</title>"), "{svg}");
+    assert!(
+        svg.contains("<title>11-22 10:40 software-engineer: ≈$2.75</title>"),
+        "{svg}"
+    );
+    // またがない記録だけの升は、そのまま。
+    assert!(
+        svg.contains("<title>11-22 10:40 technical-program-manager: $3.00</title>"),
+        "{svg}"
+    );
+    assert_eq!(svg.matches("<rect class=\"cell ").count(), 5, "{svg}");
+    let faded: usize = (1..=3)
+        .map(|n| {
+            svg.matches(&format!("<rect class=\"cell heat-{n} est\""))
+                .count()
+        })
+        .sum();
+    assert_eq!(faded, 2, "{svg}");
 }
 
 // --- 絞りの候補（t-nd3w。役割と課題は選ぶ一覧、ほかのラベルは候補付きの欄） ---

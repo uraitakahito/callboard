@@ -120,6 +120,19 @@ test('幅を 10 分にすると 10 分ごとの額の棒になり、棒を押す
   await expect(page.locator('#estimated')).toContainText('薄い棒は、見立てを含みます（額の在る 3 本のうち 2 本）。');
   // 見立ての棒は、薄い（同じ色で、透けさせる）。
   expect(await chart.locator('rect.bar.main.est').first().evaluate((el) => getComputedStyle(el).fillOpacity)).toBe('0.45');
+  // 棒の下の升（区切りごと × 役割）: 見本の席に役割のラベルは無いので、「（無し）」の 1 行。升は、棒と同じ 3 つの枠に、棒と同じ横の置き場で。
+  await expect(chart.locator('text.role')).toHaveText(['（無し）']);
+  await expect(chart.locator('rect.cell')).toHaveCount(3);
+  await expect(chart.locator('rect.cell.est')).toHaveCount(2);
+  await expect(chart.locator('text.cell-text')).toHaveText(['$1.2', '$0.3', '$0.3']);
+  await expect(chart.locator('rect.cell title')).toHaveText(['10-01 10:30 —: $1.20', '10-01 10:40 —: ≈$0.30', '10-01 10:50 —: ≈$0.30']);
+  const x = (selector: string) => chart.locator(selector).first().evaluate((el) => el.getAttribute('x'));
+  expect(await x('rect.cell')).toBe(await x('rect.hit'));
+  // 色は、行列と同じ色（いちばん多い升は段 3）。
+  const heat = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--heat-3').trim());
+  expect(heat).not.toBe('');
+  await expect(chart.locator('rect.cell').first()).toHaveClass('cell heat-3');
+  await expect(page.locator('#by-role')).toContainText('手伝い（subagent）の額は、起こした席の役割に入れています');
   expect(await page.locator('body script').count()).toBe(0);
 
   // 10:30 の棒を押すと、その 10 分に絞る。表は、その 10 分に収まる行だけ。
@@ -132,6 +145,11 @@ test('幅を 10 分にすると 10 分ごとの額の棒になり、棒を押す
   await page.goto('/usage/?from=2026-10-01T10:40&to=2026-10-01T10:50&step=10m');
   await expect(page.locator('#total dd').nth(2)).toHaveText('$0.00');
   await expect(page.locator('#edge-note')).toContainText('期間の内に当たる見立ての額 $0.30 は、棒には入れ、下の表');
+  // 升を押しても、その区切りに絞る（役割の無い行なので、区切りだけ）。
+  await page.goto('/usage/?from=2026-10-01T10:00&to=2026-10-01T12:00&step=10m');
+  await page.locator('#by-day svg.chart a:has(rect.cell)').first().click();
+  await expect(page).toHaveURL(/from=2026-10-01T10:30:00%2B09:00&to=2026-10-01T10:40:00%2B09:00&step=10m/);
+  await page.goto('/usage/?from=2026-10-01T10:40&to=2026-10-01T10:50&step=10m');
   await page.locator('#edge-note a').click();
   await expect(page.locator('#by-day h2')).toHaveText('時ごとの額（日本時間）');
   await expect(page.locator('#total dd').nth(2)).toHaveText('$1.80');
