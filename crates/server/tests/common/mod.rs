@@ -79,10 +79,31 @@ impl Fake {
     }
 }
 
-/// だれも待っていない所（つないでも断られる）。
+/// だれも待っていない所（`127.0.0.1:1`）。
+///
+/// 空いた口を取って放した所にすると、並んで走る別の試験の偽の server が同じ口を取ることがあり、頼みがそこに届いて
+/// 試験が揺れた（AI-56。Linux では手放した口がまた渡る）。番号 1 は、OS が `127.0.0.1:0` で渡す帯（Linux は
+/// 32768〜、macOS は 49152〜）の外で、root でなければ待ち受けもできない。万一つながれば、揺れでなく、ここで落ちる。
+pub const NOWHERE: &str = "127.0.0.1:1";
+
+/// だれも待っていない所の URL（つなぐと、すぐ断られる）。
 pub async fn nowhere() -> String {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    format!("http://{}", listener.local_addr().unwrap())
+    assert_refused(NOWHERE);
+    format!("http://{NOWHERE}")
+}
+
+/// `addr` へつなぎ、すぐ断られる（ECONNREFUSED）ことを確かめる。つながった・待たされた時は、訳を書いて落ちる。
+pub fn assert_refused(addr: &str) {
+    let to = addr.parse().unwrap();
+    match std::net::TcpStream::connect_timeout(&to, Duration::from_secs(2)) {
+        Err(e) if e.kind() == std::io::ErrorKind::ConnectionRefused => {}
+        Ok(_) => panic!(
+            "{addr} で何かが待ち受けている。だれも待っていない所の試験は、この機械では流せない"
+        ),
+        Err(e) => panic!(
+            "{addr} へつなぐと、断られずに {e} になった。だれも待っていない所の試験は、この機械では流せない"
+        ),
+    }
 }
 
 pub fn json(status: StatusCode, body: &str) -> Response {
