@@ -245,7 +245,11 @@
   fetch(container.dataset.src, { headers: { accept: 'application/json' } })
     .then(async (response) => {
       const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(`${response.status} ${body.message ?? ''}`.trim());
+      if (!response.ok) {
+        // 断った訳は message に入る。code（字の鍵）と values があれば、選んだ言語の字で組む（日本語の字は message と同じ）。
+        const why = body.code ? window.callboardT(body.code, body.values) : body.message ?? '';
+        throw new Error(`${response.status} ${why}`.trim());
+      }
       return body;
     })
     .then(render)
