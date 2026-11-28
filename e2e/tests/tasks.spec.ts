@@ -66,6 +66,10 @@ test('英語にすると、課題の様子と数が英語になる。新しい�
   await expect(row(page, 'TL-2').locator('.status')).toHaveText('Waiting for PM');
   await expect(row(page, 'TL-1').locator('.status')).toHaveText('Done');
   await expect(page.locator('#fresh')).toBeHidden();
+  // 一覧が数えない記録（Key の無い物）では、印を出さない（出ないことは、間を置いて見る）。
+  await putMessage(request, PROJECT, 'k0', message('notify', 'tpm', 'x', '05:30:00', 'Key の無い記録', { key: undefined }));
+  await page.waitForTimeout(500);
+  await expect(page.locator('#fresh')).toBeHidden();
   // どの課題の記録でも、一覧は古くなるので印を出す。
   await putMessage(request, PROJECT, 'n3', message('notify', 'tpm', 'TL-3', '06:00:00', '新しい課題'));
   await expect(page.locator('#fresh')).toBeVisible();

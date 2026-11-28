@@ -262,14 +262,20 @@ async fn waiting_で_返事待ちの課題だけに絞る_もう_1_度押すと�
     common::check_i18n("tasks waiting", &page);
     assert_eq!(shown(&page), ["K-2"]);
     assert!(page.contains(r#"<a class="btn on" id="waiting" href="/messages/tasks" aria-current="true" data-i18n="tasks.waiting" data-i18n-options="{&#34;n&#34;:1}">返事待ちだけ 1 件</a>"#), "{page}");
-    // 返事待ちの課題が無ければ、釦は出さない。絞って 0 件なら、そう書く。
+    // 返事待ちの課題が無ければ、釦は出さない。
     let app = start(
         json!({ "messages": [message("n", "K-3", "notify", "tpm", "K-3", "03:05:00", "知らせ")] }),
     )
     .await;
+    assert!(
+        !app.html("/messages/tasks")
+            .await
+            .contains(r#"id="waiting""#)
+    );
+    // 絞っている時は、0 件でも釦を出す（押すと、絞りが外れる）。絞って 0 件なら、そう書く。
     let page = app.html("/messages/tasks?waiting=1").await;
     assert_eq!(shown(&page), Vec::<&str>::new());
-    assert!(!page.contains(r#"id="waiting""#), "{page}");
+    assert!(page.contains(r#"<a class="btn on" id="waiting" href="/messages/tasks" aria-current="true" data-i18n="tasks.waiting" data-i18n-options="{&#34;n&#34;:0}">返事待ちだけ 0 件</a>"#), "{page}");
     assert!(
         page.contains(r#"<span class="empty" data-i18n="tasks.empty">合う課題は無い</span>"#),
         "{page}"
@@ -277,21 +283,118 @@ async fn waiting_で_返事待ちの課題だけに絞る_もう_1_度押すと�
 }
 
 #[tokio::test]
-async fn project_と続きの印は_pagetray_に渡し_link_にも付ける_続きがあれば_link_を出す() {
-    let app = start(json!({ "messages": records(), "nextToken": "abc" })).await;
-    let page = app
-        .html("/messages/tasks?project=p&at=zz&waiting=1&x=1")
-        .await;
+async fn 続きの頁では_今の様子と返事待ちを出さない_新しい側の返事を読んでいないため() {
+    // 続きの頁に在るのは、頼みだけ（返事は、新しい側の頁に在る）。
+    let older = json!([
+        message(
+            "q9",
+            "K-9",
+            "ask-pm",
+            "K-9",
+            "tpm",
+            "01:10:00",
+            "項目: (1) 案"
+        ),
+        message(
+            "b9",
+            "K-9",
+            "brief",
+            "tpm",
+            "K-9",
+            "01:00:00",
+            "http://127.0.0.1:8801/p/K-9/brief-1.html"
+        ),
+    ]);
+    let app = start(json!({ "messages": older, "nextToken": "abc" })).await;
+    let page = app.html("/messages/tasks?project=p&at=zz&waiting=1").await;
+    common::check_i18n("tasks older", &page);
     assert_eq!(
         asked(&app),
         ["maxResults=1000", "nextToken=zz", "project=p"]
     );
+    // 絞りは効かせない（返事待ちかが分からない）。行は出すが、今の様子・いつから・ほかの返事待ちは出さない。
+    assert_eq!(shown(&page), ["K-9"]);
+    let line = row(&page, "K-9");
+    assert!(
+        !line.contains("class=\"status")
+            && !line.contains("tasks.since")
+            && !line.contains("tasks.others"),
+        "{line}"
+    );
+    assert!(
+        line.contains(r#"data-i18n-options="{&#34;n&#34;:2}">2 通</span>"#),
+        "{line}"
+    );
+    assert!(
+        line.contains(r#"<a class="key" href="/messages/tasks/K-9?project=p">K-9</a>"#),
+        "{line}"
+    );
+    assert!(!page.contains(r#"id="waiting""#), "{page}");
+    // 頭の注は、続きの頁の字。新しい頁へ戻る link（project は保つ）。続きは、project を保って次の印へ（返事待ちの絞りは運ばない）。
+    assert!(page.contains(r#"<p class="thread-note"><span data-i18n="tasks.older" data-i18n-options="{&#34;n&#34;:2}">続きの 2 通から作っています。これより新しい記録を読んでいないので、今の様子と返事待ちは出していません（課題の筋を開くと出ます）</span> <a href="/messages/tasks?project=p" data-i18n="tasks.newest">新しい頁へ</a></p>"#), "{page}");
+    assert!(!page.contains("tasks.window"), "{page}");
+    assert!(page.contains(r#"<a class="more" href="/messages/tasks?project=p&#38;at=abc" data-i18n="common.tray.more">続きを出す</a>"#), "{page}");
+}
+
+#[tokio::test]
+async fn いくつもの_project_の同じ_key_は_別の行にし_project_の名と_link_を付ける() {
+    let mut other = message(
+        "b1",
+        "K-1",
+        "brief",
+        "tpm",
+        "K-1",
+        "06:00:00",
+        "別の project の依頼書",
+    );
+    other["project"] = json!("q");
+    let mut all = vec![other];
+    all.extend(records().as_array().unwrap().clone());
+    let app = start(json!({ "messages": all })).await;
+    let page = app.html("/messages/tasks").await;
+    common::check_i18n("tasks projects", &page);
+    let rows: Vec<&str> = page
+        .split("<li data-key=\"")
+        .skip(1)
+        .map(|r| &r[..r.find('>').unwrap()])
+        .collect();
+    assert_eq!(
+        rows,
+        [
+            r#"K-1" data-project="q""#,
+            r#"K-2" data-project="p""#,
+            r#"K-1" data-project="p""#,
+            r#"K-3" data-project="p""#
+        ]
+    );
+    // project がいくつもある時は、行に project の名を出し、link に project を付ける。
+    assert!(page.contains(r#"<a class="key" href="/messages/tasks/K-1?project=q">K-1</a><span class="project">q</span>"#), "{page}");
+    assert!(page.contains(r#"<a class="key" href="/messages/tasks/K-1?project=p">K-1</a><span class="project">p</span>"#), "{page}");
+    // q の K-1 は返事待ち（p の done は、q の依頼書の返事にならない）。p の K-1 は済み。
+    assert!(
+        page.contains(r#"data-i18n-options="{&#34;n&#34;:2}">返事待ちだけ 2 件</a>"#),
+        "{page}"
+    );
+    // project が 1 つの時は、名を出さず、link にも付けない。
+    let app = start(json!({ "messages": records() })).await;
+    assert!(
+        !app.html("/messages/tasks")
+            .await
+            .contains(r#"class="project""#)
+    );
+}
+
+#[tokio::test]
+async fn project_は_pagetray_に渡し_link_にも付ける_続きがあれば_link_を出す() {
+    let app = start(json!({ "messages": records(), "nextToken": "abc" })).await;
+    let page = app.html("/messages/tasks?project=p&waiting=1&x=1").await;
+    assert_eq!(asked(&app), ["maxResults=1000", "project=p"]);
     assert!(
         page.contains(r#"<a class="key" href="/messages/tasks/K-2?project=p">K-2</a>"#),
         "{page}"
     );
-    // 続きは、条件を保って次の印へ。釦は、続きの印を外す。
-    assert!(page.contains(r#"<a class="more" href="/messages/tasks?project=p&#38;waiting=1&#38;at=abc" data-i18n="common.tray.more">続きを出す</a>"#), "{page}");
+    // 続きは、project を保って次の印へ。釦は、project を保って絞りを外す。
+    assert!(page.contains(r#"<a class="more" href="/messages/tasks?project=p&#38;at=abc" data-i18n="common.tray.more">続きを出す</a>"#), "{page}");
     assert!(
         page.contains(r#"id="waiting" href="/messages/tasks?project=p""#),
         "{page}"
@@ -312,6 +415,16 @@ async fn メッセージの一覧と課題の筋の操作の帯から_課題の�
     assert!(
         page.contains(
             r#"<a class="btn" href="/messages/tasks" data-i18n="messages.toTasks">課題ごと</a>"#
+        ),
+        "{page}"
+    );
+    // project を絞って開いた課題の筋からは、同じ project の一覧へ。一覧は、project を画面に持つ（新着の印が、その project の記録でだけ出るように）。
+    let page = app.html("/messages/tasks/K-1?project=p").await;
+    assert!(page.contains(r#"<a class="btn" href="/messages/tasks?project=p" data-i18n="messages.toTasks">課題ごと</a>"#), "{page}");
+    let page = app.html("/messages/tasks?project=p").await;
+    assert!(
+        page.contains(
+            r#"<div class="tray tasks" data-events="/api/pagetray/events" data-project="p">"#
         ),
         "{page}"
     );

@@ -43,6 +43,8 @@ pub struct Waiting {
 /// 課題 1 つのまとめ。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Task {
+    /// 記録の project。
+    pub project: String,
     /// 課題の Key（記録の Key の、点の前の字）。
     pub key: String,
     pub count: usize,
@@ -56,7 +58,13 @@ pub struct Task {
 }
 
 /// 記録（どの順でもよい）を、課題ごとにまとめる（最新の 1 通が新しい順）。`keys` は記録ごとの Key（無い記録・課題の Key の形でない記録は、数えない）。
-pub fn summarize(keys: &[Option<String>], notes: &[Note], since: Option<i64>) -> Vec<Task> {
+pub fn summarize(
+    projects: &[String],
+    keys: &[Option<String>],
+    notes: &[Note],
+    since: Option<i64>,
+) -> Vec<Task> {
+    let _ = projects;
     // 課題ごとの、記録の位置（出てきた順）。
     let mut groups: Vec<(&str, Vec<usize>)> = Vec::new();
     for (i, key) in keys.iter().enumerate().take(notes.len()) {
@@ -101,6 +109,7 @@ pub fn summarize(keys: &[Option<String>], notes: &[Note], since: Option<i64>) ->
             });
             let latest = members[members.len() - 1];
             Task {
+                project: String::new(),
                 key: key.to_owned(),
                 count: members.len(),
                 first: notes[members[0]].sent,
@@ -225,7 +234,8 @@ async fn page(
         .map_err(|e| params::failed("pagetray", e))?;
     let keys: Vec<Option<String>> = found.messages.iter().map(|m| m.key.clone()).collect();
     let notes = thread::notes(&found.messages);
-    let all = summarize(&keys, &notes, app.exchanges_since);
+    let projects: Vec<String> = found.messages.iter().map(|m| m.project.clone()).collect();
+    let all = summarize(&projects, &keys, &notes, app.exchanges_since);
     let waiting = all.iter().filter(|t| t.waiting.is_some()).count();
     let rows = all
         .into_iter()
@@ -305,7 +315,35 @@ mod tests {
 
     fn run(records: Vec<(Option<String>, Note)>, since: Option<i64>) -> Vec<Task> {
         let (keys, notes): (Vec<_>, Vec<_>) = records.into_iter().unzip();
-        summarize(&keys, &notes, since)
+        let projects = vec!["p".to_owned(); notes.len()];
+        summarize(&projects, &keys, &notes, since)
+    }
+
+    #[test]
+    fn 同じ_key_でも_project_が違えば_別の課題にまとめる() {
+        let (keys, notes): (Vec<_>, Vec<_>) = vec![
+            note("b", "A-1", "brief", "tpm", "A-1", 10, None),
+            note("d", "A-1", "done", "A-1", "tpm", 20, Some("b")),
+            // 別の project の、同じ Key の課題。id も同じ（project ごとに別の物）。
+            note("b", "A-1", "brief", "tpm", "A-1", 30, None),
+        ]
+        .into_iter()
+        .unzip();
+        let projects = ["p".to_owned(), "p".to_owned(), "q".to_owned()];
+        let tasks = summarize(&projects, &keys, &notes, None);
+        assert_eq!(
+            tasks
+                .iter()
+                .map(|t| (
+                    t.project.as_str(),
+                    t.key.as_str(),
+                    t.count,
+                    t.waiting.is_some()
+                ))
+                .collect::<Vec<_>>(),
+            // q の依頼書は返事待ち。p の依頼書は、p の done が返っている。
+            [("q", "A-1", 1, true), ("p", "A-1", 2, false)]
+        );
     }
 
     #[test]
