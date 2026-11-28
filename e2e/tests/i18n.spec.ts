@@ -264,8 +264,11 @@ test('英語のブラウザーでは、file を上げられなかった訳も、
   expect(json.code).toBe('errors.kind.unsupportedMediaType');
   expect(json.values.detail).toBe(json.message);
   const say = box.locator('form > .say');
-  // 呼ぶ先の訳（detail）は、呼ぶ先の言葉のまま添える（AI-48 で pagetray の訳が英語になるまで、日本語）。
-  await expect(say).toHaveText(`Upload failed (415): This file type or content is not accepted (${json.message})`);
+  // 呼ぶ先の訳（detail）は、呼ぶ先の字のまま添える。callboard は画面の言語を Accept-Language で伝え、pagetray（2.1.0 から）は
+  // その言語で訳を返すので、英語の画面には英語だけが出る（AI-48）。
+  expect(json.message).toBe('The content is not in .png format');
+  await expect(say).toHaveText('Upload failed (415): This file type or content is not accepted (The content is not in .png format)');
+  expect(await say.innerText()).not.toMatch(/[ぁ-んァ-ヶ一-龠]/);
   await context.close();
 });
 

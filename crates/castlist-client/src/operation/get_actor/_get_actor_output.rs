@@ -17,7 +17,7 @@ pub struct GetActorOutput {
     pub received_at: ::aws_smithy_types::DateTime,
     /// 送り手の時刻と受けた時刻が 5 分より離れていたか。
     pub clock_skew: bool,
-    /// 札（登録の時に書いた物）。
+    /// ラベル（登録の時に書いた物）。
     pub labels: ::std::collections::HashMap<::std::string::String, ::std::string::String>,
     /// 付随する id の全部（受けた順）。
     pub bindings: ::std::vec::Vec<crate::types::ActorBinding>,
@@ -71,7 +71,7 @@ impl GetActorOutput {
     pub fn clock_skew(&self) -> bool {
         self.clock_skew
     }
-    /// 札（登録の時に書いた物）。
+    /// ラベル（登録の時に書いた物）。
     pub fn labels(
         &self,
     ) -> &::std::collections::HashMap<::std::string::String, ::std::string::String> {
@@ -269,7 +269,7 @@ impl GetActorOutputBuilder {
     ///
     /// To override the contents of this collection use [`set_labels`](Self::set_labels).
     ///
-    /// 札（登録の時に書いた物）。
+    /// ラベル（登録の時に書いた物）。
     pub fn labels(
         mut self,
         k: impl ::std::convert::Into<::std::string::String>,
@@ -280,7 +280,7 @@ impl GetActorOutputBuilder {
         self.labels = ::std::option::Option::Some(hash_map);
         self
     }
-    /// 札（登録の時に書いた物）。
+    /// ラベル（登録の時に書いた物）。
     pub fn set_labels(
         mut self,
         input: ::std::option::Option<
@@ -290,7 +290,7 @@ impl GetActorOutputBuilder {
         self.labels = input;
         self
     }
-    /// 札（登録の時に書いた物）。
+    /// ラベル（登録の時に書いた物）。
     pub fn get_labels(
         &self,
     ) -> &::std::option::Option<

@@ -166,7 +166,7 @@ impl RegisterActorFluentBuilder {
     ///
     /// To override the contents of this collection use [`set_labels`](Self::set_labels).
     ///
-    /// 札（project など）。新しく作った時だけ書く。
+    /// ラベル（project など）。新しく作った時だけ書く。
     pub fn labels(
         mut self,
         k: impl ::std::convert::Into<::std::string::String>,
@@ -175,7 +175,7 @@ impl RegisterActorFluentBuilder {
         self.inner = self.inner.labels(k.into(), v.into());
         self
     }
-    /// 札（project など）。新しく作った時だけ書く。
+    /// ラベル（project など）。新しく作った時だけ書く。
     pub fn set_labels(
         mut self,
         input: ::std::option::Option<
@@ -185,7 +185,7 @@ impl RegisterActorFluentBuilder {
         self.inner = self.inner.set_labels(input);
         self
     }
-    /// 札（project など）。新しく作った時だけ書く。
+    /// ラベル（project など）。新しく作った時だけ書く。
     pub fn get_labels(
         &self,
     ) -> &::std::option::Option<

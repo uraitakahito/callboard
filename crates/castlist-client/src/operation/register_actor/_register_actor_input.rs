@@ -9,7 +9,7 @@ pub struct RegisterActorInput {
     pub kind: ::std::option::Option<::std::string::String>,
     /// 名の接頭辞（名は `&lt;接頭辞&gt;.&lt;番号&gt;`）。
     pub name_prefix: ::std::option::Option<::std::string::String>,
-    /// 札（project など）。新しく作った時だけ書く。
+    /// ラベル（project など）。新しく作った時だけ書く。
     pub labels: ::std::option::Option<
         ::std::collections::HashMap<::std::string::String, ::std::string::String>,
     >,
@@ -33,7 +33,7 @@ impl RegisterActorInput {
     pub fn name_prefix(&self) -> ::std::option::Option<&str> {
         self.name_prefix.as_deref()
     }
-    /// 札（project など）。新しく作った時だけ書く。
+    /// ラベル（project など）。新しく作った時だけ書く。
     pub fn labels(
         &self,
     ) -> ::std::option::Option<
@@ -129,7 +129,7 @@ impl RegisterActorInputBuilder {
     ///
     /// To override the contents of this collection use [`set_labels`](Self::set_labels).
     ///
-    /// 札（project など）。新しく作った時だけ書く。
+    /// ラベル（project など）。新しく作った時だけ書く。
     pub fn labels(
         mut self,
         k: impl ::std::convert::Into<::std::string::String>,
@@ -140,7 +140,7 @@ impl RegisterActorInputBuilder {
         self.labels = ::std::option::Option::Some(hash_map);
         self
     }
-    /// 札（project など）。新しく作った時だけ書く。
+    /// ラベル（project など）。新しく作った時だけ書く。
     pub fn set_labels(
         mut self,
         input: ::std::option::Option<
@@ -150,7 +150,7 @@ impl RegisterActorInputBuilder {
         self.labels = input;
         self
     }
-    /// 札（project など）。新しく作った時だけ書く。
+    /// ラベル（project など）。新しく作った時だけ書く。
     pub fn get_labels(
         &self,
     ) -> &::std::option::Option<
