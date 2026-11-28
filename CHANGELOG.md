@@ -2,6 +2,17 @@
 
 版ごとに、画面と、呼ぶ先（castlist・pagetray）の要る版と、動かし方（設定・image）が変わったかを書く。release の workflow は、tag の版の節（`## <版>`）が無いと何も出さない（`ci/check-release-version.sh`）。
 
+## 1.4.0
+
+使用量の画面の役割と手伝いの名に、何をする物かの説明を出した版（t-3jkq。Product Manager の答え「「案 1. title だけ」で修正してください」）。
+
+- **名の説明**: 使用量の画面（`/usage/`）の「model と役割ごと」と「役割ごと」の表の名（役割と「手伝い: 種類」）にマウスを重ねると、何をする役割・手伝いかの説明を出す（`title`）。説明を書いた名には点線の下線を引き、表の下の凡例にも書いた。英語の画面では英語の説明に替わる。
+- **説明の字**: 役割 7 つ（tpm・software-engineer・staff-engineer・tech-lead・devops-engineer・sustaining-engineer・auditor）と手伝い 7 つ（general-purpose・Explore・Plan・web-fetch・claude-code-guide・statusline-setup・audit-reader）。書いていない名は「説明はまだありません」（下線は無い）。名の無い行には付けない。キーボードと触る画面では出ない。
+- **push の前の確かめ**（t-fcp8）: roster の担当が `roster push` で push する前に流す確かめの一覧（`.claude/roles/config.jsonc`）を足し、release の tag を `roster push --tag` で push する手順を `docs/src/release.md` に書いた。画面と image の中身は変わらない。
+- ほかの節と数、URL の引数は変わらない。script は足していない（CSP も同じ）。
+- **呼ぶ先の要る版は変わらない**: castlist は 1.1.0 から（使用量は 2.1.0 から）、pagetray は 1.3.0 から。
+- 設定・image の中身（binary 1 つ）は変わらない。
+
 ## 1.3.0
 
 使用量の画面に、どの model の額が、どの役割と手伝いの種類から出ているかを 1 つの表で見る行列を足した版（t-dues。Product Manager の答え「「B. 行列（お勧め）」で計画を立ててください。」「進めてください」）。
