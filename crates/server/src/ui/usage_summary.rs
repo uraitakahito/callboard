@@ -366,14 +366,116 @@ pub struct Matrix {
 
 /// 升の地の色の段（1〜3）。全体の額が 0 か、升の額が 0 なら無い。
 pub fn heat(cost: i64, whole: i64) -> Option<u8> {
-    let _ = (cost, whole);
-    None
+    if whole <= 0 || cost <= 0 {
+        return None;
+    }
+    // 比（%）と境を、割らずに比べる（cost × 100 ≥ whole × 境）。i128 なので溢れない。
+    let part = i128::from(cost) * 100;
+    let at = |percent: i64| i128::from(whole) * i128::from(percent);
+    Some(if part >= at(HEAT[0]) {
+        3
+    } else if part >= at(HEAT[1]) {
+        2
+    } else {
+        1
+    })
 }
 
 /// 行とアクターと、席の id ごとの最新の effort から、行列を作る。`actors` に無いアクターの行は、役割「無し」に入れる。
 pub fn by_model(rows: &[Row], actors: &[Actor], efforts: &HashMap<String, String>) -> Matrix {
-    let _ = (rows, actors, efforts);
-    Matrix::default()
+    let labels: HashMap<&str, &HashMap<String, String>> =
+        actors.iter().map(|a| (a.id.as_str(), &a.labels)).collect();
+    let mut total = Cell::default();
+    let mut columns: BTreeMap<&str, Cell> = BTreeMap::new();
+    let mut roles: BTreeMap<Option<&str>, LineSum> = BTreeMap::new();
+    let mut helpers: BTreeMap<&str, LineSum> = BTreeMap::new();
+    for row in rows {
+        total.add(row);
+        columns.entry(row.model.as_str()).or_default().add(row);
+        let line = match &row.agent {
+            Some(agent) => helpers.entry(agent.as_str()).or_default(),
+            None => {
+                let role = labels
+                    .get(row.actor_id.as_str())
+                    .and_then(|l| l.get(ROLE))
+                    .map(String::as_str);
+                let line = roles.entry(role).or_default();
+                line.seats.insert(row.actor_id.as_str());
+                line
+            }
+        };
+        line.total.add(row);
+        line.cells.entry(row.model.as_str()).or_default().add(row);
+    }
+
+    let mut models: Vec<(String, Cell)> = columns
+        .into_iter()
+        .map(|(model, cell)| (model.to_owned(), cell))
+        .collect();
+    // 額の大きい順、同じなら名の順（BTreeMap の順を、並べ替えで崩さない）。
+    models.sort_by_key(|a| std::cmp::Reverse(a.1.cost));
+    let order: Vec<&str> = models.iter().map(|(m, _)| m.as_str()).collect();
+    let line = |name: Option<&str>, sum: LineSum, efforts: Vec<(String, usize)>| MatrixRow {
+        name: name.map(str::to_owned),
+        cells: order.iter().map(|m| sum.cells.get(m).copied()).collect(),
+        total: sum.total,
+        efforts,
+    };
+
+    let mut role_rows: Vec<MatrixRow> = roles
+        .into_iter()
+        .map(|(name, sum)| {
+            let seats = count_efforts(&sum.seats, efforts);
+            line(name, sum, seats)
+        })
+        .collect();
+    by_cost(&mut role_rows, |r| r.total.cost, |r| &r.name);
+    let mut helper_rows: Vec<MatrixRow> = helpers
+        .into_iter()
+        .map(|(name, sum)| line(Some(name), sum, Vec::new()))
+        .collect();
+    by_cost(&mut helper_rows, |r| r.total.cost, |r| &r.name);
+    Matrix {
+        models,
+        roles: role_rows,
+        helpers: helper_rows,
+        total,
+    }
+}
+
+impl Cell {
+    fn add(&mut self, row: &Row) {
+        self.turns = self.turns.saturating_add(row.turns);
+        self.cost = self.cost.saturating_add(row.cost);
+    }
+}
+
+/// 行列の行 1 つに足していく物。
+#[derive(Default)]
+struct LineSum<'a> {
+    /// model ごとの升。
+    cells: BTreeMap<&'a str, Cell>,
+    total: Cell,
+    /// 行の回を持つ席（上の組だけ使う）。
+    seats: BTreeSet<&'a str>,
+}
+
+/// 席の、最新の effort ごとの数（席の多い順、同じなら名の順）。effort の分からない席は数えない。
+fn count_efforts(
+    seats: &BTreeSet<&str>,
+    efforts: &HashMap<String, String>,
+) -> Vec<(String, usize)> {
+    let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
+    for effort in seats.iter().filter_map(|id| efforts.get(*id)) {
+        *counts.entry(effort.as_str()).or_default() += 1;
+    }
+    let mut out: Vec<(String, usize)> = counts
+        .into_iter()
+        .map(|(effort, n)| (effort.to_owned(), n))
+        .collect();
+    // 安定な並べ替えなので、同じ数の間は名の順のまま。
+    out.sort_by_key(|a| std::cmp::Reverse(a.1));
+    out
 }
 
 #[cfg(test)]
