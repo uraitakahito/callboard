@@ -1074,6 +1074,11 @@ async fn 候補は_表示と同じ期間で_ラベルの絞りを付けずに_li
         "/usage/?from=2026-11-22T10:30&to=2026-11-22T12:10&label=tpm.role:tpm&label=tpm.key:t-1",
     )
     .await;
+    // castlist に聞くのは、使用量の行と候補の 2 つの道だけ。
+    for seen in app.castlist.seen() {
+        let path = seen.uri.split_once('?').map_or(seen.uri.as_str(), |(p, _)| p);
+        assert!(path == "/api/usage" || path == "/api/actors", "{}", seen.uri);
+    }
     let usage = asked(&app);
     let actors = asked_at(&app, "/api/actors");
     assert_eq!(actors.len(), 1, "{actors:?}");
