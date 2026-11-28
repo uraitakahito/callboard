@@ -263,7 +263,7 @@ struct ThreadPage<'a> {
     events: &'static str,
     key: String,
     messages_href: &'static str,
-    tasks_href: &'static str,
+    tasks_href: String,
     reload_href: String,
     /// 絞っている時の、課題の全体へ戻る link。
     whole_href: Option<String>,
@@ -604,7 +604,7 @@ async fn page<'a>(
         events: messages::EVENTS_PATH,
         key: key.to_owned(),
         messages_href: messages::PATH,
-        tasks_href: tasks::PATH,
+        tasks_href: tasks::href(project.as_deref()),
         reload_href: here(at.as_deref()),
         whole_href: zoomed.map(|_| here(None)),
         status,

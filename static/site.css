@@ -546,3 +546,4 @@ body.fill footer { padding: 4px 16px; border-top: 1px solid var(--line); }
 .tasks #waiting { color: var(--warn); font-weight: 700; border-color: var(--warn); }
 .tasks #waiting.on { background: var(--chip); }
 .tasks .empty, .tasks .more { display: block; margin: 8px 16px; }
+.tasks .rows .project { color: var(--muted); font-size: 0.75rem; padding: 0 6px; border: 1px solid var(--line); border-radius: 4px; }

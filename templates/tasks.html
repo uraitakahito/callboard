@@ -3,18 +3,18 @@
 {% block title %}{{ "tasks.title"|t }}{% endblock %}
 {% block body %} class="fill"{% endblock %}
 {% block main %}
-<div class="tray tasks" data-events="{{ events }}">
+<div class="tray tasks" data-events="{{ events }}"{% if let Some(p) = project %} data-project="{{ p }}"{% endif %}>
 <div class="toolbar" id="toolbar" role="group" aria-label="{{ "common.tray.toolbar"|t }}" data-i18n-attr="aria-label:common.tray.toolbar">
 <h1><a href="{{ messages_href }}" data-i18n="messages.heading">{{ "messages.heading"|t }}</a></h1>
 <a class="btn" href="{{ messages_href }}" data-i18n="thread.toMessages">{{ "thread.toMessages"|t }}</a>
-{% if waiting > 0 %}<a class="btn{% if waiting_active %} on{% endif %}" id="waiting" href="{{ waiting_href }}"{% if waiting_active %} aria-current="true"{% endif %} data-i18n="tasks.waiting" data-i18n-options="{{ "n"|opts1(waiting) }}">{{ "tasks.waiting"|t1("n", waiting) }}</a>{% endif %}
+{% if !older && (waiting > 0 || waiting_active) %}<a class="btn{% if waiting_active %} on{% endif %}" id="waiting" href="{{ waiting_href }}"{% if waiting_active %} aria-current="true"{% endif %} data-i18n="tasks.waiting" data-i18n-options="{{ "n"|opts1(waiting) }}">{{ "tasks.waiting"|t1("n", waiting) }}</a>{% endif %}
 <a class="btn" id="fresh" href="{{ reload_href }}" hidden data-i18n="thread.fresh">{{ "thread.fresh"|t }}</a>
 </div>
 <div class="thread-body">
-<p class="thread-note" data-i18n="tasks.window" data-i18n-options="{{ "n"|opts1(read) }}">{{ "tasks.window"|t1("n", read) }}</p>
+{% if older %}<p class="thread-note"><span data-i18n="tasks.older" data-i18n-options="{{ "n"|opts1(read) }}">{{ "tasks.older"|t1("n", read) }}</span> <a href="{{ newest_href }}" data-i18n="tasks.newest">{{ "tasks.newest"|t }}</a></p>{% else %}<p class="thread-note" data-i18n="tasks.window" data-i18n-options="{{ "n"|opts1(read) }}">{{ "tasks.window"|t1("n", read) }}</p>{% endif %}
 <div id="list" role="region" aria-label="{{ "common.tray.list"|t }}" data-i18n-attr="aria-label:common.tray.list">
 <ul class="rows">
-{% for r in rows %}<li data-key="{{ r.key }}"><span class="top"><a class="key" href="{{ r.href }}">{{ r.key }}</a><span class="status {{ r.status.class }}"{{ r.status.label.attrs()|safe }}>{{ r.status.label }}</span>{% if let Some(at) = r.since %}<span class="since"><time datetime="{{ at.iso }}" title="{{ at.iso }}">{{ at.local }}</time> <span data-i18n="tasks.since">{{ "tasks.since"|t }}</span></span>{% endif %}{% if r.others > 0 %}<span data-i18n="tasks.others" data-i18n-options="{{ "n"|opts1(r.others) }}">{{ "tasks.others"|t1("n", r.others) }}</span>{% endif %}<span data-i18n="tasks.count" data-i18n-options="{{ "n"|opts1(r.count) }}">{{ "tasks.count"|t1("n", r.count) }}</span><span class="span"><time datetime="{{ r.first.iso }}" title="{{ r.first.iso }}">{{ r.first.local }}</time> 〜 <time datetime="{{ r.last.iso }}" title="{{ r.last.iso }}">{{ r.last.local }}</time></span></span><span class="latest-line"><span class="name">{{ r.heading }}</span> <span class="head">{{ r.head }}</span></span></li>
+{% for r in rows %}<li data-key="{{ r.key }}" data-project="{{ r.project }}"><span class="top"><a class="key" href="{{ r.href }}">{{ r.key }}</a>{% if r.show_project %}<span class="project">{{ r.project }}</span>{% endif %}{% if let Some(s) = r.status %}<span class="status {{ s.class }}"{{ s.label.attrs()|safe }}>{{ s.label }}</span>{% endif %}{% if let Some(at) = r.since %}<span class="since"><time datetime="{{ at.iso }}" title="{{ at.iso }}">{{ at.local }}</time> <span data-i18n="tasks.since">{{ "tasks.since"|t }}</span></span>{% endif %}{% if r.others > 0 %}<span data-i18n="tasks.others" data-i18n-options="{{ "n"|opts1(r.others) }}">{{ "tasks.others"|t1("n", r.others) }}</span>{% endif %}<span data-i18n="tasks.count" data-i18n-options="{{ "n"|opts1(r.count) }}">{{ "tasks.count"|t1("n", r.count) }}</span><span class="span"><time datetime="{{ r.first.iso }}" title="{{ r.first.iso }}">{{ r.first.local }}</time> 〜 <time datetime="{{ r.last.iso }}" title="{{ r.last.iso }}">{{ r.last.local }}</time></span></span><span class="latest-line"><span class="name">{{ r.heading }}</span> <span class="head">{{ r.head }}</span></span></li>
 {% endfor %}</ul>
 {% if rows.is_empty() %}<span class="empty" data-i18n="tasks.empty">{{ "tasks.empty"|t }}</span>{% endif %}
 {% if let Some(href) = more_href %}<a class="more" href="{{ href }}" data-i18n="common.tray.more">{{ "common.tray.more"|t }}</a>{% endif %}

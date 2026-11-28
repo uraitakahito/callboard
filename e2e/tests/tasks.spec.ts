@@ -48,10 +48,11 @@ test('メッセージの一覧の「課題ごと」から課題の一覧へ。�
   await expect(row(page, 'TL-1')).toHaveCount(0);
   // 行の Key を押すと、課題の筋。そこから「課題ごと」で戻れる。
   await row(page, 'TL-2').locator('a.key').click();
-  await expect(page).toHaveURL(/\/messages\/tasks\/TL-2$/);
+  // 置き場には、ほかの試験の project の記録も在るので、link は project を運ぶ（同じ Key の、別の project の課題と混ぜない）。
+  await expect(page).toHaveURL(new RegExp(`/messages/tasks/TL-2\\?project=${PROJECT}$`));
   await expect(page.locator('.thread-key .status')).toHaveText('PM の返事待ち');
   await page.locator('#toolbar').getByRole('link', { name: '課題ごと', exact: true }).click();
-  await expect(page).toHaveURL(/\/messages\/tasks$/);
+  await expect(page).toHaveURL(new RegExp(`/messages/tasks\\?project=${PROJECT}$`));
   expect(problems).toEqual([]);
 });
 

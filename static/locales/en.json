@@ -219,6 +219,8 @@
     "title": "By task ・ Message log ・ callboard",
     "waiting": "Waiting only ({{n}})",
     "window": "Built from the newest {{n}} messages",
+    "older": "Built from the next {{n}} older messages. Newer records are not read here, so status and waiting are not shown (open a thread to see them)",
+    "newest": "To the newest page",
     "since": "since",
     "others": "{{n}} more waiting",
     "count": "{{n}} messages",

@@ -1,8 +1,10 @@
 //! 課題の一覧（`GET /messages/tasks`）: メッセージの記録を課題ごとにまとめ、最新の順に並べる。課題の筋（`/messages/tasks/{key}`）の入口。
 //!
 //! - 記録は、pagetray の API（ListMessages）で、新しい順に 1 度（[`PAGE_SIZE`] 通）読む。それより古い課題は、続きの link（`at`）で読む。
-//!   課題のまとめは、読んだ記録の中だけで作る（読んだ範囲より前に送った頼みの返事待ちは、ここには出ない。課題の筋を開けば出る）。
-//! - 課題は、Key の点の前の字でまとめる（[`super::thread::task_of`]）。Key の無い記録・課題の Key の形でない記録は、数えない。
+//!   課題のまとめは、読んだ記録の中だけで作る。新しい頁では、頼みの返事は頼みより後に送られるので、範囲の中の頼みの返事はみな範囲に入る
+//!   （範囲より前に送った頼みの返事待ちは、ここには出ない。課題の筋を開けば出る）。続きの頁は逆で、頼みの返事が、読んでいない新しい側に
+//!   在りうる。だから、続きの頁では、今の様子と返事待ちを出さない。
+//! - 課題は、project と、Key の点の前の字（[`super::thread::task_of`]）の組でまとめる。Key の無い記録・課題の Key の形でない記録は、数えない。
 //! - 課題の今の様子は、課題の筋と同じ決め（往復の作り方は [`super::exchanges`]）: 返事待ちがあれば「<誰> の返事待ち」（帯と同じ順で前の者）、
 //!   無くて `end` があれば「済み」、ほかは「次の依頼待ち」。
 //! - 引数は `project`・`waiting`（`1` なら、返事待ちの課題だけ）・`at`（続きの印。ListMessages の `nextToken`）。知らない引数は無視する。
@@ -64,10 +66,9 @@ pub fn summarize(
     notes: &[Note],
     since: Option<i64>,
 ) -> Vec<Task> {
-    let _ = projects;
-    // 課題ごとの、記録の位置（出てきた順）。
-    let mut groups: Vec<(&str, Vec<usize>)> = Vec::new();
-    for (i, key) in keys.iter().enumerate().take(notes.len()) {
+    // project と課題の Key の組ごとの、記録の位置（出てきた順）。同じ Key でも、project が違えば別の課題（返事の先の id は、project の中の物）。
+    let mut groups: Vec<((&str, &str), Vec<usize>)> = Vec::new();
+    for (i, (project, key)) in projects.iter().zip(keys).enumerate().take(notes.len()) {
         let Some(task) = key
             .as_deref()
             .map(thread::task_of)
@@ -75,14 +76,15 @@ pub fn summarize(
         else {
             continue;
         };
-        match groups.iter_mut().find(|(name, _)| *name == task) {
+        let name = (project.as_str(), task);
+        match groups.iter_mut().find(|(group, _)| *group == name) {
             Some((_, members)) => members.push(i),
-            None => groups.push((task, vec![i])),
+            None => groups.push((name, vec![i])),
         }
     }
     let mut tasks: Vec<Task> = groups
         .into_iter()
-        .map(|(key, mut members)| {
+        .map(|((project, key), mut members)| {
             // 往復は、送った時刻の順（同じ時刻は id の順）で作る。
             members.sort_by(|&a, &b| {
                 notes[a]
@@ -109,7 +111,7 @@ pub fn summarize(
             });
             let latest = members[members.len() - 1];
             Task {
-                project: String::new(),
+                project: project.to_owned(),
                 key: key.to_owned(),
                 count: members.len(),
                 first: notes[members[0]].sent,
@@ -120,8 +122,22 @@ pub fn summarize(
             }
         })
         .collect();
-    tasks.sort_by(|a, b| b.last.cmp(&a.last).then_with(|| a.key.cmp(&b.key)));
+    tasks.sort_by(|a, b| {
+        b.last
+            .cmp(&a.last)
+            .then_with(|| a.key.cmp(&b.key))
+            .then_with(|| a.project.cmp(&b.project))
+    });
     tasks
+}
+
+/// 課題の一覧の URL（`project` があれば、その project だけ）。
+pub fn href(project: Option<&str>) -> String {
+    View {
+        project: project.map(str::to_owned),
+        ..View::default()
+    }
+    .href()
 }
 
 /// 画面の引数（空でない値だけ）。
@@ -171,8 +187,12 @@ impl View {
 /// 一覧の、課題 1 つの行。
 struct Row {
     key: String,
+    project: String,
+    /// project の名を行に出すか（読んだ記録に、project がいくつもある時）。
+    show_project: bool,
     href: String,
-    status: Status,
+    /// 今の様子。続きの頁では無い（新しい側の記録を読んでいないので、分からない）。
+    status: Option<Status>,
     /// 返事待ちの、いつから（その者への、いちばん古い頼みの時刻）。
     since: Option<Time>,
     /// ほかの返事待ちの数（0 なら出さない）。
@@ -192,8 +212,15 @@ struct TasksPage<'a> {
     nav: &'a Nav,
     script: &'static str,
     events: &'static str,
+    /// 絞っている project（新着の印を、その project の記録でだけ出す）。
+    project: Option<String>,
     messages_href: &'static str,
     reload_href: String,
+    /// 続きの頁（`at` がある）か。続きの頁では、今の様子と返事待ちを出さない: 頼みは読んだ範囲に在っても、その返事は、もっと新しい
+    /// （前の頁の）記録に在って読んでいないので、うその返事待ちになる。
+    older: bool,
+    /// 新しい頁（続きの印の無い一覧）の URL。
+    newest_href: String,
     /// 返事待ちの課題の数（読んだ範囲の中）と、「返事待ちだけ」の釦の先（絞っていれば、外す先）・今絞っているか。
     waiting: usize,
     waiting_href: String,
@@ -222,6 +249,7 @@ async fn page(
 ) -> Result<TasksPage<'_>, PageError> {
     let pairs = params::pairs(q).map_err(|_| bad_request(Text::new("errors.badArguments")))?;
     let view = View::read(&pairs);
+    let older = view.at.is_some();
     let found = app
         .pagetray
         .messages(&MessageSearch {
@@ -232,54 +260,67 @@ async fn page(
         })
         .await
         .map_err(|e| params::failed("pagetray", e))?;
+    let projects: Vec<String> = found.messages.iter().map(|m| m.project.clone()).collect();
     let keys: Vec<Option<String>> = found.messages.iter().map(|m| m.key.clone()).collect();
     let notes = thread::notes(&found.messages);
-    let projects: Vec<String> = found.messages.iter().map(|m| m.project.clone()).collect();
     let all = summarize(&projects, &keys, &notes, app.exchanges_since);
+    // project がいくつもある時は、行に名を出し、link に付ける（絞っている時は、絞った project を付ける）。
+    let several = all.iter().any(|t| t.project != all[0].project);
     let waiting = all.iter().filter(|t| t.waiting.is_some()).count();
     let rows = all
         .into_iter()
-        .filter(|t| !view.waiting || t.waiting.is_some())
+        .filter(|t| older || !view.waiting || t.waiting.is_some())
         .map(|t| {
             let latest = &found.messages[t.latest];
+            let project = view
+                .project
+                .as_deref()
+                .or_else(|| several.then_some(t.project.as_str()));
+            let waiting = t.waiting.filter(|_| !older);
             Row {
-                href: thread::href(&t.key, view.project.as_deref()),
-                status: thread::status(t.waiting.map(|w| w.holder), t.done),
-                since: t.waiting.map(|w| short(&DateTime::from_millis(w.since))),
-                others: t.waiting.map_or(0, |w| w.count - 1),
+                href: thread::href(&t.key, project),
+                status: (!older).then(|| thread::status(t.waiting.map(|w| w.holder), t.done)),
+                since: waiting.map(|w| short(&DateTime::from_millis(w.since))),
+                others: waiting.map_or(0, |w| w.count - 1),
                 count: t.count,
                 first: short(&DateTime::from_millis(t.first)),
                 last: short(&DateTime::from_millis(t.last)),
                 heading: latest.heading.clone(),
                 head: thread::head(latest),
+                show_project: several,
+                project: t.project,
                 key: t.key,
             }
         })
         .collect();
-    let with = |change: fn(&mut View)| {
-        let mut next = View {
-            at: None,
-            ..view.clone()
-        };
-        change(&mut next);
-        next.href()
+    // project だけを保った一覧（新しい頁・続きの頁の元）。返事待ちの絞りは、続きの頁には運ばない（そこでは効かない）。
+    let base = View {
+        project: view.project.clone(),
+        ..View::default()
     };
     Ok(TasksPage {
         css: &CSS_HREF,
         nav: &app.nav,
         script: &TASKS_JS_HREF,
         events: messages::EVENTS_PATH,
+        project: view.project.clone(),
         messages_href: messages::PATH,
         reload_href: view.href(),
+        older,
+        newest_href: base.href(),
         waiting,
-        waiting_href: with(|v| v.waiting = !v.waiting),
+        waiting_href: View {
+            waiting: !view.waiting,
+            ..base.clone()
+        }
+        .href(),
         waiting_active: view.waiting,
         read: found.messages.len(),
         rows,
         more_href: found.next_token.map(|at| {
             View {
                 at: Some(at),
-                ..view.clone()
+                ..base.clone()
             }
             .href()
         }),
