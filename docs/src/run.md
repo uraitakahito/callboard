@@ -23,8 +23,9 @@ Apple Container（`container` CLI）で、release の image を動かす。host�
 | `CALLBOARD_CASTLIST_URL` | castlist に聞く先 | 無い（必ず書く） |
 | `CALLBOARD_PAGETRAY_URL` | pagetray に聞く先 | 無い（必ず書く） |
 | `CALLBOARD_PAGETRAY_LINK_URL` | browser が、pagetray の持つページの本文と file を開く URL の頭（ページの一覧の、本文の枠と file の link。その画面の CSP にも入る） | `http://127.0.0.1:8801` |
+| `CALLBOARD_EXCHANGES_SINCE` | メッセージを送る側（roster）が、返事の先（`replyTo`）を付け始めた時刻（RFC 3339。`2026-11-28T08:00:00Z` の形）。課題の筋（[画面](ui.md)）が、それより前に送った頼みを、返事が無くても待ちにしない | 無い（どの頼みも数える） |
 
-- どれも `http://<host>:<port>` の形だけを受ける（path・`https://` は受けない）。
+- 聞く先と link の頭は、どれも `http://<host>:<port>` の形だけを受ける（path・`https://` は受けない）。
 - 0.1.0 にあった `CALLBOARD_CASTLIST_LINK_URL`（castlist の画面を開く URL の頭）は、0.2.0 で無くした（castlist の画面をみな移したので、指す先が無い）。書いてあっても読まない。
 - **聞く先と link の頭は別**。callboard は container の中から聞くので、聞く先は同じ network の container の名で書く（container の中の `127.0.0.1` は container 自身で、host の port には届かない）。link は人が host の browser で開くので、`127.0.0.1` の port で書く。
 - castlist と pagetray へは、つなぐ先に関わらず `Host: 127.0.0.1` で送る（どちらも、`Host` が `127.0.0.1`・`localhost` でない要求を断る）。

@@ -72,6 +72,8 @@ struct App {
     pages_csp: axum::http::HeaderValue,
     /// 新着の知らせの中継で、pagetray の答えの頭を待つ長さ。
     events_wait: Duration,
+    /// メッセージを送る側が、返事の先を付け始めた時刻（UNIX のミリ秒。設定 `CALLBOARD_EXCHANGES_SINCE`）。
+    exchanges_since: Option<i64>,
     /// 止める合図を受けた印。
     closing: Closing,
 }
@@ -93,6 +95,7 @@ pub fn app_with(settings: &Settings, config: Config) -> Router {
         nav,
         pages_csp,
         events_wait: config.events_wait,
+        exchanges_since: settings.exchanges_since,
         closing: config.closing,
     });
     ui::routes(app)

@@ -129,9 +129,61 @@ fn is_reply(heading: &str) -> bool {
 
 /// 記録（送った時刻の順に並べた物）を、往復と片道に分ける。`since` は、送る側が返事の先を付け始めた時刻（ミリ秒）。
 pub fn build(notes: &[Note], since: Option<i64>) -> Exchanges {
-    // まだ作っていない（試験を先に書いた）。
-    let _ = (notes, since, Holder::of, is_reply);
-    Exchanges::default()
+    let position = |id: &str| notes.iter().position(|n| n.id == id);
+    // 頼みごとの、いちばん早い返事。
+    let mut close = vec![Close::Waiting; notes.len()];
+    // 返事として、頼みの往復に入った記録（頼みでもある記録は、自分の往復の行も持つので、片道からだけ外す）。
+    let mut answered = vec![false; notes.len()];
+    for (i, note) in notes.iter().enumerate() {
+        let parent = note
+            .reply_to
+            .as_deref()
+            .and_then(position)
+            .filter(|&j| j != i && is_request(&notes[j].heading));
+        if let Some(j) = parent {
+            answered[i] = true;
+            if close[j] == Close::Waiting {
+                close[j] = Close::Replied(i);
+            }
+        }
+    }
+    // dismiss と end は、返事の無いまま残った頼みを閉じる（時刻の順に見るので、先に来た方が閉じる）。
+    for (i, note) in notes.iter().enumerate() {
+        let closes: fn(&Note, &Note) -> bool = match note.heading.as_str() {
+            "dismiss" => |end, r| r.heading == "brief" && r.to == end.to,
+            "end" => |end, r| r.from == end.from || r.to == end.from,
+            _ => continue,
+        };
+        for j in 0..i {
+            if close[j] == Close::Waiting
+                && is_request(&notes[j].heading)
+                && closes(note, &notes[j])
+            {
+                close[j] = if note.heading == "dismiss" {
+                    Close::Cancelled(i)
+                } else {
+                    Close::Ended(i)
+                };
+            }
+        }
+    }
+    let mut out = Exchanges::default();
+    for (i, note) in notes.iter().enumerate() {
+        let old = since.is_some_and(|since| note.sent < since);
+        if is_request(&note.heading) && !(old && close[i] == Close::Waiting) {
+            out.exchanges.push(Exchange {
+                request: i,
+                close: close[i],
+                holder: Holder::of(note),
+            });
+        } else if !answered[i] {
+            out.singles.push(i);
+        }
+        if is_reply(&note.heading) && !answered[i] {
+            out.unlinked += 1;
+        }
+    }
+    out
 }
 
 /// 球の持ち手の帯の 1 区間（`from` から `to` まで。ミリ秒）。
@@ -145,9 +197,28 @@ pub struct Span {
 /// 球の持ち手の帯: 時間ごとに、開いている往復の持ち手（重なる時は [`Holder::ALL`] の前の物）。隣り合う同じ持ち手はまとめる。
 /// まだ返事の無い往復は `now` まで続く。誰も持っていない間は、区間が無い。
 pub fn ball(notes: &[Note], exchanges: &[Exchange], now: i64) -> Vec<Span> {
-    // まだ作っていない（試験を先に書いた）。
-    let _ = (notes, exchanges, now);
-    Vec::new()
+    let ends = |e: &Exchange| e.closed_by().map_or(now, |i| notes[i].sent);
+    let mut edges: Vec<i64> = exchanges
+        .iter()
+        .flat_map(|e| [notes[e.request].sent, ends(e)])
+        .collect();
+    edges.sort_unstable();
+    edges.dedup();
+    let mut out: Vec<Span> = Vec::new();
+    for pair in edges.windows(2) {
+        let (from, to) = (pair[0], pair[1]);
+        let holder = exchanges
+            .iter()
+            .filter(|e| notes[e.request].sent <= from && ends(e) >= to)
+            .map(|e| e.holder)
+            .min();
+        let Some(holder) = holder else { continue };
+        match out.last_mut() {
+            Some(last) if last.holder == holder && last.to == from => last.to = to,
+            _ => out.push(Span { from, to, holder }),
+        }
+    }
+    out
 }
 
 #[cfg(test)]

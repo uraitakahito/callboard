@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title_attrs %} data-i18n="thread.title" data-i18n-options="{{ "key"|opts1(key.as_str()) }}"{% endblock %}
+{% block title %}{{ "thread.title"|t1("key", key.as_str()) }}{% endblock %}
+{% block body %} class="fill"{% endblock %}
+{% block main %}
+<div class="tray thread" data-events="{{ events }}">
+<div class="toolbar" id="toolbar" role="group" aria-label="{{ "common.tray.toolbar"|t }}" data-i18n-attr="aria-label:common.tray.toolbar">
+<h1><a href="{{ messages_href }}" data-i18n="messages.heading">{{ "messages.heading"|t }}</a></h1>
+<a class="btn" href="{{ messages_href }}" data-i18n="thread.toMessages">{{ "thread.toMessages"|t }}</a>
+{% if let Some(href) = whole_href %}<a class="btn" href="{{ href }}" data-i18n="thread.whole">{{ "thread.whole"|t }}</a>{% endif %}
+<a class="btn" id="fresh" href="{{ reload_href }}" hidden data-i18n="thread.fresh">{{ "thread.fresh"|t }}</a>
+</div>
+<div class="thread-body">
+<h2 class="thread-key">{{ key }} <span class="status {{ status.class }}"{{ status.label.attrs()|safe }}>{{ status.label }}</span></h2>
+<p class="thread-sum"><span data-i18n="thread.summary" data-i18n-options="{{ "n"|opts2(count, "exchanges", exchanges) }}">{{ "thread.summary"|t2("n", count, "exchanges", exchanges) }}</span> <span data-i18n="thread.singles" data-i18n-options="{{ "n"|opts1(singles) }}">{{ "thread.singles"|t1("n", singles) }}</span> <time datetime="{{ first.iso }}" title="{{ first.iso }}">{{ first.local }}</time> 〜 <time datetime="{{ last.iso }}" title="{{ last.iso }}">{{ last.local }}</time></p>
+{% if unlinked > 0 %}<p class="thread-note" data-i18n="thread.unlinked" data-i18n-options="{{ "n"|opts1(unlinked) }}">{{ "thread.unlinked"|t1("n", unlinked) }}</p>{% endif %}
+{% if partial %}<p class="thread-note" data-i18n="thread.partial">{{ "thread.partial"|t }}</p>{% endif %}
+<section class="latest" aria-label="{{ "thread.latest"|t }}" data-i18n-attr="aria-label:thread.latest">
+<p class="meta"><strong data-i18n="thread.latest">{{ "thread.latest"|t }}</strong> <span class="name">{{ latest.heading }}</span> <span>{{ latest.from }} → {{ latest.to }}</span> <time datetime="{{ latest.sent.iso }}" title="{{ latest.sent.iso }}">{{ latest.sent.local }}</time>{% if let Some(at) = latest.delivered %} <span><span data-i18n="messages.delivered">{{ "messages.delivered"|t }}</span> <time datetime="{{ at.iso }}" title="{{ at.iso }}">{{ at.local }}</time></span>{% endif %}</p>
+<pre>{{ latest.text }}</pre>
+</section>
+<div class="legend"><ul class="keys">
+<li data-i18n="thread.legend.bar">{{ "thread.legend.bar"|t }}</li>
+<li><span class="swatch h-seat"></span><span data-i18n="thread.holder.seat">{{ "thread.holder.seat"|t }}</span></li>
+<li><span class="swatch h-staff"></span><span data-i18n="thread.holder.staff">{{ "thread.holder.staff"|t }}</span></li>
+<li><span class="swatch h-pm"></span><span data-i18n="thread.holder.pm">{{ "thread.holder.pm"|t }}</span></li>
+<li><span class="swatch h-tpm"></span><span data-i18n="thread.holder.tpm">{{ "thread.holder.tpm"|t }}</span></li>
+<li><span class="swatch open-key"></span><span data-i18n="thread.legend.waiting">{{ "thread.legend.waiting"|t }}</span></li>
+<li><span class="mark-key"></span><span data-i18n="thread.legend.single">{{ "thread.legend.single"|t }}</span></li>
+</ul></div>
+<div class="xrow ball"><span class="lab"><strong data-i18n="thread.ball">{{ "thread.ball"|t }}</strong>{% for h in holders %} <span class="held {{ h.class }}"><span{{ h.label.attrs()|safe }}>{{ h.label }}</span> <span{{ h.took.attrs()|safe }}>{{ h.took }}</span></span>{% endfor %}{% if let Some(idle) = idle %} <span class="held"><span data-i18n="thread.idle">{{ "thread.idle"|t }}</span> <span{{ idle.attrs()|safe }}>{{ idle }}</span></span>{% endif %}</span><svg class="trk" viewBox="0 0 1000 20" preserveAspectRatio="none" role="img" aria-label="{{ "thread.ball"|t }}" data-i18n-attr="aria-label:thread.ball">{% for s in ball %}<rect class="{{ s.class }}" x="{{ s.x }}" y="2" width="{{ s.w }}" height="16"/>{% endfor %}</svg></div>
+<div class="xrow axis" aria-hidden="true"><span class="lab"></span><span class="ticks">{% for t in ticks %}<time datetime="{{ t.iso }}" title="{{ t.iso }}">{{ t.local }}</time>{% endfor %}</span></div>
+<div id="list" role="region" aria-label="{{ "common.tray.list"|t }}" data-i18n-attr="aria-label:common.tray.list">
+{% for r in rows %}<details class="xrow{% if r.waiting %} waiting{% endif %}" data-id="{{ r.id }}"><summary><span class="lab"><time datetime="{{ r.sent.iso }}" title="{{ r.sent.iso }}">{{ r.sent.local }}</time> <span class="kind"{{ r.kind.attrs()|safe }}>{{ r.kind }}</span>{% for c in r.chips %} <a class="chip" href="{{ c.href }}">{{ c.label }}</a>{% endfor %}{% if let Some(o) = r.outcome %} <span class="arrow">→</span> <span class="outcome"{{ o.attrs()|safe }}>{{ o }}</span>{% for c in r.outcome_chips %} <a class="chip" href="{{ c.href }}">{{ c.label }}</a>{% endfor %}{% endif %}{% if let Some(h) = r.holder %} <span class="took"><span{{ h.attrs()|safe }}>{{ h }}</span>{% if let Some(t) = r.took %} <span{{ t.attrs()|safe }}>{{ t }}</span>{% endif %}</span>{% endif %}{% if let Some(head) = r.head %} <span class="head">{{ head }}</span>{% endif %}</span><svg class="trk" viewBox="0 0 1000 20" preserveAspectRatio="none" aria-hidden="true"><rect class="{{ r.shape.class }}" x="{{ r.shape.x }}" y="4" width="{{ r.shape.w }}" height="12"/></svg></summary>
+<div class="parts">{% if let Some(href) = r.zoom %}<a class="btn" href="{{ href }}" data-i18n="thread.zoom">{{ "thread.zoom"|t }}</a>{% endif %}
+{% for p in r.parts %}<p class="meta"><span class="name">{{ p.heading }}</span> <span>{{ p.from }} → {{ p.to }}</span> <time datetime="{{ p.sent.iso }}" title="{{ p.sent.iso }}">{{ p.sent.local }}</time>{% if let Some(at) = p.delivered %} <span><span data-i18n="messages.delivered">{{ "messages.delivered"|t }}</span> <time datetime="{{ at.iso }}" title="{{ at.iso }}">{{ at.local }}</time></span>{% endif %}</p>
+<pre>{{ p.text }}</pre>
+{% endfor %}</div></details>
+{% endfor %}</div>
+</div>
+</div>
+<script src="{{ script }}"></script>
+{% endblock %}
+{% block foot %}<span data-i18n="messages.foot">{{ "messages.foot"|t }}</span>{% endblock %}

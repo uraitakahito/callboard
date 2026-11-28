@@ -20,7 +20,7 @@ use axum::response::Response;
 use super::i18n::{Text, filters};
 use super::params::{self, PageError, Pairs, bad_request, strict};
 use super::time::{Time, short};
-use super::{CSS_HREF, MESSAGES_JS_HREF, Nav, error_page, render};
+use super::{CSS_HREF, MESSAGES_JS_HREF, Nav, error_page, render, thread};
 use crate::App;
 use crate::upstream::pagetray::{FacetCount, Message, MessageSearch};
 
@@ -152,6 +152,8 @@ struct Row {
     id: String,
     /// Key を書かずに置いた記録は空。
     key: String,
+    /// その Key の課題の筋（`/messages/tasks/{key}`）の URL。Key が無い・課題の Key の形でない記録には無い。
+    task_href: Option<String>,
     heading: String,
     from: String,
     to: String,
@@ -377,6 +379,12 @@ fn row(m: Message) -> Row {
             .as_deref()
             .map(|via| Text::new("messages.via").with_text("via", &via_label(via))),
         updated_at: short(&m.updated_at).iso,
+        task_href: m
+            .key
+            .as_deref()
+            .map(thread::task_of)
+            .filter(|task| thread::is_task_key(task))
+            .map(|task| thread::href(task, Some(&m.project))),
         project: m.project,
         id: m.id,
         key: m.key.unwrap_or_default(),
