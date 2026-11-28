@@ -16,6 +16,7 @@ mod network;
 mod pages;
 mod params;
 mod profile;
+mod tasks;
 mod thread;
 mod time;
 mod timeline;
@@ -292,6 +293,7 @@ pub fn routes(app: Arc<App>) -> Router {
         .route(usage::PATH, get(usage::usage))
         .route(messages::PATH, get(messages::messages))
         .route(messages::EVENTS_PATH, get(messages::events))
+        .route(tasks::PATH, get(tasks::tasks))
         .route(thread::ROUTE, get(thread::thread))
         .route(pages::PATH, get(pages::pages))
         .route("/pages", get(pages::redirect))
