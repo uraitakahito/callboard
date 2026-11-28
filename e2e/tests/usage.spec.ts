@@ -91,3 +91,61 @@ test('使用量の図と、一覧の額の列と、プロフィールの使用�
   expect(await page.locator('body script').count()).toBe(0);
   expect(problems).toEqual([]);
 });
+
+// 絞りの候補（t-nd3w）: 役割と課題は選ぶ一覧、ほかのラベルは候補付きの欄。候補は、表示と同じ期間に稼働した席（castlist の
+// ListActors）のラベルから作る。見本の席のラベルは project と tpm.key だけなので、役割と課題の一覧は「すべて」だけ。
+test('ラベルの絞りは、役割と課題の一覧と、候補付きの欄で選べる（script は使わない）', async ({ page }) => {
+  const problems = collectProblems(page);
+  await page.goto('/usage/');
+  const role = page.getByLabel('役割');
+  const subject = page.getByLabel('課題');
+  await expect(role.locator('option')).toHaveText(['すべて']);
+  await expect(subject.locator('option')).toHaveText(['すべて']);
+  // ほかのラベルの欄の候補: 席の多い順（pm.1・tpm.1・se.1・se.2・other.1 の 5 席が project:castlist、t-23zs は 3 席）。
+  const field = page.getByLabel('ほかのラベル');
+  await expect(field).toHaveAttribute('list', 'label-choices');
+  const choices = page.locator('datalist#label-choices option');
+  expect(await choices.evaluateAll((os) => os.map((o) => [(o as HTMLOptionElement).value, o.textContent]))).toEqual([
+    ['project:castlist', 'project:castlist（5 席）'],
+    ['tpm.key:t-23zs', 'tpm.key:t-23zs（3 席）'],
+    ['tpm.key:t-99', 'tpm.key:t-99（1 席）'],
+  ]);
+  // 候補の値を欄に入れて送ると絞れる（castlist が絞る）。絞っても候補は減らない。
+  await field.fill('tpm.key:t-99');
+  await page.getByRole('button', { name: '絞り込む' }).click();
+  await expect(page).toHaveURL(/label=tpm\.key(:|%3A)t-99/);
+  await expect(page.locator('#subjects tbody tr td:first-child')).toHaveText(['t-99']);
+  await expect(page.locator('datalist#label-choices option')).toHaveCount(3);
+  await expect(page.getByLabel('ほかのラベル').first()).toHaveValue('tpm.key:t-99');
+
+  // URL の役割は、一覧で選ばれている（候補に無い値も残す）。一覧の値を「すべて」に戻して送ると、その条件は外れる。
+  await page.goto('/usage/?label=tpm.role:auditor&label=tpm.key:t-99');
+  await expect(page.getByLabel('役割')).toHaveValue('tpm.role:auditor');
+  await expect(page.locator('.empty')).toHaveText('この期間に、数の記録はありません。');
+  await page.getByLabel('役割').selectOption('');
+  await page.getByRole('button', { name: '絞り込む' }).click();
+  await expect(page).not.toHaveURL(/tpm\.role/);
+  await expect(page.locator('#subjects tbody tr td:first-child')).toHaveText(['t-99']);
+  expect(await page.locator('body script').count()).toBe(0);
+  expect(problems).toEqual([]);
+});
+
+test('英語の画面では、絞りの欄の名と「すべて」と席の数を英語で出す', async ({ browser }) => {
+  const context = await browser.newContext({ locale: 'en-US', baseURL: test.info().project.use.baseURL });
+  const page = await context.newPage();
+  const problems = collectProblems(page);
+  await page.goto('/usage/?label=tpm.role:auditor');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await expect(page.getByLabel('Role')).toHaveValue('tpm.role:auditor');
+  await expect(page.getByLabel('Role').locator('option')).toHaveText(['All', 'auditor']);
+  await expect(page.getByLabel('Issue').locator('option')).toHaveText(['All']);
+  await expect(page.getByLabel('Other label')).toHaveAttribute('list', 'label-choices');
+  // 数は 1 と 2 以上で言い分ける。値（ラベル）は訳さない。
+  await expect(page.locator('datalist#label-choices option')).toHaveText([
+    'project:castlist (5 seats)',
+    'tpm.key:t-23zs (3 seats)',
+    'tpm.key:t-99 (1 seat)',
+  ]);
+  expect(problems).toEqual([]);
+  await context.close();
+});

@@ -5,8 +5,8 @@ mod common;
 
 use axum::http::{StatusCode, header};
 use common::castlist::{
-    PM, SE1, SE2, TPM, usage_actor, usage_buckets, usage_page, usage_routes, usage_routes_slow,
-    usage_row,
+    PM, SE1, SE2, TPM, actor_row, usage_actor, usage_buckets, usage_page, usage_routes,
+    usage_routes_slow, usage_row, with_actors, with_actors_down, with_actors_slow,
 };
 use common::{App, get};
 use serde_json::{Value, json};
@@ -89,9 +89,32 @@ fn rows() -> Vec<Value> {
     ]
 }
 
+/// 期間に稼働した席（ListActors の答え。絞りの候補の元）。役割は se 2 人・tpm 1 人、課題は t-j4pp に 2 人・t-23zs に 1 人。
+/// 起こした回の id（`tpm.launch`）は候補に出ない。
+fn active() -> Vec<Value> {
+    vec![
+        actor_row(
+            SE1,
+            "se.1",
+            json!({"tpm.role": "software-engineer", "tpm.subject": "t-j4pp", "tpm.key": "t-j4pp", "tpm.launch": "0f8f5700-639d-411f-b170-b4346dfcebff"}),
+        ),
+        actor_row(
+            SE2,
+            "se.2",
+            json!({"tpm.role": "software-engineer", "tpm.subject": "t-23zs", "tpm.key": "t-23zs"}),
+        ),
+        actor_row(
+            TPM,
+            "tpm.1",
+            json!({"tpm.role": "tpm", "tpm.subject": "t-j4pp", "tpm.key": "t-j4pp.staff"}),
+        ),
+        actor_row(PM, "pm.1", json!({})),
+    ]
+}
+
 async fn start(pages: Vec<Value>) -> App {
     App::start_with(
-        usage_routes(pages),
+        with_actors(usage_routes(pages), active()),
         common::pagetray_routes(),
         callboard::Config::default(),
     )
@@ -107,14 +130,24 @@ const WINDOW: &str = "/usage/?from=2026-11-22T10:30&to=2026-11-22T12:10";
 
 /// castlist に送った問い（`/api/usage?…` の引数。名と値の並び。% の包みは戻す）を、問いごとに。
 fn asked(app: &App) -> Vec<Vec<(String, String)>> {
+    asked_at(app, "/api/usage")
+}
+
+/// castlist の `path` に送った問いの引数を、問いごとに（[`asked`] と同じ形）。
+fn asked_at(app: &App, at: &str) -> Vec<Vec<(String, String)>> {
     app.castlist
         .seen()
         .iter()
+        .filter(|seen| {
+            seen.uri
+                .split_once('?')
+                .map_or(seen.uri.as_str(), |(p, _)| p)
+                == at
+        })
         .map(|seen| {
             assert_eq!(seen.method, "GET");
             assert_eq!(seen.header("host"), Some("127.0.0.1"));
-            let (path, query) = seen.uri.split_once('?').unwrap_or((&seen.uri, ""));
-            assert_eq!(path, "/api/usage");
+            let (_, query) = seen.uri.split_once('?').unwrap_or((&seen.uri, ""));
             query
                 .split('&')
                 .filter(|p| !p.is_empty())
@@ -359,21 +392,15 @@ async fn 期間は時の境に揃えて_castlist_に送り_送った期間を日
         "{window}"
     );
     assert!(window.contains("時の境に揃えて"), "{window}");
-    // form に今の値（期間は、入れたとおりの日本時間の字）。ラベルは付けた数と、空の 1 つ。
+    // form に今の値（期間は、入れたとおりの日本時間の字）。役割は一覧で選び、ほかのラベルは付けた数と、空の 1 つ。
     assert!(body.contains("<form class=\"filters\" method=\"get\" action=\"/usage/\">"));
     assert!(body.contains("name=\"from\" value=\"2026-11-22T10:30\""));
     assert!(body.contains("name=\"to\" value=\"2026-11-22T12:10\""));
     assert_eq!(
-        body.matches(
-            "<label><span data-i18n=\"filters.label\">ラベル</span> <input name=\"label\""
-        )
-        .count(),
-        3
+        selected(&select(&body, "role")),
+        Some("tpm.role:software-engineer".to_owned())
     );
-    assert!(
-        body.contains("name=\"label\" value=\"tpm.role:software-engineer\""),
-        "{body}"
-    );
+    assert_eq!(fields(&body), ["project:x", ""]);
     assert!(body.contains("<a href=\"/usage/\" data-i18n=\"filters.clear\">条件を消す</a>"));
     // 期間をすぐ選ぶ link は、ラベルを残して、この画面を指す。
     let at = body.find(">今日</a>").unwrap();
@@ -483,7 +510,7 @@ async fn 頁が多すぎれば_50_頁で止め_誤りにせず_期間を狭め�
         .collect();
     let app = start(pages).await;
     let body = app.html(WINDOW).await;
-    assert_eq!(app.castlist.seen().len(), 50);
+    assert_eq!(asked(&app).len(), 50);
     assert!(
         body.contains("<p class=\"error\" data-i18n=\"usage.tooMany\" data-i18n-options=\"{&#34;read&#34;:&#34;50&#34;}\">記録が多すぎて、全部を読めませんでした"),
         "{body}"
@@ -911,4 +938,275 @@ async fn 日ごとの額は_図の下に畳んだ字の表でも読める() {
     assert!(totals.iter().all(|t| *t > 0.0), "{table}");
     let sum: f64 = totals.iter().sum();
     assert!((sum - 7.26).abs() < 0.015, "{sum}: {table}");
+}
+
+// --- 絞りの候補（t-nd3w。役割と課題は選ぶ一覧、ほかのラベルは候補付きの欄） ---
+
+/// 一覧の option（値・字・選んであるか）。`key` は欄の名の鍵の末尾（`role`・`subject`）。
+fn select(body: &str, key: &str) -> Vec<(String, String, bool)> {
+    let at = body
+        .find(&format!("data-i18n=\"usage.filters.{key}\""))
+        .unwrap_or_else(|| panic!("{key} の一覧が無い: {body}"));
+    let start = at + body[at..].find("<select").unwrap();
+    let end = start + body[start..].find("</select>").unwrap();
+    options(&body[start..end])
+}
+
+/// 選んである値（「すべて」なら無い）。
+fn selected(options: &[(String, String, bool)]) -> Option<String> {
+    let chosen: Vec<_> = options.iter().filter(|(_, _, s)| *s).collect();
+    assert!(chosen.len() <= 1, "{options:?}");
+    chosen
+        .first()
+        .map(|(v, _, _)| v.clone())
+        .filter(|v| !v.is_empty())
+}
+
+/// 「ほかのラベル」の欄の値（上から）。
+fn fields(body: &str) -> Vec<String> {
+    body.split("<input name=\"label\" value=\"")
+        .skip(1)
+        .map(|rest| common::unwrap_text(&rest[..rest.find('"').unwrap()]).to_owned())
+        .collect()
+}
+
+/// 「ほかのラベル」の欄の候補（値と字）。
+fn datalist(body: &str) -> Vec<(String, String)> {
+    let start = body
+        .find("<datalist id=\"label-choices\">")
+        .unwrap_or_else(|| panic!("候補が無い: {body}"));
+    let end = start + body[start..].find("</datalist>").unwrap();
+    options(&body[start..end])
+        .into_iter()
+        .map(|(v, t, _)| (v, t))
+        .collect()
+}
+
+fn options(html: &str) -> Vec<(String, String, bool)> {
+    html.split("<option value=\"")
+        .skip(1)
+        .map(|rest| {
+            let value = rest[..rest.find('"').unwrap()].to_owned();
+            let tag = &rest[..rest.find('>').unwrap()];
+            let text = &rest[rest.find('>').unwrap() + 1..rest.find("</option>").unwrap()];
+            (value, text.to_owned(), tag.contains(" selected"))
+        })
+        .collect()
+}
+
+fn texts(options: &[(String, String, bool)]) -> Vec<(&str, &str)> {
+    options
+        .iter()
+        .map(|(v, t, _)| (v.as_str(), t.as_str()))
+        .collect()
+}
+
+#[tokio::test]
+async fn 役割と課題は_期間に稼働した席から_席の多い順の一覧で選び_ほかのラベルは欄の候補に出す() {
+    let app = sample().await;
+    let body = app.html(WINDOW).await;
+    let roles = select(&body, "role");
+    assert_eq!(
+        texts(&roles),
+        [
+            ("", "すべて"),
+            ("tpm.role:software-engineer", "software-engineer（2 席）"),
+            ("tpm.role:tpm", "tpm（1 席）"),
+        ]
+    );
+    assert_eq!(selected(&roles), None);
+    assert_eq!(
+        texts(&select(&body, "subject")),
+        [
+            ("", "すべて"),
+            ("tpm.subject:t-j4pp", "t-j4pp（2 席）"),
+            ("tpm.subject:t-23zs", "t-23zs（1 席）"),
+        ]
+    );
+    // 一覧の名は label で、送る値は「鍵:値」（URL は欄に打った時と同じ形）。
+    assert_eq!(body.matches("<select name=\"label\">").count(), 2, "{body}");
+    // ほかの鍵は欄の候補。起こした回の id（tpm.launch）は出さない。字にも値を書く（Firefox は候補に値の代わりに字を出すため）。
+    assert_eq!(
+        datalist(&body),
+        [
+            (
+                "tpm.key:t-23zs".to_owned(),
+                "tpm.key:t-23zs（1 席）".to_owned()
+            ),
+            (
+                "tpm.key:t-j4pp".to_owned(),
+                "tpm.key:t-j4pp（1 席）".to_owned()
+            ),
+            (
+                "tpm.key:t-j4pp.staff".to_owned(),
+                "tpm.key:t-j4pp.staff（1 席）".to_owned()
+            ),
+        ]
+    );
+    assert!(!body.contains("tpm.launch"), "{body}");
+    // 欄は候補を指し、空の 1 つだけ。
+    assert_eq!(fields(&body), [""]);
+    assert!(
+        body.contains("<label><span data-i18n=\"usage.filters.otherLabel\">ほかのラベル</span> <input name=\"label\" value=\"\" list=\"label-choices\""),
+        "{body}"
+    );
+    // 英語は、ブラウザーが同じ鍵と値で差し替える（数は count で言い分ける）。
+    assert!(
+        body.contains("data-i18n=\"usage.filters.choice\" data-i18n-options=\"{&#34;count&#34;:2,&#34;name&#34;:&#34;software-engineer&#34;}\""),
+        "{body}"
+    );
+    assert!(
+        body.contains(
+            "data-i18n=\"usage.filters.choice\" data-i18n-options=\"{&#34;count&#34;:1,&#34;name&#34;:&#34;tpm.key:t-23zs&#34;}\""
+        ),
+        "{body}"
+    );
+    assert!(
+        body.contains("<option value=\"\" data-i18n=\"filters.all\">すべて</option>"),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn 候補は_表示と同じ期間で_ラベルの絞りを付けずに_listactors_に_1_度聞く() {
+    let app = sample().await;
+    app.html(
+        "/usage/?from=2026-11-22T10:30&to=2026-11-22T12:10&label=tpm.role:tpm&label=tpm.key:t-1",
+    )
+    .await;
+    // castlist に聞くのは、使用量の行と候補の 2 つの道だけ。
+    for seen in app.castlist.seen() {
+        let path = seen
+            .uri
+            .split_once('?')
+            .map_or(seen.uri.as_str(), |(p, _)| p);
+        assert!(
+            path == "/api/usage" || path == "/api/actors",
+            "{}",
+            seen.uri
+        );
+    }
+    let usage = asked(&app);
+    let actors = asked_at(&app, "/api/actors");
+    assert_eq!(actors.len(), 1, "{actors:?}");
+    // 期間は、使用量の行を聞いた期間（時の境に揃えた物）と同じ。
+    assert_eq!(all(&actors[0], "activeFrom"), all(&usage[0], "from"));
+    assert_eq!(all(&actors[0], "activeTo"), all(&usage[0], "to"));
+    assert_eq!(all(&actors[0], "activeFrom"), ["2026-11-22T01:00:00Z"]);
+    // 絞りは付けない（絞っても候補が減らない）。新しく登場した席から 1000 まで。
+    assert!(all(&actors[0], "label").is_empty(), "{actors:?}");
+    assert_eq!(all(&actors[0], "maxResults"), ["1000"]);
+    assert_eq!(all(&actors[0], "sort"), ["entered"]);
+    assert_eq!(all(&actors[0], "order"), ["desc"]);
+    // 使用量の行は、今までどおりラベルで絞る。
+    assert_eq!(all(&usage[0], "label"), ["tpm.role:tpm", "tpm.key:t-1"]);
+}
+
+#[tokio::test]
+async fn url_の初めの役割と課題を一覧で選び_残りは_url_の順に欄に出し_候補に無い値も残す() {
+    let app = sample().await;
+    let body = app
+        .html("/usage/?from=2026-11-22T10:30&to=2026-11-22T12:10&label=tpm.key:t-1&label=tpm.subject:t-23zs&label=tpm.role:auditor&label=tpm.role:tpm")
+        .await;
+    let roles = select(&body, "role");
+    assert_eq!(selected(&roles), Some("tpm.role:auditor".to_owned()));
+    // 候補に無い今の値は、数を付けずに後ろに足す。
+    assert_eq!(
+        roles.last().map(|(v, t, _)| (v.as_str(), t.as_str())),
+        Some(("tpm.role:auditor", "auditor"))
+    );
+    assert_eq!(
+        selected(&select(&body, "subject")),
+        Some("tpm.subject:t-23zs".to_owned())
+    );
+    assert_eq!(fields(&body), ["tpm.key:t-1", "tpm.role:tpm", ""]);
+    // 送り直すと、同じ条件になる（一覧の値も欄の値も、名は label）。
+    assert_eq!(
+        all(&asked(&app)[0], "label"),
+        [
+            "tpm.key:t-1",
+            "tpm.subject:t-23zs",
+            "tpm.role:auditor",
+            "tpm.role:tpm"
+        ]
+    );
+}
+
+#[tokio::test]
+async fn 候補を引けなくても_使用量の画面は出し_一覧は今の値だけ() {
+    let app = App::start_with(
+        with_actors_down(usage_routes(vec![usage_page(rows(), actors(), None)])),
+        common::pagetray_routes(),
+        callboard::Config::default(),
+    )
+    .await;
+    let (status, _, body) = app.send(get(&format!("{WINDOW}&label=tpm.role:tpm"))).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body.contains("<section id=\"total\">"), "{body}");
+    assert_eq!(
+        texts(&select(&body, "role")),
+        [("", "すべて"), ("tpm.role:tpm", "tpm")]
+    );
+    assert_eq!(texts(&select(&body, "subject")), [("", "すべて")]);
+    assert!(datalist(&body).is_empty());
+}
+
+#[tokio::test]
+async fn 候補の字は_html_で逃がす() {
+    let app = App::start_with(
+        with_actors(
+            usage_routes(vec![usage_page(rows(), actors(), None)]),
+            vec![actor_row(
+                SE1,
+                "se.1",
+                json!({"tpm.role": "<i>r</i>", "tpm.subject": "\"x\" & y", "a": "<b>"}),
+            )],
+        ),
+        common::pagetray_routes(),
+        callboard::Config::default(),
+    )
+    .await;
+    let body = app.html(WINDOW).await;
+    let page = common::without_i18n_scripts(&body);
+    for raw in ["<script", "<i>", "<b>"] {
+        assert!(!page.contains(raw), "{raw}: {body}");
+    }
+    assert!(
+        body.contains("<option value=\"tpm.role:&#60;i&#62;r&#60;/i&#62;\""),
+        "{body}"
+    );
+    assert!(
+        body.contains("<option value=\"tpm.subject:&#34;x&#34; &#38; y\""),
+        "{body}"
+    );
+    assert!(body.contains("<option value=\"a:&#60;b&#62;\""), "{body}");
+}
+
+#[tokio::test]
+async fn 候補を引くのが遅くても_使用量の画面は待たせず_一覧は今の値だけ() {
+    let app = App::start_with(
+        with_actors_slow(
+            usage_routes(vec![usage_page(rows(), actors(), None)]),
+            active(),
+            std::time::Duration::from_secs(3),
+        ),
+        common::pagetray_routes(),
+        callboard::Config::default(),
+    )
+    .await;
+    let started = std::time::Instant::now();
+    let (status, _, body) = app.send(get(&format!("{WINDOW}&label=tpm.role:tpm"))).await;
+    // 候補は 1 秒で切る（使用量の数は ListUsage だけで決まる）。
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(2),
+        "{:?}",
+        started.elapsed()
+    );
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body.contains("<section id=\"total\">"), "{body}");
+    assert_eq!(
+        texts(&select(&body, "role")),
+        [("", "すべて"), ("tpm.role:tpm", "tpm")]
+    );
+    assert!(datalist(&body).is_empty());
 }
